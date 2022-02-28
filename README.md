@@ -3,7 +3,6 @@
 
 ## A Novel Hybrid Convolutional Neural Network for Accurate Organ Segmentation  in 3D Head and Neck CT Images
 
-
 Radiation therapy (RT) is widely employed in the clinic for the treatment of head and neck (HaN) cancers. An essential 
 step of RT planning is the accurate segmentation of various organs-at-risks (OARs) in HaN CT images. Nevertheless, 
 segmenting OARs manually is time- consuming, tedious, and error-prone considering that typical HaN CT images contain 
@@ -19,3 +18,8 @@ edge and semantic features from 3D HaN CT images. To accommodate large and small
 OrganNet2.5D, consists of only two instead of the clas- sic four downsampling operations, and hybrid dilated 
 convolutions are introduced to maintain the respective field. Experiments on the MIC- CAI 2015 challenge dataset
 demonstrate that OrganNet2.5D achieves promising performance compared to state-of-the-art methods.
+
+## (Labeled) Data for Training
+
+Data can be downloaded here `https://www.imagenglab.com/newsite/pddca/`. Place the data in a directory called `./data`, 
+which is excluded from the GIT Repository due to size limitations.

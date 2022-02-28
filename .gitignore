@@ -1,6 +1,9 @@
 # Exclude jetbrains IDE specific stuff
 .idea/
 
+# Exclude folder which stores the data
+data/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
