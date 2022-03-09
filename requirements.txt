@@ -5,3 +5,5 @@ pytz==2021.3
 six==1.16.0
 torch==1.10.2
 typing-extensions==4.1.1
+matplotlib
+tensorboard
