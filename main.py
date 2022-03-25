@@ -1,18 +1,34 @@
 """
-This is
+This main function enables one to call operation of this package via CLI
+
+Course: Deep Learning
+Date: 25.03.2022
+Group: 150
 """
-import pandas as pd
-import numpy as np
-from OrganNet25D.network import OrganNet25D
+
+from src.OrganNet25D.network import OrganNet25D
+from src.dataloader import DataLoader, ComputerTomographyImage
 
 
-# Create a network to train
-net = OrganNet25D(1, 25)
+"""--------------------------- Part 1: Dataloading ------------------------------"""
 
-# TODO: train the net
+# Create an instance of the dataloader and pass location of data
+loader = DataLoader('./data', use_cross_validation=True)
 
-# TODO: validate the net's results
+# Get training and testing data sets from the data loader
+training_data = loader.get_training_data()
+testing_data = loader.get_testing_data()
 
-# TODO: work with the net
 
-# TODO: have fun
+"""-------------------------- Part 2: Model Training ----------------------------"""
+
+# Create an instance of the OrganNet25D model
+model = OrganNet25D()
+
+# Train the model with the data sets (contains validation etc.)
+model.train(train_data=training_data, test_data=testing_data, monitor_progress=True)
+
+
+"""------------------------ Part 3: Model Inferencing ---------------------------"""
+
+result = model.get_organ_segments(loader.get_random_example())
