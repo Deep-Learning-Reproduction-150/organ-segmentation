@@ -15,6 +15,10 @@ from src.dataloader import DataLoader, ComputerTomographyImage
 # Create an instance of the dataloader and pass location of data
 loader = DataLoader('./data', use_cross_validation=True)
 
+# Visualize a random sample from the data
+random_sample = loader.get_random_example()
+random_sample.visualize()
+
 # Get training and testing data sets from the data loader
 training_data = loader.get_training_data()
 testing_data = loader.get_testing_data()

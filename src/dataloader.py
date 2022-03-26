@@ -9,6 +9,7 @@ Group: 150
 import nrrd
 import os
 import glob
+import random
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -78,7 +79,7 @@ class ComputerTomographyImage:
         :return: raw ndarray data
         """
 
-        # Return the raw 3D nrarray
+        # Return the raw 3D ndarray
         return self.data
 
     def visualize(self):
@@ -88,10 +89,10 @@ class ComputerTomographyImage:
         TODO: Pretty sure, that this would not work
         """
 
-        # Extract x y and z datapoints
+        # Extract x y and z datapoints FIXME: not like this
         x, y, z = self.data.nonzero()
 
-        # TODO: impossible to plot ~23mio datapoints like this ...
+        # TODO: impossible to plot ~30mio datapoints like this ...
         # fig = plt.figure()
         # ax = fig.add_subplot(111, projection='3d')
         # ax.scatter(x, y, -z, zdir='z', c='red')
@@ -147,6 +148,19 @@ class LabeledSample:
             label = ComputerTomographyImage(element)
             # Store the label in the labels attribute
             self.labels.append(label)
+
+    def visualize(self):
+        """
+        This method visualizes the labeled data sample. Vision is to have a great visualization of
+        the raw data and the labeled regions (like brain stem and so on).
+
+        :return: shows a visualization of the data
+        """
+
+        # Visualize the raw sample data
+        self.sample.visualize()
+
+        # TODO: also visualize the labels in this data point
 
 
 class DataLoader:
@@ -214,14 +228,13 @@ class DataLoader:
 
         :param not_from_training_set: if example shall not be from training set
         :return: a random example from the data set
-
-        TODO:
-            - Should there be any options here?
         """
 
-        # TODO: implement cool picking of example
+        # Get a random sample from the dataset
+        sample = random.sample(self.samples, 1)[0]
 
-        return None
+        # Return the sample
+        return sample
 
     def get_training_data(self):
         """
