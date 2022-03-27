@@ -6,12 +6,18 @@ Date: 25.03.2022
 Group: 150
 """
 
-import nrrd
 import os
 import glob
 import random
+from src.helpers import bcolors
+import numpy as np
+import sys
+import pandas as pd
+import nrrd
+import imageio
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.animation as anim
+from IPython.display import Image as show_gif
 
 
 class ComputerTomographyImage:
@@ -44,7 +50,7 @@ class ComputerTomographyImage:
         # Check if this file exists
         if not os.path.exists(path):
             # Raise an exception for this issue
-            raise ValueError("Given path does not lead to a nrrd file")
+            raise ValueError(bcolors.FAIL + "ERROR: Given path does not lead to a nrrd file" + bcolors.ENDC)
 
         # Try to load the data at the given path
         try:
@@ -56,14 +62,18 @@ class ComputerTomographyImage:
             self.data = extracted_data
             self.meta = header
 
+            # Check if the data has three dimensions
+            if self.data.ndim != 3:
+                raise ValueError(bcolors.FAIL + "ERROR: Unexpected number of dimensions (" + str(self.data.ndim) + ") in data sample" + bcolors.ENDC)
+
             # Check if data dimensions are correct
             if self.meta['dimension'] != 3:
-                raise ValueError("ERROR: file " + path + " contains " + str(self.meta['dimension']) + "-dimensional data (not expected 3D data)")
+                raise ValueError(bcolors.FAIL + "ERROR: file " + path + " contains " + str(self.meta['dimension']) + "-dimensional data (not expected 3D data)" + bcolors.ENDC)
 
         except Exception as error:
 
             # Raise exception that file could not be loaded
-            raise ValueError("ERROR: could not read nrrd file at " + path + "(" + str(error) + ")")
+            raise ValueError(bcolors.FAIL + "ERROR: could not read nrrd file at " + path + "(" + str(error) + ")" + bcolors.ENDC)
 
         # Save the path to the raw image data
         self.location = path
@@ -76,27 +86,130 @@ class ComputerTomographyImage:
         """
         This method returns a three dimensional ndarray that contains the data
 
-        :return: raw ndarray data
+        :return data: raw ndarray data
         """
 
         # Return the raw 3D ndarray
         return self.data
 
-    def visualize(self):
+    def visualize(self, show: bool = False, export_png: bool = False, export_gif: bool = False,
+                  direction: str = "vertical", name: str = None):
         """
+
         Visualize the data using matplotlib
 
         TODO: Pretty sure, that this would not work
+
+        :param show: directly displays the images here
+        :param name: either None (default name) or special name for file
+        :param direction: how to go through image, options: vertical, horizontal
+        :param export_png: whether system shall create png images for the slices
+        :param export_gif: whether system shall create a GIF file from the data
         """
 
-        # Extract x y and z datapoints FIXME: not like this
-        x, y, z = self.data.nonzero()
+        # Check given parameters
+        if direction not in ['vertical', 'horizontal']:
+            raise ValueError(bcolors.FAIL + "ERROR: Direction has to either be 'vertical' or 'horizontal'" + bcolors.ENDC)
 
-        # TODO: impossible to plot ~30mio datapoints like this ...
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111, projection='3d')
-        # ax.scatter(x, y, -z, zdir='z', c='red')
-        # plt.savefig(self.name + ".png")
+        # Print a status update
+        print("INFO: Creating visualization of " + str(self.data.ndim) + "-dimensional data " + self.name + " with direction " + direction)
+
+        # Extract the three dimensions from the data set
+        shape = self.data.shape
+        x_dimensions = shape[0]
+        z_dimensions = shape[2]
+        dim_counter = z_dimensions if direction == 'vertical' else x_dimensions
+
+        # Filenames
+        images = []
+
+        # Iterate through all layers of the image
+        for index in range(dim_counter):
+
+            # Get the data from this layer
+            slice_data = self.data[:, :, index] if direction == 'vertical' else self.data[index, :, :]
+
+            # Create an image
+            plt.figure(figsize=(14, 14))
+            plt.gray()
+            plt.imshow(slice_data)
+            plt.draw()
+
+            # Print additional status updates
+            plt.title(name + ' (layer ' + str(index) + ')')
+            plt.xlabel("x coordinate" if direction == "vertical" else "depth")
+            plt.ylabel("y coordinate")
+
+            if show:
+                plt.show()
+
+            # If export png is on, save export
+            if export_png:
+
+                # Check if the folder exists
+                if not os.path.isdir('visualizations'):
+                    # Create folder as it does not exist yet
+                    os.mkdir('visualizations')
+
+                # Folder name for the png output
+                folder_name = 'visualizations/' + (self.name if name is None else name)
+
+                # Check if the folder exists
+                if not os.path.isdir(folder_name):
+                    # Create folder as it does not exist yet
+                    os.mkdir(folder_name)
+
+                # Create a file for that image
+                plt.savefig(folder_name + '/slice_' + str(index) + '.png', dpi=100)
+
+            # Append this
+            if export_gif:
+                tmp_image_path = 'tmp.png'
+                plt.savefig(tmp_image_path, dpi=100)
+                images.append(imageio.imread(tmp_image_path))
+
+            # Close the image
+            plt.close()
+
+            # Print the changing import status line
+            done = (index / dim_counter) * 100
+            status_string = "|" + bcolors.OKCYAN
+            state = "d"
+            for j in range(100):
+                nextstate = state
+                if int(done) >= j:
+                    status_string += "."
+                else:
+                    if state == 'd':
+                        nextstate = 'nd'
+                        status_string += bcolors.FAIL
+                    status_string += "."
+                state = nextstate
+            status_string += bcolors.ENDC
+            status_string += "| "
+            sys.stdout.write("\r" + status_string + str(round(done, 2)) + "% written")
+            sys.stdout.flush()
+
+        # Reset console
+        sys.stdout.write("\r|" + bcolors.OKCYAN + "...................................................................................................." + bcolors.ENDC + "| 100% written")
+        print("")
+
+        # If system shall export a GIF from it, do so
+        if export_gif:
+
+            # Print status update
+            print("INFO: Creating visualization of " + str(self.data.ndim) + "-dimensional data " + str(self.name) + ", saving GIF file")
+
+            # Remove the tmp tile
+            os.remove('tmp.png')
+
+            # Check if the folder exists
+            if not os.path.isdir('visualizations'):
+                # Create folder as it does not exist yet
+                os.mkdir('visualizations')
+
+            # Save GIF file
+            imageio.mimsave('visualizations/' + (self.name if name is None else name) + '.gif', images)
 
 
 class LabeledSample:
@@ -104,6 +217,12 @@ class LabeledSample:
     This represents one labeled sample from the data. A sample contains raw data and the associated
     labels. In this context, those labels are itself 3D maps where specific organs are located at.
     """
+
+    # A static attribute for auto increment primary key
+    id_store = 1
+
+    # Attribute storing the id of this sample
+    id = None
 
     # This attribute stores the ComputerTomographyImage
     sample = None
@@ -121,20 +240,24 @@ class LabeledSample:
         files.
         """
 
+        # Assign an id and increment the id store
+        self.id = LabeledSample.id_store
+        LabeledSample.id_store += 1
+
         # Check if this file exists
         if not os.path.isdir(path):
             # Raise an exception for this issue
-            raise ValueError("ERROR: Given path does not lead to a folder")
+            raise ValueError(bcolors.FAIL + "ERROR: Given path does not lead to a folder" + bcolors.ENDC)
 
         # Check if this file exists
         if not os.path.isdir(os.path.join(path, labels_folder_path)):
             # Raise an exception for this issue
-            raise ValueError("ERROR: labels_folder_path is not valid (not found)")
+            raise ValueError(bcolors.FAIL + "ERROR: labels_folder_path is not valid (not found)" + bcolors.ENDC)
 
         # Check if the folder is encoded in the expected format
         if len(glob.glob(path + '/*.nrrd')) > 1:
             # Print error that more then one data file was found
-            raise Exception("ERROR: more than one sample data file found during creation of LabeledSample")
+            raise Exception(bcolors.FAIL + "ERROR: more than one sample data file found during creation of LabeledSample" + bcolors.ENDC)
         else:
             # Create the sample CT file instance
             self.sample = ComputerTomographyImage(glob.glob(path + '/*.nrrd')[0])
@@ -149,7 +272,8 @@ class LabeledSample:
             # Store the label in the labels attribute
             self.labels.append(label)
 
-    def visualize(self):
+    def visualize(self, show: bool = False, export_png: bool = False, export_gif: bool = False,
+                  direction: str = "vertical", name: str = None):
         """
         This method visualizes the labeled data sample. Vision is to have a great visualization of
         the raw data and the labeled regions (like brain stem and so on).
@@ -157,8 +281,12 @@ class LabeledSample:
         :return: shows a visualization of the data
         """
 
+        # Create name for this
+        sample_name = name if name is not None else "sample_" + str(self.id)
+
         # Visualize the raw sample data
-        self.sample.visualize()
+        self.sample.visualize(show=show, export_gif=export_gif, export_png=export_png, direction=direction,
+                              name=sample_name)
 
         # TODO: also visualize the labels in this data point
 
@@ -196,16 +324,26 @@ class DataLoader:
         # Check if given path leads to a directory
         if not os.path.isdir(path_to_samples):
             # Raise exception that the path is wrong
-            raise ValueError("ERROR: Given path is not a directory. Provide valid data directory.")
+            raise ValueError(bcolors.FAIL + "ERROR: Given path is not a directory. Provide valid data directory." + bcolors.ENDC)
 
         # Remember the location of the data
         self.path = path_to_samples
 
+        # Get the count of files in the path (potential objects
+        possible_target_count = len(os.listdir(self.path))
+
+        # Print message
+        print(bcolors.OKCYAN + "INFO: Started loading the data set with possibly " + str(possible_target_count) +
+              " samples ..." + bcolors.ENDC)
+
         # Initiate the sample attribute
         self.samples = []
 
+        # Create a counter variable
+        counter = 0
+
         # Save all the samples
-        for element in os.scandir(self.path):
+        for i, element in enumerate(os.scandir(self.path)):
 
             # Check if the element is a directory (wanted structure for a labeled entry)
             if element.is_dir():
@@ -213,14 +351,46 @@ class DataLoader:
                 # Append a labeled sample object
                 self.samples.append(LabeledSample(element.path))
 
+                # Increment the counter
+                counter += 1
+
             # Print error of unexpected file in the passed directory
             if element.is_file():
 
                 # Display a warning about unexpected file in the specified data directory
-                print("WARNING: Unexpected file was found in data directory (" + str(element) + ")")
+                warning = bcolors.WARNING + "WARNING: Unexpected file was found in data directory (" + str(element) + ")" + bcolors.ENDC
+                sys.stdout.write("\r" + warning)
+                sys.stdout.flush()
+                print("")
+
+            # Print the changing import status line
+            done = (i / possible_target_count) * 100
+            status_string = "|" + bcolors.OKCYAN
+            state = "d"
+            for j in range(100):
+                nextstate = state
+                if int(done) >= j:
+                    status_string += "."
+                else:
+                    if state == 'd':
+                        nextstate = 'nd'
+                        status_string += bcolors.FAIL
+                    status_string += "."
+                state = nextstate
+            status_string += bcolors.ENDC
+            status_string += "| "
+            sys.stdout.write("\r" + status_string + str(round(done, 2)) + "% imported")
+            sys.stdout.flush()
+
+        # Reset console for next print message
+        sys.stdout.write("\r|" + bcolors.OKCYAN + "...................................................................................................." + bcolors.ENDC + "| 100% imported")
+        print("")
 
         # Save whether the dataset should utilize cross validation
         self.cross_validate = use_cross_validation
+
+        # Display details regarding data loading
+        print("INFO: Done loading the dataset at " + self.path + " (contained " + str(counter) + " samples)")
 
     def get_random_example(self, not_from_training_set: bool = False):
         """
@@ -235,6 +405,18 @@ class DataLoader:
 
         # Return the sample
         return sample
+
+    def create_all_visualizations(self, direction: str = "vertical"):
+        """
+        This method creates all visualizations for every sample in the dataset
+
+        :param direction: either vertical or horizontal
+        :return: writes a GIF for every sample
+        """
+
+        # Iterate through all samples
+        for sample in self.samples:
+            sample.visualize(export_gif=True, direction=direction, name="sample_" + str(sample.id))
 
     def get_training_data(self):
         """

@@ -15,9 +15,12 @@ from src.dataloader import DataLoader, ComputerTomographyImage
 # Create an instance of the dataloader and pass location of data
 loader = DataLoader('./data', use_cross_validation=True)
 
+# Create a GIF that shows every single data sample (TODO: comment out after you have them!)
+loader.create_all_visualizations(direction='vertical')
+
 # Visualize a random sample from the data
 random_sample = loader.get_random_example()
-random_sample.visualize()
+random_sample.visualize(export_gif=True, export_png=True, direction='vertical')
 
 # Get training and testing data sets from the data loader
 training_data = loader.get_training_data()
