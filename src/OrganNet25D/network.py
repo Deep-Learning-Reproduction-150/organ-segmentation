@@ -1,6 +1,6 @@
 """
 This file contains the OrganNet25D that can be trained by using the dataloader and used
-by just passing instances of ComputerTomographyImage.
+by just passing instances of ComputerTomographyData.
 
 Course: Deep Learning
 Date: 25.03.2022
@@ -11,7 +11,7 @@ TODO:
 """
 
 import torch
-from src.dataloader import ComputerTomographyImage
+from src.dataloader import ComputerTomographyData
 import pandas as pd
 import numpy as np
 
@@ -99,12 +99,12 @@ class OrganNet25D:
 
         return True
 
-    def forward(self, x: ComputerTomographyImage):
+    def forward(self, x: ComputerTomographyData):
         """
-        This method takes an image of type ComputerTomographyImage and
+        This method takes an image of type ComputerTomographyData and
         uses the model to create the segmentation of organs
 
-        :param x: an instance of ComputerTomographyImage
+        :param x: an instance of ComputerTomographyData
         :return: TODO: good question - what exactly?
         """
 
@@ -118,12 +118,12 @@ class OrganNet25D:
         # Return the computed outcome
         return x
 
-    def get_organ_segments(self, x: ComputerTomographyImage):
+    def get_organ_segments(self, x: ComputerTomographyData):
         """
         This method returns the actual organ segments and not raw data of the inputted
-        ComputerTomographyImage
+        ComputerTomographyData
 
-        :param x: an example of type ComputerTomographyImage
+        :param x: an example of type ComputerTomographyData
         :return: the organs detected in the image
         """
 

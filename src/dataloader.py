@@ -9,7 +9,7 @@ Group: 150
 import os
 import glob
 import random
-from src.helpers import bcolors
+from src.helpers import bcolors, print_status_bar
 import numpy as np
 import sys
 import pandas as pd
@@ -20,7 +20,7 @@ import matplotlib.animation as anim
 from IPython.display import Image as show_gif
 
 
-class ComputerTomographyImage:
+class ComputerTomographyData:
     """
     This class represents a CT Image and is used to depict HaN CT images
 
@@ -173,26 +173,10 @@ class ComputerTomographyImage:
 
             # Print the changing import status line
             done = (index / dim_counter) * 100
-            status_string = "|" + bcolors.OKCYAN
-            state = "d"
-            for j in range(100):
-                nextstate = state
-                if int(done) >= j:
-                    status_string += "."
-                else:
-                    if state == 'd':
-                        nextstate = 'nd'
-                        status_string += bcolors.FAIL
-                    status_string += "."
-                state = nextstate
-            status_string += bcolors.ENDC
-            status_string += "| "
-            sys.stdout.write("\r" + status_string + str(round(done, 2)) + "% written")
-            sys.stdout.flush()
+            print_status_bar(done=done, title="written")
 
-        # Reset console
-        sys.stdout.write("\r|" + bcolors.OKCYAN + "...................................................................................................." + bcolors.ENDC + "| 100% written")
-        print("")
+        # Finish the status bar
+        print_status_bar(done=100, title="written")
 
         # If system shall export a GIF from it, do so
         if export_gif:
@@ -224,10 +208,10 @@ class LabeledSample:
     # Attribute storing the id of this sample
     id = None
 
-    # This attribute stores the ComputerTomographyImage
+    # This attribute stores the ComputerTomographyData
     sample = None
 
-    # This list stores the labels (also of type ComputerTomographyImage)
+    # This list stores the labels (also of type ComputerTomographyData)
     labels = None
 
     # Attribute that stores the path to the folder that contains the sample data
@@ -260,7 +244,7 @@ class LabeledSample:
             raise Exception(bcolors.FAIL + "ERROR: more than one sample data file found during creation of LabeledSample" + bcolors.ENDC)
         else:
             # Create the sample CT file instance
-            self.sample = ComputerTomographyImage(glob.glob(path + '/*.nrrd')[0])
+            self.sample = ComputerTomographyData(glob.glob(path + '/*.nrrd')[0])
 
         # Initiate a sample list
         self.labels = []
@@ -268,7 +252,7 @@ class LabeledSample:
         # Iterate through the labels and create CT image instances for them as well
         for element in glob.glob(os.path.join(path, labels_folder_path) + '/*.nrrd'):
             # Create a label for storing
-            label = ComputerTomographyImage(element)
+            label = ComputerTomographyData(element)
             # Store the label in the labels attribute
             self.labels.append(label)
 
@@ -284,17 +268,111 @@ class LabeledSample:
         # Create name for this
         sample_name = name if name is not None else "sample_" + str(self.id)
 
-        # Visualize the raw sample data
-        self.sample.visualize(show=show, export_gif=export_gif, export_png=export_png, direction=direction,
-                              name=sample_name)
+        # Check given parameters
+        if direction not in ['vertical', 'horizontal']:
+            raise ValueError(
+                bcolors.FAIL + "ERROR: Direction has to either be 'vertical' or 'horizontal'" + bcolors.ENDC)
 
-        # TODO: also visualize the labels in this data point
+        # Make sure labels and image have the same shape
+        for label in self.labels:
+            if label.data.shape != self.sample.data.shape:
+                raise ValueError(bcolors.FAIL + "ERROR: Label of " + sample_name + " does not have the same data dimensions as sample " + bcolors.ENDC)
+
+        # Print a status update
+        print("INFO: Creating visualization of " + sample_name + " with " + str(len(self.labels)) + " labels")
+
+        # Extract the three dimensions from the data set
+        shape = self.sample.data.shape
+        x_dimensions = shape[0]
+        z_dimensions = shape[2]
+        dim_counter = z_dimensions if direction == 'vertical' else x_dimensions
+
+        # Filenames
+        images = []
+
+        # Iterate through all layers of the image
+        for index in range(dim_counter):
+
+            # Get the data from this layer
+            slice_data = self.sample.data[:, :, index] if direction == 'vertical' else self.sample.data[index, :, :]
+
+            # Create an image
+            plt.figure(figsize=(14, 14))
+            plt.gray()
+            plt.imshow(slice_data)
+
+            # TODO: think of a method to join label and sample data in one figure
+            # for label in self.labels:
+            #     label_slice = label.data[:, :, index] if direction == 'vertical' else label.data[index, :, :]
+            #     plt.imshow(label_slice)
+
+            plt.draw()
+
+            # Print additional status updates
+            plt.title(name + ' (layer ' + str(index) + ')')
+            plt.xlabel("x coordinate" if direction == "vertical" else "depth")
+            plt.ylabel("y coordinate")
+
+            if show:
+                plt.show()
+
+            # If export png is on, save export
+            if export_png:
+
+                # Check if the folder exists
+                if not os.path.isdir('visualizations'):
+                    # Create folder as it does not exist yet
+                    os.mkdir('visualizations')
+
+                # Folder name for the png output
+                folder_name = 'visualizations/' + sample_name
+
+                # Check if the folder exists
+                if not os.path.isdir(folder_name):
+                    # Create folder as it does not exist yet
+                    os.mkdir(folder_name)
+
+                # Create a file for that image
+                plt.savefig(folder_name + '/slice_' + str(index) + '.png', dpi=100)
+
+            # Append this
+            if export_gif:
+                tmp_image_path = 'tmp.png'
+                plt.savefig(tmp_image_path, dpi=100)
+                images.append(imageio.imread(tmp_image_path))
+
+            # Close the image
+            plt.close()
+
+            # Print the changing import status line
+            done = (index / dim_counter) * 100
+            print_status_bar(done=done, title="written")
+
+        # Finish the status bar
+        print_status_bar(done=100, title="written")
+
+        # If system shall export a GIF from it, do so
+        if export_gif:
+
+            # Print status update
+            print("INFO: Creating visualization of " + sample_name + " with " + str(len(self.labels)) + " labels - composing a GIF")
+
+            # Remove the tmp tile
+            os.remove('tmp.png')
+
+            # Check if the folder exists
+            if not os.path.isdir('visualizations'):
+                # Create folder as it does not exist yet
+                os.mkdir('visualizations')
+
+            # Save GIF file
+            imageio.mimsave('visualizations/' + sample_name + '.gif', images)
 
 
 class DataLoader:
     """
     The Data Loader can load data from folders and return a list of images
-    represented by objects of the type ComputerTomographyImage
+    represented by objects of the type ComputerTomographyData
 
     TODO:
         - How can this be used smartly in training
@@ -365,26 +443,11 @@ class DataLoader:
 
             # Print the changing import status line
             done = (i / possible_target_count) * 100
-            status_string = "|" + bcolors.OKCYAN
-            state = "d"
-            for j in range(100):
-                nextstate = state
-                if int(done) >= j:
-                    status_string += "."
-                else:
-                    if state == 'd':
-                        nextstate = 'nd'
-                        status_string += bcolors.FAIL
-                    status_string += "."
-                state = nextstate
-            status_string += bcolors.ENDC
-            status_string += "| "
-            sys.stdout.write("\r" + status_string + str(round(done, 2)) + "% imported")
-            sys.stdout.flush()
+            # Finish the status bar
+            print_status_bar(done=done, title="imported")
 
         # Reset console for next print message
-        sys.stdout.write("\r|" + bcolors.OKCYAN + "...................................................................................................." + bcolors.ENDC + "| 100% imported")
-        print("")
+        print_status_bar(done=100, title="imported")
 
         # Save whether the dataset should utilize cross validation
         self.cross_validate = use_cross_validation

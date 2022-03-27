@@ -7,7 +7,7 @@ Group: 150
 """
 
 from src.OrganNet25D.network import OrganNet25D
-from src.dataloader import DataLoader, ComputerTomographyImage
+from src.dataloader import DataLoader, ComputerTomographyData
 
 
 """--------------------------- Part 1: Dataloading ------------------------------"""
