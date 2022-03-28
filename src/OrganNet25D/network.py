@@ -11,9 +11,7 @@ TODO:
 """
 
 import torch
-from src.dataloader import ComputerTomographyData
-import pandas as pd
-import numpy as np
+from src.Dataloader.ComputerTomographyData import ComputerTomographyData
 
 
 class OrganNet25D:

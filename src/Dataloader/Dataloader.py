@@ -10,7 +10,7 @@ import os
 import random
 import sys
 from src.utils import bcolors, print_status_bar
-from src.Dataloader import LabeledSample
+from src.Dataloader.LabeledSample import LabeledSample
 
 
 class Dataloader:

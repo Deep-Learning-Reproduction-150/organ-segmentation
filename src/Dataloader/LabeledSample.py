@@ -11,7 +11,7 @@ Group: 150
 import os
 import glob
 from src.utils import bcolors
-from src.Dataloader import ComputerTomographyData
+from src.Dataloader.ComputerTomographyData import ComputerTomographyData
 
 
 class LabeledSample:
