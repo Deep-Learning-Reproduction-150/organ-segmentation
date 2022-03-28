@@ -123,9 +123,9 @@ class ComputerTomographyData:
 
             # Create figure size tupel depending on quality and direction
             if high_quality:
-                figsize = (14, 14) if direction == 'vertical' else (6, 15)
+                figsize = (14, 14) if direction == 'vertical' else (8, 15)
             else:
-                figsize = (7, 7) if direction == 'vertical' else (3, 7.5)
+                figsize = (7, 7) if direction == 'vertical' else (4, 7.5)
 
             # Create an image
             plt.figure(figsize=figsize)
@@ -176,11 +176,8 @@ class ComputerTomographyData:
             plt.close()
 
             # Print the changing import status line
-            done = (index / dim_counter) * 100
-            print_status_bar(done=done, title="written")
-
-        # Finish the status bar
-        print_status_bar(done=100, title="written")
+            done = ((index + 1) / dim_counter) * 100
+            print_status_bar(done=done, title="processing")
 
         # If system shall export a GIF from it, do so
         if export_gif:
