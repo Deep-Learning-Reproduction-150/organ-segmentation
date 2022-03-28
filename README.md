@@ -39,24 +39,67 @@ You are going to find some really nice charts here soon
 
 ## References and External Links
 
-Data can be downloaded here `https://www.imagenglab.com/newsite/pddca/`. Place the data in a directory called `./data`, 
-which is excluded from the GIT Repository due to size limitations.
+There are two main data sets that are used to train the model. You can download them using the links below. After you 
+have downloaded them, place every sample in a directory called `./data`. The program expects a certain structure of the
+data which is as follows:
+
+```
+/organ-segmentation
+│   .gitignore
+│   main.py
+│   README.md    
+│   requirements.txt    
+│
+└───/src
+|   |   __init__.py
+│   │   dataloader.py
+|   |   eval.py
+│   │   helpers.py
+│   │   losses.py
+│   │   train.py
+│   │   utils.py
+│   │   
+│   └───/OrganNet25D
+│       │   __init__.py
+│       │   network.py
+│   
+└───/data
+│   └───/<sample 01>
+│   │   └───/<label_folder>
+│   │   │   │    BrainStem.nrrd
+│   │   │   │    Chiasm.nrrd
+│   │   │   │    Mandible.nrrd
+│   │   │   │    OpticNerve_L.nrrd
+│   │   │   │    OpticNerve_R.nrrd
+│   │   │   │    Patroid_L.nrrd
+│   │   │   │    Patroid_R.nrrd
+│   │   │   │    ...
+│   │   │   
+│   │   │   <sample>.nrrd
+│   │   ...
+│
+└───/visualizations
+```
+
+The variable `label_folder` is by default *structures* but can be adjusted depending on the dataset. `sample 01` is 
+named depending on the dataset and `<sample>.nrrd` is also called depending on the dataset (e.g. just img.nrrd). If
+the data structure is not as expected, warning and errors will be outputted. You can download the data sets here: 
+
+#### Dataset 1: [Head-Neck Cetuximab collection (46 Samples)](https://www.imagenglab.com/newsite/pddca/ "Dataset 1")
+#### Dataset 2: [Martin Valli`eres of the Medical Physics Unit, McGill University, Montreal, Canada (261 samples)](https://wiki.cancerimagingarchive.net/display/Public/Head-Neck-PET-CT "Dataset 2")
 
 
 ## Acknowledgements
 
-Zijie Chen - Shenzhen Key Lab of Computer Vision and Pattern Recognition, China
+####OrganNet25D
+Chen, Z. et al. (2021). A Novel Hybrid Convolutional Neural Network for Accurate Organ Segmentation in 3D Head and Neck 
+CT Images. In: , et al. Medical Image Computing and Computer Assisted Intervention – MICCAI 2021. MICCAI 2021. Lecture 
+Notes in Computer Science(), vol 12901. Springer, Cham. https://doi.org/10.1007/978-3-030-87193-2_54
 
-Cheng Li - Shanghai AI Lab, Shanghai, China
+####Dataset 1
+Raudaschl, P. F., Zaffino, P., Sharp, G. C., Spadea, M. F., Chen, A., Dawant, B. M., … & Jung, F. (2017).
+Evaluation of segmentation methods on head and neck CT: Auto‐segmentation challenge 2015.
+Medical Physics, 44(5), 2020-2036.
 
-Junjun He - Shenzhen Yino Intelligence Techonology Co., Ltd., Shenzhen, Guangdong, China
-
-Jin Ye - Shenying Medical Technology (Shenzhen) Co., Ltd., Shenzhen, Guangdong, China
-
-Diping Song - Paul C. Lauterbur Research Center for Biomedical Imaging, China
-
-Shanshan Wang - School of Biomedical Engineering, Shanghai Jiao Tong University, Shanghai, China
-
-Lixu Gu - Institute of Medical Robotics, Shanghai Jiao Tong University, Shanghai, China
-
-Yu Qiao - Peng Cheng Laboratory, Shenzhen, Guangdong, China
+####Dataset 2
+McGill University, Montreal, Canada - Special thanks to Martin Vallières of the Medical Physics Unit for providing it
