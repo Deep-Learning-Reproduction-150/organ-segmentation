@@ -16,7 +16,7 @@ from src.Dataloader.Dataloader import Dataloader
 loader = Dataloader('./data', use_cross_validation=True)
 
 # Create a GIF that shows every single data sample (TODO: comment out after you have them!)
-loader.create_all_visualizations(direction='horizontal')
+loader.create_all_visualizations(direction='vertical')
 
 # Visualize a random sample from the data
 random_sample = loader.get_random_example()

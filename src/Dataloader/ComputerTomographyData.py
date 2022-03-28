@@ -127,7 +127,7 @@ class ComputerTomographyData:
             if high_quality:
                 figsize = (14, 14) if direction == 'vertical' else (8, 15)
             else:
-                figsize = (7, 7) if direction == 'vertical' else (4, 7.5)
+                figsize = (9.8, 9.8) if direction == 'vertical' else (5.6, 10.5)
 
             # Create an image
             plt.figure(figsize=figsize)
@@ -136,7 +136,7 @@ class ComputerTomographyData:
             plt.draw()
 
             # Print additional status updates
-            plt.title(name + ' (layer ' + str(index) + ')')
+            plt.title(name + ', ' + direction + ' (slice ' + str(index) + ')')
             plt.xlabel("x coordinate" if direction == "vertical" else "depth")
             plt.ylabel("y coordinate")
 
