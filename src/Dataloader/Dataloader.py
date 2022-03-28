@@ -97,7 +97,7 @@ class Dataloader:
         self.cross_validate = use_cross_validation
 
         # Display details regarding data loading
-        print("INFO: Done loading the dataset at " + self.path + " (contained " + str(counter) + " samples)")
+        print("INFO: Done loading the dataset at " + self.path + " (found and loaded " + str(counter) + " samples)")
 
     def get_random_example(self, not_from_training_set: bool = False):
         """
@@ -118,14 +118,14 @@ class Dataloader:
         This method creates all visualizations for every sample in the dataset
 
         :param direction: either vertical or horizontal
-        :return: writes a GIF for every sample
+        :return: writes a GIF for every sample in the data set
         """
 
         # Iterate through all samples
         for index, sample in enumerate(self.samples):
 
             # Create visualization
-            sample.visualize(export_gif=True, direction=direction, high_quality=False, name="sample_" + str(sample.id),
+            sample.visualize(export_gif=True, direction=direction, high_quality=False, name="Sample " + str(sample.id),
                              show_status_bar=True)
 
 

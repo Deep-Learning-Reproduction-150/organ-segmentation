@@ -10,7 +10,6 @@
 4) Using the `inference --deep` mode as well
 5) Have great results
 
-
 ## Deep Learning in Organ Segmentation
 
 #### A Novel Hybrid Convolutional Neural Network for Accurate Organ Segmentation  in 3D Head and Neck CT Images
@@ -34,7 +33,9 @@ demonstrate that OrganNet2.5D achieves promising performance compared to state-o
 
 ## Results and what you get out of this
 
-You are going to find some really nice charts here soon
+You are going to find some really nice charts here soon. 
+
+![Data Example](./data_example.gif)
 
 
 ## References and External Links

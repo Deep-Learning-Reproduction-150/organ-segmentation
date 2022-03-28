@@ -137,8 +137,8 @@ class ComputerTomographyData:
 
             # Print additional status updates
             plt.title(name + ', ' + direction + ' (slice ' + str(index) + ')')
-            plt.xlabel("x coordinate" if direction == "vertical" else "depth")
-            plt.ylabel("y coordinate")
+            plt.xlabel("X Direction" if direction == "vertical" else "Depth (z)")
+            plt.ylabel("Y Direction")
 
             if show:
                 plt.show()
