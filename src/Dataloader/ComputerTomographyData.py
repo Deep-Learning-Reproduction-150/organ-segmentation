@@ -86,7 +86,8 @@ class ComputerTomographyData:
         return self.data
 
     def visualize(self, show: bool = False, export_png: bool = False, export_gif: bool = False,
-                  direction: str = "vertical", name: str = None, high_quality: bool = False):
+                  direction: str = "vertical", name: str = None, high_quality: bool = False,
+                  show_status_bar: bool = True):
         """
 
         Visualize the data using matplotlib
@@ -97,6 +98,7 @@ class ComputerTomographyData:
         :param direction: how to go through image, options: vertical, horizontal
         :param export_png: whether system shall create png images for the slices
         :param export_gif: whether system shall create a GIF file from the data
+        :param show_status_bar: progress bar will be displayed to show progress of generation
         """
 
         # Check given parameters
@@ -176,8 +178,9 @@ class ComputerTomographyData:
             plt.close()
 
             # Print the changing import status line
-            done = ((index + 1) / dim_counter) * 100
-            print_status_bar(done=done, title="processing")
+            if show_status_bar:
+                done = ((index + 1) / dim_counter) * 100
+                print_status_bar(done=done, title="processing")
 
         # If system shall export a GIF from it, do so
         if export_gif:

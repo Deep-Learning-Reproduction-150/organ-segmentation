@@ -122,8 +122,12 @@ class Dataloader:
         """
 
         # Iterate through all samples
-        for sample in self.samples:
-            sample.visualize(export_gif=True, direction=direction, high_quality=False, name="sample_" + str(sample.id))
+        for index, sample in enumerate(self.samples):
+
+            # Create visualization
+            sample.visualize(export_gif=True, direction=direction, high_quality=False, name="sample_" + str(sample.id),
+                             show_status_bar=True)
+
 
     def get_training_data(self):
         """

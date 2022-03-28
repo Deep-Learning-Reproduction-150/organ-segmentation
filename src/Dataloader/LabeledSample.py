@@ -75,7 +75,8 @@ class LabeledSample:
             self.labels.append(label)
 
     def visualize(self, show: bool = False, export_png: bool = False, export_gif: bool = False,
-                  direction: str = "vertical", name: str = None, high_quality: bool = False):
+                  direction: str = "vertical", name: str = None, high_quality: bool = False,
+                  show_status_bar: bool = True):
         """
         This method visualizes the labeled data sample. Vision is to have a great visualization of
         the raw data and the labeled regions (like brain stem and so on).
@@ -88,7 +89,7 @@ class LabeledSample:
 
         # Check given parameters
         self.sample.visualize(export_png=export_png, export_gif=export_gif, direction=direction, name=sample_name,
-                              high_quality=high_quality, show=show)
+                              high_quality=high_quality, show=show, show_status_bar=show_status_bar)
 
     def add_label(self, label: ComputerTomographyData):
         """
