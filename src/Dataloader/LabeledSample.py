@@ -10,8 +10,9 @@ Group: 150
 
 import os
 import glob
+from torch import from_numpy
 from src.utils import bcolors
-from src.Dataloader.ComputerTomographyData import ComputerTomographyData
+from src.Dataloader.CTData import CTData
 
 
 class LabeledSample:
@@ -26,10 +27,10 @@ class LabeledSample:
     # Attribute storing the id of this sample
     id = None
 
-    # This attribute stores the ComputerTomographyData
+    # This attribute stores the CTData
     sample = None
 
-    # This list stores the labels (also of type ComputerTomographyData)
+    # This list stores the labels (also of type CTData)
     labels = None
 
     # Attribute that stores the path to the folder that contains the sample data
@@ -62,7 +63,7 @@ class LabeledSample:
             raise Exception(bcolors.FAIL + "ERROR: more than one sample data file found during creation of LabeledSample" + bcolors.ENDC)
         else:
             # Create the sample CT file instance
-            self.sample = ComputerTomographyData(glob.glob(path + '/*.nrrd')[0])
+            self.sample = CTData(glob.glob(path + '/*.nrrd')[0])
 
         # Initiate a sample list
         self.labels = []
@@ -70,7 +71,7 @@ class LabeledSample:
         # Iterate through the labels and create CT image instances for them as well
         for element in glob.glob(os.path.join(path, labels_folder_path) + '/*.nrrd'):
             # Create a label for storing
-            label = ComputerTomographyData(element)
+            label = CTData(element)
             # Store the label in the labels attribute
             self.labels.append(label)
 
@@ -91,7 +92,37 @@ class LabeledSample:
         self.sample.visualize(export_png=export_png, export_gif=export_gif, direction=direction, name=sample_name,
                               high_quality=high_quality, show=show, show_status_bar=show_status_bar)
 
-    def add_label(self, label: ComputerTomographyData):
+    def get_tensor(self):
+        """
+        This method returns a tensor that contains the data of this sample
+
+        :return tensor: which contains the data points
+        """
+
+        # Return the sample (which is a tensor)
+        return self.sample.get_tensor()
+
+    def get_labels(self):
+        """
+        This method returns the list of labels associated with this sample
+
+        :return labels: list of tensors that are the labels
+
+        TODO: checkout exactly how the logic shall work - where are the label names!?
+        """
+
+        # Initialize a list of labels
+        label_tensors = []
+
+        # Iterate through the labels and get tensors of each
+        for label in self.labels:
+            # Append a tensor
+            label_tensors.append(label.get_tensor())
+
+        # Return the list of labels
+        return label_tensors
+
+    def add_label(self, label: CTData):
         """
         This method can be used to add a computed label to this sample. That is done in inference mode by the
         OrganNet25D

@@ -1,5 +1,5 @@
 """
-This file contains the ComputerTomographyData class representing a CT dataset
+This file contains the CTData class representing a CT dataset
 
 Course: Deep Learning
 Date: 25.03.2022
@@ -10,10 +10,11 @@ import os
 import nrrd
 import imageio
 import matplotlib.pyplot as plt
+from torch import from_numpy
 from src.utils import bcolors, print_status_bar
 
 
-class ComputerTomographyData:
+class CTData:
     """
     This class represents a CT Image and is used to depict HaN CT images
 
@@ -75,15 +76,15 @@ class ComputerTomographyData:
         filename = self.location.split('/')[-1]
         self.name = filename.split('.')[0]
 
-    def get_data(self):
+    def get_tensor(self):
         """
         This method returns a three dimensional ndarray that contains the data
 
         :return data: raw ndarray data
         """
 
-        # Return the raw 3D ndarray
-        return self.data
+        # Return a tensor of data
+        return from_numpy(self.data)
 
     def visualize(self, show: bool = False, export_png: bool = False, export_gif: bool = False,
                   direction: str = "vertical", name: str = None, high_quality: bool = False,
