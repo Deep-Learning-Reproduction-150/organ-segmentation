@@ -18,4 +18,11 @@ class Dataloader(DataLoader):
         - Learn how PyTorch does it directly
     """
 
-    a = 0
+    def __init__(self, dataset, batch_size=4, shuffle=True, num_workers=0):
+        super().__init__(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+
+        # TODO: do awesome stuff
+
+
+# train_dataloader = DataLoader(training_data, batch_size=64, shuffle=True)
+# test_dataloader = DataLoader(test_data, batch_size=64, shuffle=True)

@@ -14,7 +14,7 @@ import torch
 from src.Dataloader.CTData import CTData
 
 
-class OrganNet25D:
+class OrganNet25D(torch.nn.Module):
     """
     This represents the OrganNet25D model as proposed by Chen et. al.
 
@@ -27,6 +27,9 @@ class OrganNet25D:
         """
         Constructor method of the OrganNet
         """
+
+        # Call torch superclass constructor
+        super().__init__()
 
         in_channels = 25
         out_channels = 2
@@ -72,7 +75,7 @@ class OrganNet25D:
             # TODO: add more elements of block 3
         )
 
-    def train(self, train_data, test_data, monitor_progress: bool = False):
+    def train_model(self, train_data, test_data, monitor_progress: bool = False):
         """
         This method trains the network automatically
 
@@ -104,6 +107,8 @@ class OrganNet25D:
 
         :param x: an instance of CTData
         :return: TODO: good question - what exactly?
+
+        TODO: x will be a tensor not CTData (much more abstract)
         """
 
         # forward sample through network
