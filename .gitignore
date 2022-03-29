@@ -1,8 +1,12 @@
 # Exclude jetbrains IDE specific stuff
 .idea/
 
+# Exclude macOS files
+*.DS_Store
+
 # Exclude folder which stores the data
 data/
+visualizations
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
