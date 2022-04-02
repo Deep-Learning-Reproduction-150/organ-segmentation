@@ -17,9 +17,11 @@ from torch import nn
 
 
 # Placeholder functions for building the model
-def conv_2x2d(in_channels=1, out_channels=16, groups=1, kernel_size=3, stride=1, padding="valid", *args, **kwargs):
+def conv_2x2d(
+    in_channels=1, out_channels=16, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid", *args, **kwargs
+):
     return nn.Sequential(
-        nn.Conv2d(
+        nn.Conv3d(
             in_channels=in_channels,
             out_channels=out_channels,
             groups=groups,
@@ -29,7 +31,7 @@ def conv_2x2d(in_channels=1, out_channels=16, groups=1, kernel_size=3, stride=1,
             *args,
             **kwargs,
         ),
-        nn.Conv2d(
+        nn.Conv3d(
             in_channels=out_channels,
             out_channels=out_channels,
             groups=groups,
@@ -44,7 +46,7 @@ def conv_2x2d(in_channels=1, out_channels=16, groups=1, kernel_size=3, stride=1,
 
 
 def conv_2x3d_coarse(
-    in_channels=1, out_channels=16, groups=1, kernel_size=3, stride=1, padding="valid", *args, **kwargs
+    in_channels=1, out_channels=16, groups=1, kernel_size=(3, 3, 3), stride=1, padding="valid", *args, **kwargs
 ):
     return nn.Sequential(
         nn.Conv3d(
@@ -61,11 +63,11 @@ def conv_3d_fine():
     pass
 
 
-def default_pooling():
+def default_pooling(kernel_size, stride):
     """
     U-Net: Convolutional Networks for Biomedical Image Segmentation reference for this.
     """
-    return nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1)
+    return nn.MaxPool3d(kernel_size=kernel_size, stride=stride, padding=0, dilation=1)
 
 
 class OrganNet25D(nn.Module):
@@ -86,10 +88,8 @@ class OrganNet25D(nn.Module):
         super().__init__()
 
         # 2D layers
-        self.two_d_1 = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=16, groups=1, kernel_size=3, stride=1, padding="valid"),
-            nn.Conv2d(in_channels=16, out_channels=16, groups=1, kernel_size=3, stride=1, padding="valid"),
-            nn.ReLU(),  # Maybe not
+        self.two_d_1 = conv_2x2d(
+            in_channels=1, out_channels=16, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid"
         )
         self.two_d_2 = conv_2x2d()
 
@@ -103,7 +103,7 @@ class OrganNet25D(nn.Module):
                 torch.nn.BatchNorm3d(32),
                 nn.ReLU(),
             ),
-        )
+        )  # TODO: Dense layers and pooling etc.
 
         self.coarse_3d_2 = conv_2x3d_coarse()
         self.coarse_3d_3 = conv_2x3d_coarse()
@@ -136,14 +136,13 @@ class OrganNet25D(nn.Module):
         # Input to 2D layer 1 -> Output 1 NOTE: Two convolutions instead of 1
         x = self.two_d_1(x)
         # Output 1 to max pooling layer S(1,2,2) -> Output 2
-        x = default_pooling()(x)
-        x = x.transpose(0, 1)
+        x = default_pooling(kernel_size=(1, 1, 2), stride=2)(x)
         # Output 2 to coarse 3D layer 1 -> Output 3
         x = self.coarse_3d_1(x)
         # Output 3 to max pooling layer S(2,2,2) -> Output 4
-        x = default_pooling()(x)
+        x = default_pooling(kernel_size=(2, 2, 2), stride=2)(x)
         # Output 4 to Coarse 3D layer 2 -> Output 5
-        # x = self.coarse_3d_1(x)
+        x = self.coarse_3d_2(x)
         # Output 5 to Fine 3D Layer 1 -> Output 6
 
         # Part 2 (Bottom, starting from the first Orange arrow)
@@ -213,13 +212,14 @@ def main():
 
     batch = 2
     width = height = 256
-    length = 48
+    depth = 48
+    channels_in = 1
     channels_out = 10
 
-    # Batch x Width x Height x Length (~Channels in)
-    input_shape = (batch, length, 1, width, height)
-    # Batch x Width x Height x Length x Channels
-    expected_output_shape = (batch, length, channels_out, width, height)
+    # Batch x Channels x Depth x Height x Width
+    input_shape = (batch, channels_in, depth, height, width)
+    # Batch x  Channels x Depth x Height x Width
+    expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
     model = OrganNet25D()
