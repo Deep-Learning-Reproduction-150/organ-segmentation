@@ -134,15 +134,15 @@ class OrganNet25D(nn.Module):
         ## Part 1 (Left side)
 
         # Input to 2D layer 1 -> Output 1 NOTE: Two convolutions instead of 1
-        x = self.two_d_1(x)
+        out1 = self.two_d_1(x)
         # Output 1 to max pooling layer S(1,2,2) -> Output 2
-        x = default_pooling(kernel_size=(1, 1, 2), stride=2)(x)
+        out1p = default_pooling(kernel_size=(1, 1, 2), stride=2)(x)
         # Output 2 to coarse 3D layer 1 -> Output 3
-        x = self.coarse_3d_1(x)
+        out3 = self.coarse_3d_1(out1p)
         # Output 3 to max pooling layer S(2,2,2) -> Output 4
-        x = default_pooling(kernel_size=(2, 2, 2), stride=2)(x)
+        out4 = default_pooling(kernel_size=(2, 2, 2), stride=2)(out3)
         # Output 4 to Coarse 3D layer 2 -> Output 5
-        x = self.coarse_3d_2(x)
+        out5 = self.coarse_3d_2(out4)
         # Output 5 to Fine 3D Layer 1 -> Output 6
 
         # Part 2 (Bottom, starting from the first Orange arrow)
