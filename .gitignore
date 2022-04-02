@@ -1,6 +1,9 @@
 # Exclude jetbrains IDE specific stuff
 .idea/
 
+# Exclude the path where the trainer writes his/her logs
+log
+
 # Exclude macOS files
 *.DS_Store
 

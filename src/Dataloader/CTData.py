@@ -22,9 +22,6 @@ class CTData:
         - What "else" functionality should a CT Image have?
     """
 
-    # This attribute stores the location of the images raw data
-    location = None
-
     # This attribute stores the data in a ndarray format
     data = None
 
@@ -69,11 +66,8 @@ class CTData:
             # Raise exception that file could not be loaded
             raise ValueError(bcolors.FAIL + "ERROR: could not read nrrd file at " + path + "(" + str(error) + ")" + bcolors.ENDC)
 
-        # Save the path to the raw image data
-        self.location = path
-
         # Extract the name of the file from the path where it is located
-        filename = self.location.split('/')[-1]
+        filename = path.split('/')[-1]
         self.name = filename.split('.')[0]
 
     def get_tensor(self):

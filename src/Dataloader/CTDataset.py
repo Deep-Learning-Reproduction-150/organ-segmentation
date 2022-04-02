@@ -26,36 +26,43 @@ class CTDataset(Dataset):
     """
 
     # Stores the location of the raw data set
-    path = None
-
-    # Attribute representing usage of cross validation
-    cross_validate = None
+    root = None
 
     # Attribute containing a list of provided samples
     samples = None
 
-    def __init__(self, path_to_samples, label_folder_name: str = "structures", use_cross_validation: bool = True):
+    # Stores the transform object
+    transform = None
+
+    def __init__(self, root, label_folder_name: str = "structures", transform: list = []):
         """
         Constructor method of the dataloader. First parameter specifies directories that contain labels to the files
         provided. The dataloader is designed to work with nrrd files only at the moment. n-dimensional numpy arrays
         could be included later on as well.
 
+        :param root: where the data is stored (directory containing directories)
         :param label_folder_name: folder that contains labels
-        :param path_to_samples: where the data is stored (directory containing directories)
+        :param transform: a transformer (can be composed from many before passing it to constructor)
 
         TODO: think about passing the transformers here to stick to PyTorch logic
         """
 
+        # Call super class constructor
+        super().__init__()
+
+        # Save the transform
+        self.transform = transform
+
         # Check if given path leads to a directory
-        if not os.path.isdir(path_to_samples):
+        if not os.path.isdir(root):
             # Raise exception that the path is wrong
             raise ValueError(bcolors.FAIL + "ERROR: Given path is not a directory. Provide valid data directory." + bcolors.ENDC)
 
         # Remember the location of the data
-        self.path = path_to_samples
+        self.root = root
 
         # Get the count of files in the path (potential objects
-        possible_target_count = len(os.listdir(self.path))
+        possible_target_count = len(os.listdir(self.root))
 
         # Print message
         print(bcolors.OKCYAN + "INFO: Started loading the data set with possibly " + str(possible_target_count) +
@@ -68,7 +75,7 @@ class CTDataset(Dataset):
         counter = 0
 
         # Save all the samples
-        for i, element in enumerate(os.scandir(self.path)):
+        for i, element in enumerate(os.scandir(self.root)):
 
             # Check if the element is a directory (wanted structure for a labeled entry)
             if element.is_dir():
@@ -96,11 +103,8 @@ class CTDataset(Dataset):
         # Reset console for next print message
         print_status_bar(done=100, title="imported")
 
-        # Save whether the dataset should utilize cross validation
-        self.cross_validate = use_cross_validation
-
         # Display details regarding data loading
-        print("INFO: Done loading the dataset at " + self.path + " (found and loaded " + str(counter) + " samples)")
+        print("INFO: Done loading the dataset at " + self.root + " (found and loaded " + str(counter) + " samples)")
 
     def __getitem__(self, index):
         """
