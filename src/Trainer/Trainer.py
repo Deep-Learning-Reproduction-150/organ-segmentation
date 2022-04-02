@@ -8,6 +8,7 @@ Group: 150
 
 import torch
 import math
+import importlib
 import json
 import os
 from src.utils import Logger, Timer, bcolors
@@ -39,9 +40,6 @@ class Trainer:
 
     # Stores whether the trainer shall use wandb to sync dev data
     use_wandb = None
-
-    # Stores the current data set (e.g. when multiple jobs use the same dataset)
-    current_dataset = None
 
     # When true, trainer will output much more details about jobs progress
     debug = None
@@ -102,11 +100,8 @@ class Trainer:
                     # Load the json data from the file
                     job_data = json.load(f)
 
-                    # Check whether the job data is okay
-                    if self._check_job_data(job_data):
-
-                        # Append the job data to the job queue
-                        self.job_queue.append(job_data)
+                    # Append the job data to the job queue
+                    self.job_queue.append(self._check_job_data(job_data))
 
                 except Exception:
                     raise ValueError(bcolors.FAIL + "ERROR: Job file can not be read (" + job + ")" + bcolors.ENDC)
@@ -141,7 +136,7 @@ class Trainer:
                 print(bcolors.OKBLUE + "INFO: Starting training of the model" + bcolors.ENDC)
 
                 # Call train method
-                self._train(job)
+                self._train(job['training'])
 
             # Check if job contains index "training"
             if 'evaluation' in job and type(job['evaluation']) is dict:
@@ -149,7 +144,7 @@ class Trainer:
                 print(bcolors.OKBLUE + "INFO: Starting evaluation of model" + bcolors.ENDC)
 
                 # Call evaluation method
-                self._evaluate(job)
+                self._evaluate(job['evaluation'])
 
             # Check if job contains index "training"
             if 'inference' in job and type(job['inference']) is dict:
@@ -157,29 +152,40 @@ class Trainer:
                 # Print loading message
                 print(bcolors.FAIL + "ERROR: Inference is not implemented yet" + bcolors.ENDC)
 
-    def _train(self, job: dict):
+    def _train(self, training_setup: dict):
         """
         This method will train the network
 
-        :param job: the dict containing everything regarding the current job
+        :param training_setup: the dict containing everything regarding the current job
         """
 
         # Get dataset if not given
-        dataset = Trainer.get_dataset()
+        dataset = self._get_dataset(training_setup['dataset'])
 
         # Get dataloader for both training and validation
-        train_data, val_data = Trainer.get_dataloader(dataset, split_ratio=self.split_ratio, num_workers=self.num_workers, batch_size=self.batch_size)
+        train_data, val_data = self._get_dataloader(dataset,
+                                                   split_ratio=training_setup['split_ratio'],
+                                                   num_workers=training_setup['num_workers'],
+                                                   batch_size=training_setup['batch_size'])
 
         # Log dataset information
         self.logger.write('{} samples.'.format(len(dataset)))
+
+        # Create a variable that stores the best value loss
         best_val_loss = math.inf
+
+        # Create optimizer
+        optimizer = self._get_optimizer(training_setup['optimizer'])
+
+        # Create loss function
+        loss_function = self._get_loss_function(training_setup['loss'])
 
         # --------------------------- Training routine --------------------------
         # Iterate through epochs
-        for epoch in range(self.epochs):
+        for epoch in range(training_setup['epochs']):
 
             # Start epoch timer
-            self.logger.write('Epoch {}/{}'.format(epoch + 1, self.epochs))
+            self.logger.write('Epoch {}/{}'.format(epoch + 1, training_setup['epochs']))
             self.timer.start('epoch')
 
             # Set model to train mode
@@ -191,22 +197,19 @@ class Trainer:
             # ------------------------- Batch training -------------------------
             for batch, batch_input in enumerate(train_data):
                 # Reset gradients
-                self.optimizer.zero_grad()
-
-                # Load data to device
-                batch_input = batch_input.to(self.device)
+                optimizer.zero_grad()
 
                 # Get output
                 reconstructed = self.model(batch_input)
 
                 # Calculate loss
-                loss = self.loss_function(reconstructed, batch_input)
+                loss = loss_function(reconstructed, batch_input)
 
                 # Backpropagation
                 loss.backward()
 
                 # Perform optimization step
-                self.optimizer.step()
+                optimizer.step()
 
                 # Add loss
                 running_loss += loss.detach().cpu().numpy()
@@ -214,11 +217,11 @@ class Trainer:
             # Calculate epoch los
             epoch_train_loss = running_loss / len(train_data)
 
-    def _evaluate(self, job: dict):
+    def _evaluate(self, evaluation_setup: dict):
         """
         This method will evaluate the network
 
-        :param job: the dict containing everything regarding the current job
+        :param evaluation_setup: the dict containing everything regarding the current job
         """
         a = 0
 
@@ -230,25 +233,42 @@ class Trainer:
         :return: job data is okay and contains everything
         """
 
-        # TODO: implement this tests later (prioritizing!)
+        # TODO: implement this tests and default autocomplete later (prioritizing!)
 
-        return True
+        # TODO: flash warnings when specific parts of the job description are missing and defaults are used
 
-    def get_dataset(self, data: dict):
+        return job_data
+
+    def _get_optimizer(self, optimizer_setup: dict, **params):
+        if optimizer_setup['name'] == 'Adam':
+            return torch.optim.Adam(self.model.parameters(), lr=optimizer_setup['learning_rate'], betas=optimizer_setup['betas'], **params)
+        else:
+            raise ValueError(bcolors.FAIL + "ERROR: Optimizer " + optimizer_setup['name'] + " not recognized, aborting" + bcolors.ENDC)
+
+    def _get_loss_function(self, name: str, **params):
+        module = importlib.import_module('src.losses')
+        loss_class = getattr(module, name)
+        return loss_class(**params)
+
+    def _get_dataset(self, data: dict):
         """
         Method creates the data set instance and returns it based on the data (contains job description)
 
         :return: CTDataset instance that contains samples
         """
 
-        # TODO: check for self.current_dataset
+        # Obtain the base path at looking at the parent of the parents parent
+        base_path = Path(__file__).parent.parent.parent.resolve()
+
+        # Generate the path where the data set is located at
+        dataset_path = os.path.join(base_path, data['root'])
 
         # Create an instance of the dataloader and pass location of data
-        dataset = CTDataset('./data', preload=True)
+        dataset = CTDataset(dataset_path, preload=data['preload'], transform=data['transform'])
 
         return dataset
 
-    def get_dataloader(self, dataset, shuffle: bool = True, split_ratio: float = 0.5, num_workers: int = 0, batch_size: int = 64, pin_memory: bool = True):
+    def _get_dataloader(self, dataset, shuffle: bool = True, split_ratio: float = 0.5, num_workers: int = 0, batch_size: int = 64, pin_memory: bool = True):
         """
         The method returns data loader instances (if split) or just one dataloader based on the passed dataset
 

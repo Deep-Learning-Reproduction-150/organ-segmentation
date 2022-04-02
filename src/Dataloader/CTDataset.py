@@ -115,7 +115,8 @@ class CTDataset(Dataset):
                 print_status_bar(done=done, title="imported")
 
         # Reset console for next print message
-        print_status_bar(done=100, title="imported")
+        if self.preload:
+            print_status_bar(done=100, title="imported")
 
         # Only show status bar when preloading
         if self.preload:
@@ -165,3 +166,13 @@ class CTDataset(Dataset):
             # Create visualization
             sample.visualize(export_gif=True, direction=direction, high_quality=False,
                              name="Sample " + str(sample.id), show_status_bar=True)
+
+    def get_dataset_path(self):
+        """
+        Method returns the path where this data set is obtained from
+
+        :return: path of the data set
+        """
+
+        # Return the root path
+        return self.root

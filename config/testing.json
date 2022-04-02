@@ -5,22 +5,19 @@
     },
     "training": {
         "epochs": 4,
-        "batch_size": 16,
-        "train_ratio": 0.8,
         "loss": "MSELoss",
+        "split_ratio": 0.8,
+        "batch_size": 16,
+        "num_workers": 0,
         "evaluate": true,
         "optimizer": {
-            "name": "adam",
+            "name": "Adam",
             "learning_rate": 0.001,
-            "betas": [
-                0.9,
-                0.999
-            ]
+            "betas": [0.9, 0.999]
         },
         "dataset": {
             "root": "./data",
-            "preload": true,
-            "num_workers": 0,
+            "preload": false,
             "transform": [
                 {
                     "name": "ShiftToZero"
