@@ -21,6 +21,7 @@ class CTDataset(Dataset):
 
     TODO:
         - How can this be used smartly in training
+        - Implement preloading or on demand loading (if set)
         - Are lists efficient? Should there be transformation already?
 
     """
@@ -31,10 +32,13 @@ class CTDataset(Dataset):
     # Attribute containing a list of provided samples
     samples = None
 
+    # Whether to preload the data or load it when obtaining a sample
+    preload = None
+
     # Stores the transform object
     transform = None
 
-    def __init__(self, root, label_folder_name: str = "structures", transform: list = []):
+    def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, transform: list = []):
         """
         Constructor method of the dataloader. First parameter specifies directories that contain labels to the files
         provided. The dataloader is designed to work with nrrd files only at the moment. n-dimensional numpy arrays
@@ -42,6 +46,7 @@ class CTDataset(Dataset):
 
         :param root: where the data is stored (directory containing directories)
         :param label_folder_name: folder that contains labels
+        :param preload: when true, system will load data directly when instantiating an object
         :param transform: a transformer (can be composed from many before passing it to constructor)
 
         TODO: think about passing the transformers here to stick to PyTorch logic
@@ -49,6 +54,9 @@ class CTDataset(Dataset):
 
         # Call super class constructor
         super().__init__()
+
+        # Whether or not to preload and preprocess volumes
+        self.preload = preload
 
         # Save the transform
         self.transform = transform
@@ -64,9 +72,12 @@ class CTDataset(Dataset):
         # Get the count of files in the path (potential objects
         possible_target_count = len(os.listdir(self.root))
 
-        # Print message
-        print(bcolors.OKCYAN + "INFO: Started loading the data set with possibly " + str(possible_target_count) +
-              " samples ..." + bcolors.ENDC)
+        # Only show status bar when preloading
+        if self.preload:
+
+            # Print loading message
+            print(bcolors.OKCYAN + "INFO: Started loading the data set with possibly " + str(possible_target_count) +
+                  " samples ..." + bcolors.ENDC)
 
         # Initiate the sample attribute
         self.samples = []
@@ -81,7 +92,7 @@ class CTDataset(Dataset):
             if element.is_dir():
 
                 # Append a labeled sample object
-                self.samples.append(LabeledSample(path=element.path, labels_folder_path=label_folder_name))
+                self.samples.append(LabeledSample(path=element.path, preload=self.preload, labels_folder_path=label_folder_name))
 
                 # Increment the counter
                 counter += 1
@@ -95,16 +106,22 @@ class CTDataset(Dataset):
                 sys.stdout.flush()
                 print("")
 
-            # Print the changing import status line
-            done = (i / possible_target_count) * 100
-            # Finish the status bar
-            print_status_bar(done=done, title="imported")
+            # Only show status bar when preloading
+            if self.preload:
+
+                # Print the changing import status line
+                done = (i / possible_target_count) * 100
+                # Finish the status bar
+                print_status_bar(done=done, title="imported")
 
         # Reset console for next print message
         print_status_bar(done=100, title="imported")
 
-        # Display details regarding data loading
-        print("INFO: Done loading the dataset at " + self.root + " (found and loaded " + str(counter) + " samples)")
+        # Only show status bar when preloading
+        if self.preload:
+
+            # Display details regarding data loading
+            print("INFO: Done loading the dataset at " + self.root + " (found and loaded " + str(counter) + " samples)")
 
     def __getitem__(self, index):
         """

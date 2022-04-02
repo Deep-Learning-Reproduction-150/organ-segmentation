@@ -1,7 +1,16 @@
+"""
+This file contains the trainer class which performs jobs
+
+Course: Deep Learning
+Date: 03.04.2022
+Group: 150
+"""
+
 import torch
+import math
 import json
 import os
-from src.utils import Logger, Timer
+from src.utils import Logger, Timer, bcolors
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
 from src.OrganNet25D.network import OrganNet25D
@@ -11,16 +20,28 @@ from src.Dataloader.CTDataset import CTDataset
 class Trainer:
     """
     This trainer instance performs the training of the network by executing jobs
+
+    TODO:
+        - this logic could be extended to multi trainers (using threading)
+        - the job type of being will dictate _ functions
+        - feel free to add ideas what the trainer should be able to do
+        - !!! We should definitely include a "resume" option in the trainer !!!
     """
 
     # Attribute stores an instance of the network
-    network = None
+    model = None
 
     # An instance of a logger to write into log files (if specified in job)
     logger = None
 
+    # An instance of a timer to measure the performances etc.
+    timer = None
+
     # Stores whether the trainer shall use wandb to sync dev data
     use_wandb = None
+
+    # Stores the current data set (e.g. when multiple jobs use the same dataset)
+    current_dataset = None
 
     # When true, trainer will output much more details about jobs progress
     debug = None
@@ -36,6 +57,9 @@ class Trainer:
         :param debug: when debug mode is on, more status messages will be printed
         :param wandb: uses wandb when true and possible to sync dev information
         """
+
+        # Print loading message
+        print(bcolors.OKBLUE + "INFO: Trainer is setting up and initiating job queue  ..." + bcolors.ENDC)
 
         # Obtain the base path at looking at the parent of the parents parent
         base_path = Path(__file__).parent.parent.parent.resolve()
@@ -53,69 +77,184 @@ class Trainer:
         # Create logger
         self.logger = Logger(log_path, file_name='log')
 
-        # TODO: what about dedicated job objects? or at least the read json information?
+        # Create a timer instance for time measurements
+        self.timer = Timer()
+
+        # Create an instance of the model
+        self.model = OrganNet25D()
 
         # Initialize the job queue
-        self.job_queue = jobs
+        self.job_queue = []
+
+        # Iterate through the passed jobs
+        for job in jobs:
+
+            # Create the absolut path to the job file
+            job_path = os.path.join(base_path, job)
+
+            # Check whether the job file exist
+            if os.path.exists(job_path):
+
+                try:
+                    # Open the file that contains the job description
+                    f = open(job_path)
+
+                    # Load the json data from the file
+                    job_data = json.load(f)
+
+                    # Check whether the job data is okay
+                    if self._check_job_data(job_data):
+
+                        # Append the job data to the job queue
+                        self.job_queue.append(job_data)
+
+                except Exception:
+                    raise ValueError(bcolors.FAIL + "ERROR: Job file can not be read (" + job + ")" + bcolors.ENDC)
+
+            else:
+                print(bcolors.FAIL + "ERROR: Given job path does not exist (" + job + ")" + bcolors.ENDC)
 
     def run(self):
         """
         This method can be called in order to run a job (encoded in json format)
-
-        :param job: the path to a json file where a job is encoded
         """
 
-        # TODO: this is just random for now ... should iterate through jobs
+        # Iterate through all jobs
+        for index, job in enumerate(self.job_queue):
 
-        """--------------------------- Part 1: Dataloading ------------------------------"""
+            # Print loading message
+            print(bcolors.OKBLUE + "INFO: Started job " + str(index) + ": " + job['name'] + bcolors.ENDC)
 
-        # Create an instance of the dataloader and pass location of data
-        dataset = CTDataset('./data', use_cross_validation=True)
+            # Check if model shall be resetted
+            if job['model']['reset']:
 
-        # Create a GIF that shows every single data sample (TODO: comment out after you have them!)
-        # dataset.create_all_visualizations(direction='vertical')
+                # Create an instance of the model
+                self.model = OrganNet25D()
 
-        # Visualize a random sample from the data
-        random_sample = dataset.__getitem__(5)
-        random_sample.visualize(export_gif=True, high_quality=True, export_png=True, direction='horizontal')
+                # Print loading message
+                print(bcolors.OKBLUE + "INFO: Resetted OrganNet25D" + bcolors.ENDC)
 
-        """-------------------------- Part 2: Model Training ----------------------------"""
+            # Check if job contains index "training"
+            if 'training' in job and type(job['training']) is dict:
 
-        # Create an instance of the OrganNet25D model
-        model = OrganNet25D()
+                # Print loading message
+                print(bcolors.OKBLUE + "INFO: Starting training of the model" + bcolors.ENDC)
 
-        # Train the model with the data sets (contains validation etc.)
-        # TODO: do this in PyTorch logic
+                # Call train method
+                self._train(job)
 
-        """------------------------ Part 3: Model Inferencing ---------------------------"""
+            # Check if job contains index "training"
+            if 'evaluation' in job and type(job['evaluation']) is dict:
+                # Print loading message
+                print(bcolors.OKBLUE + "INFO: Starting evaluation of model" + bcolors.ENDC)
 
-        result = model.get_organ_segments(dataset.__getitem__(2))
+                # Call evaluation method
+                self._evaluate(job)
 
-    def _train(self):
+            # Check if job contains index "training"
+            if 'inference' in job and type(job['inference']) is dict:
+
+                # Print loading message
+                print(bcolors.FAIL + "ERROR: Inference is not implemented yet" + bcolors.ENDC)
+
+    def _train(self, job: dict):
         """
         This method will train the network
 
-        :return:
+        :param job: the dict containing everything regarding the current job
         """
-        a = 0
 
-    def _evaluate(self):
+        # Get dataset if not given
+        dataset = Trainer.get_dataset()
+
+        # Get dataloader for both training and validation
+        train_data, val_data = Trainer.get_dataloader(dataset, split_ratio=self.split_ratio, num_workers=self.num_workers, batch_size=self.batch_size)
+
+        # Log dataset information
+        self.logger.write('{} samples.'.format(len(dataset)))
+        best_val_loss = math.inf
+
+        # --------------------------- Training routine --------------------------
+        # Iterate through epochs
+        for epoch in range(self.epochs):
+
+            # Start epoch timer
+            self.logger.write('Epoch {}/{}'.format(epoch + 1, self.epochs))
+            self.timer.start('epoch')
+
+            # Set model to train mode
+            self.model.train()
+
+            # Initialize variables
+            running_loss = 0
+
+            # ------------------------- Batch training -------------------------
+            for batch, batch_input in enumerate(train_data):
+                # Reset gradients
+                self.optimizer.zero_grad()
+
+                # Load data to device
+                batch_input = batch_input.to(self.device)
+
+                # Get output
+                reconstructed = self.model(batch_input)
+
+                # Calculate loss
+                loss = self.loss_function(reconstructed, batch_input)
+
+                # Backpropagation
+                loss.backward()
+
+                # Perform optimization step
+                self.optimizer.step()
+
+                # Add loss
+                running_loss += loss.detach().cpu().numpy()
+
+            # Calculate epoch los
+            epoch_train_loss = running_loss / len(train_data)
+
+    def _evaluate(self, job: dict):
         """
         This method will evaluate the network
 
-        :return:
+        :param job: the dict containing everything regarding the current job
         """
         a = 0
 
-    @staticmethod
-    def get_dataloader(dataset, shuffle=True, split=False, split_ratio=0.5, num_workers=0, batch_size=64, pin_memory=True):
+    def _check_job_data(self, job_data: dict):
+        """
+        This method checks whether a passed job (in terms of a path to a json file) contains everything needed
+
+        :param job_data: a dict that stores all job data
+        :return: job data is okay and contains everything
+        """
+
+        # TODO: implement this tests later (prioritizing!)
+
+        return True
+
+    def get_dataset(self, data: dict):
+        """
+        Method creates the data set instance and returns it based on the data (contains job description)
+
+        :return: CTDataset instance that contains samples
+        """
+
+        # TODO: check for self.current_dataset
+
+        # Create an instance of the dataloader and pass location of data
+        dataset = CTDataset('./data', preload=True)
+
+        return dataset
+
+    def get_dataloader(self, dataset, shuffle: bool = True, split_ratio: float = 0.5, num_workers: int = 0, batch_size: int = 64, pin_memory: bool = True):
         """
         The method returns data loader instances (if split) or just one dataloader based on the passed dataset
 
         :param dataset: the data set that the data loader should work on
         :param shuffle: whether the data shall be shuffled
-        :param split: whether the method should return a test and and evaluate dataloader
-        :param split_ratio: the ratio that the split shall be based on
+        :param split_ratio: the ratio that the split shall be based on (if none, no split)
         :param num_workers: number of workers for laoding data
         :param batch_size: batch size of returned samples
         :param pin_memory:
@@ -123,7 +262,7 @@ class Trainer:
         """
 
         # Check whether the user wants a split data set
-        if split:
+        if split_ratio is not None:
 
             # Determine split threshold and perform random split of the passed data set
             split_value = int(split_ratio * len(dataset))

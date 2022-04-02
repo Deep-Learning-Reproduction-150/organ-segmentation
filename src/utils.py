@@ -10,6 +10,7 @@ import sys
 import time
 from datetime import datetime
 import os
+import numpy as np
 
 
 class bcolors:

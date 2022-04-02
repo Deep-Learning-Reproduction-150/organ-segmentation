@@ -1,5 +1,5 @@
 {
-    "name": "organ_segmentation",
+    "name": "testing_organ_segmentation",
     "model": {
         "reset": true
     },
@@ -46,7 +46,5 @@
                 }
             ]
         }
-    },
-    "evaluation": false,
-    "inference": false,
+    }
 }

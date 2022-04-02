@@ -25,29 +25,61 @@ class CTData:
     # This attribute stores the data in a ndarray format
     data = None
 
+    # Path where the data file is stored
+    path = None
+
     # The name of the file (used for labels as well)
     name = None
 
     # This meta data contains information about the data obtained from the input file
     meta = None
 
-    def __init__(self, path):
+    # Whether to preload data
+    preload = None
+
+    def __init__(self, path: str, preload: bool = True):
         """
         Constructor of a CT Image
 
-        :param path:
+        :param path: the path where the nrrd file is
+        :param preload: whether to load data directly when creating
         """
+
+        # Save whether data should be preloaded
+        self.preload = preload
+
+        # Save the path of the datafile
+        self.path = path
 
         # Check if this file exists
         if not os.path.exists(path):
             # Raise an exception for this issue
             raise ValueError(bcolors.FAIL + "ERROR: Given path does not lead to a nrrd file" + bcolors.ENDC)
 
+        # Initiate header and data
+        self.data = None
+        self.meta = None
+
+        # If preload, load data now
+        if self.preload:
+
+            # Load data from the file
+            self._load_data_from_file()
+
+        # Extract the name of the file from the path where it is located
+        filename = path.split('/')[-1]
+        self.name = filename.split('.')[0]
+
+    def _load_data_from_file(self):
+        """
+        This method read the data
+        """
+
         # Try to load the data at the given path
         try:
 
             # Load the data and throw it into an ndarray
-            extracted_data, header = nrrd.read(path)
+            extracted_data, header = nrrd.read(self.path)
 
             # Save the as attributes for this instance
             self.data = extracted_data
@@ -55,20 +87,19 @@ class CTData:
 
             # Check if the data has three dimensions
             if self.data.ndim != 3:
-                raise ValueError(bcolors.FAIL + "ERROR: Unexpected number of dimensions (" + str(self.data.ndim) + ") in data sample" + bcolors.ENDC)
+                raise ValueError(bcolors.FAIL + "ERROR: Unexpected number of dimensions (" + str(
+                    self.data.ndim) + ") in data sample" + bcolors.ENDC)
 
             # Check if data dimensions are correct
             if self.meta['dimension'] != 3:
-                raise ValueError(bcolors.FAIL + "ERROR: file " + path + " contains " + str(self.meta['dimension']) + "-dimensional data (not expected 3D data)" + bcolors.ENDC)
+                raise ValueError(bcolors.FAIL + "ERROR: file " + self.path + " contains " + str(
+                    self.meta['dimension']) + "-dimensional data (not expected 3D data)" + bcolors.ENDC)
 
         except Exception as error:
 
             # Raise exception that file could not be loaded
-            raise ValueError(bcolors.FAIL + "ERROR: could not read nrrd file at " + path + "(" + str(error) + ")" + bcolors.ENDC)
-
-        # Extract the name of the file from the path where it is located
-        filename = path.split('/')[-1]
-        self.name = filename.split('.')[0]
+            raise ValueError(
+                bcolors.FAIL + "ERROR: could not read nrrd file at " + self.path + "(" + str(error) + ")" + bcolors.ENDC)
 
     def get_tensor(self):
         """
@@ -76,6 +107,12 @@ class CTData:
 
         :return data: raw ndarray data
         """
+
+        # Check if preloaded or have to load now
+        if self.data is None:
+
+            # Load data from the file
+            self._load_data_from_file()
 
         # Return a tensor of data
         return from_numpy(self.data)
@@ -95,6 +132,11 @@ class CTData:
         :param export_gif: whether system shall create a GIF file from the data
         :param show_status_bar: progress bar will be displayed to show progress of generation
         """
+
+        # Check if preloaded or have to load now
+        if self.data is None:
+            # Load data from the file
+            self._load_data_from_file()
 
         # Check given parameters
         if direction not in ['vertical', 'horizontal']:

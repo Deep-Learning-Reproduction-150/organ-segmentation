@@ -36,12 +36,22 @@ class LabeledSample:
     # Attribute that stores the path to the folder that contains the sample data
     path = None
 
-    def __init__(self, path, labels_folder_path: str = "structures"):
+    # Whether or whether not to preload data
+    preload = None
+
+    def __init__(self, path, preload: bool = True, labels_folder_path: str = "structures"):
         """
         Constructor of the LabeledSample object. Expected by default is a folder that contains one nrrd file which
         is the sample data and a folder with name <labels_folder_path> that contains n labels, itself encoded as nrrd
         files.
+
+        :param path: the path to the folder that contains the files
+        :param preload: whether to load the data directly when instantiating an object
+        :param labels_folder_path: folder within path that contains files with labels
         """
+
+        # Save whether sample should reload data
+        self.preload = preload
 
         # Assign an id and increment the id store
         self.id = LabeledSample.id_store
@@ -63,7 +73,7 @@ class LabeledSample:
             raise Exception(bcolors.FAIL + "ERROR: more than one sample data file found during creation of LabeledSample" + bcolors.ENDC)
         else:
             # Create the sample CT file instance
-            self.sample = CTData(glob.glob(path + '/*.nrrd')[0])
+            self.sample = CTData(glob.glob(path + '/*.nrrd')[0], preload=self.preload)
 
         # Initiate a sample list
         self.labels = []
@@ -71,7 +81,7 @@ class LabeledSample:
         # Iterate through the labels and create CT image instances for them as well
         for element in glob.glob(os.path.join(path, labels_folder_path) + '/*.nrrd'):
             # Create a label for storing
-            label = CTData(element)
+            label = CTData(element, preload=self.preload)
             # Store the label in the labels attribute
             self.labels.append(label)
 
