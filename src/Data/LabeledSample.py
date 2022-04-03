@@ -8,6 +8,7 @@ Date: 25.03.2022
 Group: 150
 """
 
+from copy import deepcopy
 import os
 import glob
 import torch
@@ -80,26 +81,37 @@ class LabeledSample:
             raise ValueError(bcolors.FAIL + "ERROR: labels_folder_path is not valid (not found)" + bcolors.ENDC)
 
         # Check if the folder is encoded in the expected format
-        if len(glob.glob(path + '/*.nrrd')) > 1:
+        if len(glob.glob(path + "/*.nrrd")) > 1:
             # Print error that more then one data file was found
-            raise Exception(bcolors.FAIL + "ERROR: more than one sample data file found during creation of LabeledSample" + bcolors.ENDC)
+            raise Exception(
+                bcolors.FAIL
+                + "ERROR: more than one sample data file found during creation of LabeledSample"
+                + bcolors.ENDC
+            )
         else:
             # Create the sample CT file instance
-            self.sample = CTData(glob.glob(path + '/*.nrrd')[0], preload=self.preload)
+            self.sample = CTData(glob.glob(path + "/*.nrrd")[0], preload=self.preload)
 
         # Initiate a sample list
         self.labels = []
 
         # Iterate through the labels and create CT image instances for them as well
-        for element in glob.glob(os.path.join(path, labels_folder_path) + '/*.nrrd'):
+        for element in glob.glob(os.path.join(path, labels_folder_path) + "/*.nrrd"):
             # Create a label for storing
             label = CTData(element, preload=self.preload)
             # Store the label in the labels attribute
             self.labels.append(label)
 
-    def visualize(self, show: bool = False, export_png: bool = False, export_gif: bool = False,
-                  direction: str = "vertical", name: str = None, high_quality: bool = False,
-                  show_status_bar: bool = True):
+    def visualize(
+        self,
+        show: bool = False,
+        export_png: bool = False,
+        export_gif: bool = False,
+        direction: str = "vertical",
+        name: str = None,
+        high_quality: bool = False,
+        show_status_bar: bool = True,
+    ):
         """
         This method visualizes the labeled data sample. Vision is to have a great visualization of
         the raw data and the labeled regions (like brain stem and so on).
@@ -111,8 +123,15 @@ class LabeledSample:
         sample_name = name if name is not None else "sample_" + str(self.id)
 
         # Check given parameters
-        self.sample.visualize(export_png=export_png, export_gif=export_gif, direction=direction, name=sample_name,
-                              high_quality=high_quality, show=show, show_status_bar=show_status_bar)
+        self.sample.visualize(
+            export_png=export_png,
+            export_gif=export_gif,
+            direction=direction,
+            name=sample_name,
+            high_quality=high_quality,
+            show=show,
+            show_status_bar=show_status_bar,
+        )
 
     def get_tensor(self, take_original: bool = False):
         """
@@ -150,12 +169,22 @@ class LabeledSample:
             labels.append(label.name)
 
         # TODO: go veikko
+        label_threshold = -1000.0
+        background_voxel_value = -1024.0
+
+        label_mask = torch.zeros_like(self.sample)  # By default choose entire image
+
+        for label in labels:
+            current_label_mask = label > label_threshold  # Choose volume under the organ
+            label_mask = label_mask | current_label_mask  # Select it
+
+        background = deepcopy(self.sample)
+        background[~label_mask] = background_voxel_value
+        tensors.append(background)
+        labels.append("background")
 
         # return label data
-        label_data = {
-            'features': tensors,
-            'label': labels
-        }
+        label_data = {"features": tensors, "label": labels}
 
         # Return the list of labels
         return label_data
@@ -189,8 +218,16 @@ class LabeledSample:
                 y_mismatch = label_tensor.data.shape[1] != sample_tensor.data.shape[1]
                 z_mismatch = label_tensor.data.shape[2] != sample_tensor.data.shape[2]
                 if x_mismatch or y_mismatch or z_mismatch:
-                    Logger.log("Dimension of LabeledSample at " + str(self.path) + " do not match: " +
-                               str(sample_tensor.data.shape) + " VS. " + str(label_tensor.data.shape), type="ERROR", in_cli=True)
+                    Logger.log(
+                        "Dimension of LabeledSample at "
+                        + str(self.path)
+                        + " do not match: "
+                        + str(sample_tensor.data.shape)
+                        + " VS. "
+                        + str(label_tensor.data.shape),
+                        type="ERROR",
+                        in_cli=True,
+                    )
 
             # Initiate transformed labels
             self.transformed_labels = []
@@ -222,4 +259,3 @@ class LabeledSample:
 
         # Remember that this sample has been checked
         self.preprocessed = True
-
