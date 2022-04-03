@@ -50,8 +50,16 @@ def conv_2x3d_coarse(in_channels=16, out_channels=32, kernel_size=(3, 3, 3), str
     The 2xConv with 3,3,3 kernel without the ResSE presented in the paper
     """
     return nn.Sequential(
-        nn.Conv3d(
-            in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding
+        nn.intrinsic.ConvBnReLU3d(  # does this speed things up?
+            nn.Conv3d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+            ),
+            torch.nn.BatchNorm3d(out_channels),
+            nn.ReLU(),
         ),
         nn.intrinsic.ConvBnReLU3d(  # does this speed things up?
             nn.Conv3d(
@@ -129,21 +137,22 @@ class OrganNet25D(nn.Module):
         self.two_d_1 = conv_2x2d(
             in_channels=1, out_channels=16, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid"
         )
-        self.two_d_2 = conv_2x2d()
+
+        self.two_d_2 = conv_2x2d(
+            in_channels=32, out_channels=32, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid"
+        )  # TODO: Remove the padding
 
         # Coarse 3D layers
 
         # First part of 2 x Conv + ResSE
         self.coarse_3d_1 = DoubleConvResSE(
-            (20, 122, 122), in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=0
+            (44, 122, 122), in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0
         )
-        # conv_2x3d_coarse(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=0)
 
         self.coarse_3d_2 = DoubleConvResSE(
-            (6, 57, 57), in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=0
+            (18, 57, 57), in_channels=32, out_channels=64, kernel_size=(3, 3, 3), stride=1, padding=0
         )
         self.coarse_3d_3 = conv_2x3d_coarse()
-        self.coarse_3d_4 = conv_2x3d_coarse()
 
         # Fine 3D block
 
@@ -151,9 +160,21 @@ class OrganNet25D(nn.Module):
         self.fine_3d_2 = conv_3d_fine()
         self.fine_3d_3 = conv_3d_fine()
 
+        # Final 1x1x1 conv
+
+        self.one_d_3 = nn.Conv3d(  # The final layer in the network
+            in_channels=32,
+            out_channels=10,
+            groups=1,
+            kernel_size=(1, 1, 1),
+            padding=(0, 4, 4),  # TODO: Check on the padding, this is for the toy model
+            *args,
+            **kwargs,
+        )
+
         return
 
-    def forward(self, x: torch.Tensor, verbose=None):
+    def forward(self, x: torch.Tensor, verbose=None, mock=True):
         """
         This method takes an image of type CTData and
         uses the model to create the segmentation of organs
@@ -172,30 +193,32 @@ class OrganNet25D(nn.Module):
 
         ## Part 1 (Left side)
 
-        # Input to 2D layer 1 -> Output 1 NOTE: Two convolutions instead of 1
+        # Input: (2,1,48,256,256)
+
+        # Input to 2D layer 1 -> Output 1 (2,16,48,252,252)
         if verbose:
             print(f"\tInput shape : {x.shape}")
         out1 = self.two_d_1(x)
         if verbose:
             print(f"\tOutput 1 shape : {out1.shape}")
-        # Output 1 to max pooling layer S(1,2,2) -> Output 2
-        out2 = default_pooling(kernel_size=(1, 1, 2), stride=2)(out1)
+        # Output 1 to max pooling layer S(1,2,2) -> Output 2 (2,16,48,126,126)
+        out2 = default_pooling(kernel_size=(1, 2, 2), stride=(1, 2, 2))(out1)
         if verbose:
             print(f"\tOutput 2 shape : {out2.shape}")
-        # Output 2 to coarse 3D layer 1 -> Output 3
+        # Output 2 to coarse 3D layer 1 -> Output 3 (2,32,44,122,122)
         out3 = self.coarse_3d_1(out2)
         if verbose:
             print(f"\tOutput 3 shape : {out3.shape}")
-        # Output 3 to max pooling layer S(2,2,2) -> Output 4
-        out4 = default_pooling(kernel_size=(2, 2, 2), stride=2)(out3)
+        # Output 3 to max pooling layer S(2,2,2) -> Output 4 (2,32,22,61,61)
+        out4 = default_pooling(kernel_size=(2, 2, 2), stride=(2, 2, 2))(out3)
         if verbose:
             print(f"\tOutput 4 shape : {out4.shape}")
-        # Output 4 to Coarse 3D layer 2 -> Output 5
+        # Output 4 to Coarse 3D layer 2 -> Output 5 (2, 64, 18, 57, 57)
         out5 = self.coarse_3d_2(out4)
         if verbose:
             print(f"\tOutput 5 shape : {out5.shape}")
-        return out5
-        # Output 5 to Fine 3D Layer 1 -> Output 6
+
+        # Output 5 to Fine 3D Layer 1 (HDC) -> Output 6
 
         # Part 2 (Bottom, starting from the first Orange arrow)
         # Output 6 to Fine 3D Layer 2 -> Output 7
@@ -257,6 +280,20 @@ class OrganNet25D(nn.Module):
         return None
 
 
+class ToyOrganNet25D(OrganNet25D):
+    def forward(self, x, *args, **kwargs):
+        out1 = self.two_d_1(x)
+
+        # Concatenate two Output 1s to mock Output 17
+
+        out17 = torch.cat([out1, out1], dim=1)
+
+        out18 = self.two_d_2(out17)
+        out19 = self.one_d_3(out18)
+
+        return out19
+
+
 def main():
     """
     A small toy test that the feedforward works as expected.
@@ -274,7 +311,7 @@ def main():
     expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
-    model = OrganNet25D()
+    model = ToyOrganNet25D()
 
     output = model(input, verbose=True)
 
