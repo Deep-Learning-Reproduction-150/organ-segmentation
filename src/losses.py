@@ -34,3 +34,11 @@ class MSELoss(nn.Module):
             loss = loss / input_batch.shape[0]
 
         return loss
+
+
+class DiceLoss(nn.Module):
+    """
+    Computes the dice loss
+    """
+
+    pass

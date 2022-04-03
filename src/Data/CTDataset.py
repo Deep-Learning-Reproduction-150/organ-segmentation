@@ -14,7 +14,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from src.utils import bcolors, Logger
 from src.Data.LabeledSample import LabeledSample
-from src.Data.utils import CustomCompose
+from src.Data.utils import DataTransformer
 
 
 class CTDataset(Dataset):
@@ -28,6 +28,9 @@ class CTDataset(Dataset):
         - Are lists efficient? Should there be transformation already?
 
     """
+
+    # Attribute stores a global label structure to apply for every sample
+    label_structure = []
 
     # Stores the location of the raw data set
     root = None
@@ -125,13 +128,23 @@ class CTDataset(Dataset):
             Logger.print_status_bar(done=100, title="imported")
             Logger.end_status_bar()
 
+        # Obtain one unified label structure
+        for s in self.samples:
+            for l in s.labels:
+                if l.name not in CTDataset.label_structure:
+                    CTDataset.label_structure.append(l.name)
+
         # Only show status bar when preloading
         if self.preload:
+
             # Display details regarding data loading
             Logger.log("Done loading the dataset at " + self.root + " (" + str(counter) + " samples)", in_cli=True)
 
-            # Transform the whole data set given the passed transformations
-            self._transform()
+            # Already preprocess the data here
+            for i, sample in enumerate(self.samples):
+                Logger.print_status_bar(done=((i + 1) / len(self.samples))*100, title="transforming")
+                sample.preprocess(self.get_data_transformer(), CTDataset.label_structure, output_info=False)
+            Logger.end_status_bar()
 
     def __getitem__(self, index):
         """
@@ -148,14 +161,11 @@ class CTDataset(Dataset):
         # Get the sample with a certain index
         sample = self.samples[index]
 
-        # Check if not preloaded and transform now on the fly
-        if not self.preload:
-
-            # Transform this
-            self._transform(sample)
+        # Preprocess the data (if that has not happened before)
+        sample.preprocess(self.get_data_transformer(), CTDataset.label_structure, output_info=True)
 
         # Return the tupel (data, labels)
-        return sample.get_tensor(), sample.get_labels()
+        return sample.transformed_sample.unsqueeze(0), sample.transformed_labels
 
     def __len__(self):
         """
@@ -192,18 +202,7 @@ class CTDataset(Dataset):
         # Return the root path
         return self.root
 
-    def _transform(self, sample=None):
-        """
-        Applies transformations to either the whole data set (sample is None) or a specific sample
-
-        :param sample: a CTData sample to transform
-        """
-
-        # TODO: apply transformations
-
-        a = 0
-
-    def get_transform(self, name=None):
+    def get_transform(self, name=None, **params):
         """
         Returns a transform based on identifier. This method will first look for a
         local transform in utils.transforms and secondly, look for an official
@@ -217,24 +216,18 @@ class CTDataset(Dataset):
         except AttributeError:
             module = importlib.import_module('torchvision.transforms')
             transform = getattr(module, name)
-        return transform()
+        return transform(**params)
 
-    def get_transforms(self):
+    def get_data_transformer(self):
         """
         Returns a list or single transform object based on a list or single transform description as dict.
         """
-        # If we get a list of transform get all contained transforms
-        if isinstance(self.transforms, list):
-            transform_list = []
-            for t in transforms:
-                if isinstance(t, dict):
-                    t = self.get_transform(**t)
-                elif not isinstance(t, object) or not isinstance(t, nn.Module):
-                    raise TypeError('Expected type dict or transform.')
-                transform_list.append(t)
-            return CustomCompose(transform_list)
-        elif isinstance(transforms, dict):
-            return self.get_transform(**transforms)
-        elif isinstance(transforms, object) or isinstance(transforms, nn.Module) or transforms is None:
-            # We do not have to do anything in this case
-            return transforms
+        # Create a data transformer
+        transform_list = []
+        for t in self.transforms:
+            if isinstance(t, dict):
+                t = self.get_transform(**t)
+            elif not isinstance(t, object) or not isinstance(t, nn.Module):
+                raise TypeError('Expected type dict or transform.')
+            transform_list.append(t)
+        return DataTransformer(transform_list)
