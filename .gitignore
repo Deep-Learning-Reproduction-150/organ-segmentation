@@ -4,11 +4,12 @@
 # Exclude the path where the trainer writes his/her logs
 logs
 
+data/*
+
 # Exclude macOS files
 *.DS_Store
 
 # Exclude folder which stores the data
-data/
 visualizations
 
 # Byte-compiled / optimized / DLL files
