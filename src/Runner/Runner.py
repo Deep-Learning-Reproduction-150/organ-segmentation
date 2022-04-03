@@ -208,9 +208,10 @@ class Runner:
                 running_loss += loss.detach().cpu().numpy()
 
                 # Print epoch status bar
+                avg_loss = "{:.2f}".format(running_loss / batch if batch > 0 else 0)
                 Logger.print_status_bar(
-                    done=((epoch + batch + 1) / (int(training_setup['epochs']) * len(train_data))) * 100,
-                    title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + " current los: " + str(running_loss / batch)
+                    done=((epoch + batch + 1) / len(train_data)) * 100,
+                    title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + ", loss: " + avg_loss
                 )
 
             # Finish the status bar
@@ -223,7 +224,8 @@ class Runner:
             epoch_train_loss = running_loss / len(train_data)
 
             # Log the epoch success
-            Logger.log('Epoch took ' + str(epoch_time) + 'seconds. Loss is ' + str(epoch_train_loss), in_cli=self.debug)
+            avg_loss = "{:.2f}".format(epoch_train_loss)
+            Logger.log('Epoch took ' + str(epoch_time) + 'seconds. Average loss ' + avg_loss, in_cli=self.debug)
 
             # TODO: if there is eval_data (not none), do some validation and early stopping if overfitting
 

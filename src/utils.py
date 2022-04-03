@@ -81,8 +81,6 @@ class Timer:
 class Logger:
     """
     Class that logs messages.
-
-    TODO: integrate status bar in logger and overwrite last row in out when current status bar
     """
 
     # Stores the path of the log file
@@ -99,13 +97,7 @@ class Logger:
     def initialize(log_name=None, **kwargs):
         """Initialize method
 
-        Parameters
-        ----------
-        path: str
-            path to directory in which log file will be created
-        file_name: str
-            name of the log file that will be created
-
+        :param log_name: the name of the log
         """
 
         # Obtain the base path at looking at the parent of the parents parent
@@ -180,11 +172,8 @@ class Logger:
         if not Logger.initialized:
             raise Exception("ERROR: Logger is not initialized")
 
-        # Get the CLI mssage to display
+        # Get the CLI message to display
         cli_message = Logger._get_content(message, type)
-
-        if 'Epoch took' in cli_message:
-            a = 0
 
         if Logger.status_bar_active:
             sys.stdout.write("\r" + cli_message)
@@ -233,8 +222,6 @@ class Logger:
         sys.stdout.write(Logger.last_status_bar)
         if done != 100.0:
             sys.stdout.flush()
-        else:
-            print("")
 
     @staticmethod
     def end_status_bar():
@@ -247,7 +234,7 @@ class Logger:
             raise Exception("ERROR: Logger is not initialized")
 
         Logger.status_bar_active = False
-        # print("")
+        print("")
 
     @staticmethod
     def _get_content(message: str, type: str, log_stamp: str = None):

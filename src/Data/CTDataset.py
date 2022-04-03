@@ -138,10 +138,10 @@ class CTDataset(Dataset):
         if self.preload:
 
             # Display details regarding data loading
-            Logger.log("Done loading the dataset at " + self.root + " (" + str(counter) + " samples)", in_cli=True)
+            Logger.log("Finished loading the dataset (" + str(counter) + " samples)", in_cli=True)
 
             # Print loading message
-            Logger.log("Started applying the specified transformations to the samples ...", type="INFO", in_cli=True)
+            Logger.log("Started applying the specified transformations to the samples ...", in_cli=True)
 
             # Already preprocess the data here
             for i, sample in enumerate(self.samples):
