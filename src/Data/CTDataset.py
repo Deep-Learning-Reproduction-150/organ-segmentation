@@ -120,12 +120,12 @@ class CTDataset(Dataset):
                 # Print the changing import status line
                 done = (i / possible_target_count) * 100
                 # Finish the status bar
-                Logger.print_status_bar(done=done, title="imported")
+                Logger.print_status_bar(done=done, title="importing")
 
         # Reset console for next print message
         if self.preload:
             # Show the 100% status bar
-            Logger.print_status_bar(done=100, title="imported")
+            Logger.print_status_bar(done=100, title="importing")
             Logger.end_status_bar()
 
         # Obtain one unified label structure FIXME: could be smarter :)

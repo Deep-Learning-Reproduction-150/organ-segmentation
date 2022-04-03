@@ -169,7 +169,7 @@ class Runner:
             Logger.log('Starting to run Epoch {}/{}'.format(epoch + 1, training_setup['epochs']), in_cli=False)
 
             # Print epoch status bar
-            Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + " progress")
+            Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']))
 
             # Start the epoch timer
             self.timer.start('epoch')
@@ -208,7 +208,7 @@ class Runner:
                 running_loss += loss.detach().cpu().numpy()
 
                 # Print epoch status bar
-                avg_loss = "{:.2f}".format(running_loss / batch if batch > 0 else 0)
+                avg_loss = "{:.2f}".format(running_loss / batch if batch > 0 else 9999999)
                 Logger.print_status_bar(
                     done=((epoch + batch + 1) / len(train_data)) * 100,
                     title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + ", loss: " + avg_loss

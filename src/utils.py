@@ -199,11 +199,14 @@ class Logger:
         if not Logger.initialized:
             raise Exception("ERROR: Logger is not initialized")
 
+        # The start buffer is appended before the loading bar
+        start_buffer = "RUN     "
+
         Logger.status_bar_active = True
         if done == 100.0:
-            Logger.last_status_bar = "\r|" + bcolors.OKBLUE + ('.' * bar_width) + bcolors.ENDC + "| 100% " + title
+            Logger.last_status_bar = "\r" + start_buffer + "100.0% " + bcolors.OKBLUE + ('.' * bar_width) + bcolors.ENDC + " " + title
         else:
-            status_string = "|" + bcolors.OKBLUE
+            status_string = "" + bcolors.OKBLUE
             state = "d"
             for j in range(bar_width):
                 nextstate = state
@@ -216,8 +219,11 @@ class Logger:
                     status_string += "."
                 state = nextstate
             status_string += bcolors.ENDC
-            status_string += "| "
-            Logger.last_status_bar = "\r" + status_string + str(round(done, 2)) + "% " + title
+            status_string += " "
+            done_string = "{:.2f}".format(done)
+            if done < 10:
+                done_string = done_string + " "
+            Logger.last_status_bar = "\r" + start_buffer + done_string + "% " + status_string + title
 
         sys.stdout.write(Logger.last_status_bar)
         if done != 100.0:
