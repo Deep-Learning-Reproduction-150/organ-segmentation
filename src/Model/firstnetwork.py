@@ -105,6 +105,69 @@ class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
         return y
 
 
+def HDC(in_channels=64, out_channels=128, dilations=(1, 2, 5), kernel_size=(3, 3, 3)):
+    """
+    Creates a HDC layer.
+    """
+    max_dil = max(dilations)
+    layers = []
+    prev_out = in_channels
+    for dilation in dilations:
+        pad = max_dil - dilation
+        layer = nn.Conv3d(
+            in_channels=prev_out,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=pad,
+            dilation=dilation,
+        )
+        layers.append(layer)
+        prev_out = out_channels
+    hdc = nn.Sequential(*layers)
+    return hdc
+
+
+class HDCResSE(nn.Module):  # See figure 2. from the paper
+    def __init__(
+        self,
+        global_pooling_size,
+        dilations=(1, 2, 5),
+        in_channels=16,
+        out_channels=32,
+        kernel_size=(3, 3, 3),
+        stride=1,
+        padding=0,
+    ) -> None:
+
+        super().__init__()
+
+        self.hdc = HDC(
+            dilations=(1, 2, 5),
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+        )
+        self.resse = nn.Sequential(
+            nn.AvgPool3d(global_pooling_size),
+            nn.Flatten(),
+            nn.Linear(in_features=out_channels, out_features=out_channels),
+            nn.Linear(in_features=out_channels, out_features=out_channels),
+            nn.Sigmoid(),
+            nn.Unflatten(1, (out_channels, 1, 1, 1)),
+        )
+
+    def forward(self, x):
+
+        conv_out = self.hdc(x)
+        resse_out = self.resse(conv_out)
+
+        multi = conv_out * resse_out
+        y = multi + conv_out
+
+        return y
+
+
 def conv_3d_fine():
     pass
 
