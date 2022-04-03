@@ -213,7 +213,7 @@ class Logger:
             state = "d"
             for j in range(bar_width):
                 nextstate = state
-                if int(done) >= j:
+                if int(done) >= ((j / bar_width) * 100):
                     status_string += "."
                 else:
                     if state == 'd':

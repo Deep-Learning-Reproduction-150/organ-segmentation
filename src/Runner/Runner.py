@@ -14,6 +14,7 @@ import os
 from src.utils import Logger, Timer, bcolors
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
+from src.Data.utils import CTDataCollator
 from src.Model.OrganNet25D import OrganNet25D
 from src.Data.CTDataset import CTDataset
 
@@ -153,17 +154,12 @@ class Runner:
         # Get dataset if not given
         dataset = self._get_dataset(training_setup['dataset'])
 
-        # When preloading is on, check dimensionality of data set
-        if training_setup['dataset']['preload']:
-
-            # Check the dimensionality and remove false samples when needed
-            dataset.check_dimensionality(training_setup['dataset']['remove_false_samples'])
-
         # Get dataloader for both training and validation
         train_data, val_data = self._get_dataloader(dataset,
-                                                   split_ratio=training_setup['split_ratio'],
-                                                   num_workers=training_setup['num_workers'],
-                                                   batch_size=training_setup['batch_size'])
+                                                    split_ratio=training_setup['split_ratio'],
+                                                    num_workers=training_setup['num_workers'],
+                                                    batch_size=training_setup['batch_size'],
+                                                    batch_dimensions=tuple(training_setup['batch_dimensions']))
 
         # Log dataset information
         Logger.log(str(len(dataset)) + ' samples have been '
@@ -285,7 +281,7 @@ class Runner:
         return dataset
 
     def _get_dataloader(self, dataset, shuffle: bool = True, split_ratio: float = 0.5, num_workers: int = 0,
-                        batch_size: int = 64, pin_memory: bool = True):
+                        batch_size: int = 64, pin_memory: bool = True, batch_dimensions: tuple = (128, 128, 128)):
         """
         The method returns data loader instances (if split) or just one dataloader based on the passed dataset
 
@@ -294,9 +290,16 @@ class Runner:
         :param split_ratio: the ratio that the split shall be based on (if none, no split)
         :param num_workers: number of workers for laoding data
         :param batch_size: batch size of returned samples
-        :param pin_memory:
+        :param batch_dimensions: the desired dimensions of one sample in a batch
+        :param pin_memory: speeds up data loading on GPU
         :return:
         """
+
+        # Initialize the second split (as it might be none)
+        second_split = None
+
+        # Generate the data collator
+        collator = CTDataCollator(batch_dimensions=batch_dimensions)
 
         # Check whether the user wants a split data set
         if split_ratio is not None:
@@ -308,13 +311,16 @@ class Runner:
                                                      generator=torch.Generator().manual_seed(10))
 
             # Initialize data loaders for both parts of the split data set
-            first_split = DataLoader(first_split, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
-            second_split = DataLoader(second_split, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
-
-            # Return tupel of splits
-            return first_split, second_split
+            first_split = DataLoader(first_split, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
+                                     pin_memory=pin_memory, collate_fn=collator)
+            second_split = DataLoader(second_split, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
+                                      pin_memory=pin_memory, collate_fn=collator)
 
         else:
 
-            # When no split is wanted, just return the data loader
-            return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory), None
+            # Just return one data loader then
+            first_split = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
+                                     pin_memory=pin_memory, collate_fn=collator)
+
+        # Return tupel of splits
+        return first_split, second_split
