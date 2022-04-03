@@ -159,7 +159,6 @@ class HDCResSE(nn.Module):  # See figure 2. from the paper
     def forward(self, x):
 
         conv_out = self.hdc(x)
-        print(conv_out.shape)
         resse_out = self.resse(conv_out)
 
         multi = conv_out * resse_out
@@ -209,15 +208,15 @@ class OrganNet25D(nn.Module):
 
         # Coarse 3D layers
 
-        d_here = d - 4  # 44
-        h_here = int((h - 4) / 2) - 4  # 122
+        d_here = d - 4  # 44 -> two 2x2x2 convolutions
+        h_here = int((h - 4) / 2) - 4  # 122, two 1x2x2 convolutions -> downsample -> two 2x2x2 convolutions
         # First part of 2 x Conv + ResSE
         self.coarse_3d_1 = DoubleConvResSE(
             (d_here, h_here, h_here), in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0
         )
 
-        d_here = int((d_here - 8) / 2)  # 18
-        h_here = int((h_here - 8) / 2)  # 57
+        d_here = int(d_here / 2) - 4  # 18 # downsample + two 2x2x2 conv
+        h_here = int(h_here / 2) - 4  # 57  # downsample + two 2x2x2 conv
 
         self.coarse_3d_2 = DoubleConvResSE(
             (d_here, h_here, h_here), in_channels=32, out_channels=64, kernel_size=(3, 3, 3), stride=1, padding=0
@@ -353,8 +352,13 @@ class OrganNet25D(nn.Module):
             print(f"\tOutput 14 shape : {out14.shape}")
         # Concatenate Output 14 and Output 3 -> Output 15
         # First crop 3, (..., 122, 122) -> (..., 114, 114)
-        out3_cropped = CenterCrop(out14.shape[-1])(out3)
-        out15 = torch.cat([out3_cropped, out14], dim=1)
+        out3_xycropped = CenterCrop(144)(out3)
+        diff = (out3.shape[-3] - 36) // 2
+        out3_xyzcropped = out3_xycropped[:, :, diff:-diff, ...]
+        print(out3_xyzcropped.shape)
+        out15 = torch.cat([out3_xyzcropped, out14], dim=1)
+        if verbose:
+            print(f"\tOutput 14 shape : {out14.shape}")
         # Output 15 to Coarse 3d Layer 4 -> Output 16
         # Concatenate Output 1 and Output 16 -> Output 17
         # Output 17 to 2D layer 2 -> Output 18
@@ -421,7 +425,7 @@ def main():
     """
 
     batch = 2
-    width = height = 256 * 2
+    width = height = 128  # * 2
     depth = 48
     channels_in = 1
     channels_out = 10
@@ -432,8 +436,8 @@ def main():
     expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
-    model = OrganNet25D()
-    # model = ToyOrganNet25D()
+    # model = OrganNet25D(input_shape=input_shape[-3::])
+    model = ToyOrganNet25D()
 
     output = model(input, verbose=True)
 
