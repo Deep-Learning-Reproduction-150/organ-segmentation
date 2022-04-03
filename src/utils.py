@@ -31,78 +31,50 @@ class bcolors:
 
 class Timer:
     """
-    Basic timer class.
+    Basic timer class to measure different processes easily
     """
+
+    # An internal storage for different processes to measure
+    processes = None
 
     def __init__(self):
         """
         Initializes timer.
         """
-        # The start time of the global timer.
-        self.start_time = None
         # Saves all processes currently in use.
         self.processes = {}
 
-    def start(self, process=None):
+    def start(self, process):
         """
-        Starts a global timer or a process specific timer.
-
-        Parameters
-        ----------
-        process: str
-            process that the timer should time, if None global
-            time will be used (optional)
-
+        Starts a process specific timer
         """
-        if process is not None:
-            assert isinstance(process, str)
-            self.processes[process] = time.time()
-        else:
-            self.start_time = time.time()
+        assert isinstance(process, str)
+        self.processes[process] = time.time()
 
-    def get_time(self, process=None):
+    def get_time(self, process):
         """
         Get time of global timer or process specific timer.
 
-        Parameters
-        ----------
-        process: str
-            process that you want the current time of, if None
-            global time will be returned (optional)
-
+        :param process: the process of which to obtain the timer from
         """
-        if process is not None:
-            start_time = self.processes.pop(process, None)
-            if start_time is None:
-                raise KeyError('Process not found.')
-            else:
-                return np.round(time.time() - start_time, 2)
+        start_time = self.processes.pop(process, None)
+        if start_time is None:
+            raise KeyError('Process not found.')
         else:
-            if self.start_time is None:
-                raise Exception('Timer has not been started yet.')
-            return np.round(time.time() - self.start_time, 2)
+            return np.round(time.time() - start_time, 2)
 
-    def reset(self, process=None):
+    def reset(self, process):
         """
-        Reset global timer or timer of a process.
+        Reset timer of a process.
 
-        Parameters
-        ----------
-        process: str
-            process of which timer is to be reset, if None
-            global time is reset (optional)
-
+        :param process: the process of which to reset the timer from
         """
-        if process is not None:
-            self.processes[process] = None
-        else:
-            self.start_time = None
+        self.processes[process] = None
 
     def reset_all(self):
         """
-        Resets global timer and all processes.
+        Resets all timers
         """
-        self.start_time = None
         self.processes = {}
 
 
@@ -118,6 +90,9 @@ class Logger:
 
     # Attribute stores whether there is a progressbar currently
     status_bar_active = False
+
+    # Whether or whether not the logger is initialized
+    initialized = False
 
     @staticmethod
     def initialize(log_name=None, **kwargs):
@@ -151,6 +126,9 @@ class Logger:
         else:
             Logger.path = None
 
+        # Set initialized
+        Logger.initialized = True
+
     @staticmethod
     def clear():
         """
@@ -173,6 +151,10 @@ class Logger:
         :param in_cli: whether to also print the message
         """
 
+        # Check whether logger is initialized
+        if not Logger.initialized:
+            raise Exception("ERROR: Logger is not initialized")
+
         if in_cli:
             Logger.out(message, type)
 
@@ -180,7 +162,8 @@ class Logger:
             with open(Logger.path, 'a+') as file:
                 if message != '':
                     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    file.write(time_str + '         ' + message)
+                    log_message = Logger._get_content(message, type, time_str)
+                    file.write(log_message)
                 file.write('\n')
 
     @staticmethod
@@ -192,32 +175,19 @@ class Logger:
         :param type: the type of the message
         """
 
-        # Check whether the type is known
-        if type in ['ERROR', 'WARNING', 'INFO', 'SUCCESS', '']:
+        # Check whether logger is initialized
+        if not Logger.initialized:
+            raise Exception("ERROR: Logger is not initialized")
 
-            # Print loading message
-            if type == 'INFO':
-                cli_message = bcolors.OKBLUE + "INFO: " + message + bcolors.ENDC
-            elif type == 'WARNING':
-                cli_message = bcolors.WARNING + "WARNING: " + message + bcolors.ENDC
-            elif type == 'ERROR':
-                cli_message = bcolors.FAIL + "ERROR: " + message + bcolors.ENDC
-            elif type == 'SUCCESS':
-                cli_message = bcolors.OKGREEN + "SUCCESS: " + message + bcolors.ENDC
-            else:
-                cli_message = "INFO: " + message
+        # Get the CLI mssage to display
+        cli_message = Logger._get_content(message, type)
 
-            if Logger.status_bar_active:
-                sys.stdout.write("\r" + cli_message)
-                sys.stdout.flush()
-                print("")
-            else:
-                print(cli_message)
-
+        if Logger.status_bar_active:
+            sys.stdout.write("\r" + cli_message)
+            sys.stdout.flush()
+            print("")
         else:
-
-            # Notify that the output type is unknown
-            raise ValueError("ERROR: Logger out function does not recognize the message type")
+            print(cli_message)
 
     @staticmethod
     def print_status_bar(title: str = "done", done: float = 0, bar_width: int = 50):
@@ -228,6 +198,11 @@ class Logger:
         :param done: the percentage of the bar
         :param bar_width: how wide the bar shall be
         """
+
+        # Check whether logger is initialized
+        if not Logger.initialized:
+            raise Exception("ERROR: Logger is not initialized")
+
         Logger.status_bar_active = True
         if done == 100.0:
             sys.stdout.write(
@@ -256,4 +231,60 @@ class Logger:
         """
         This function must be called after ending a status bar progress
         """
+
+        # Check whether logger is initialized
+        if not Logger.initialized:
+            raise Exception("ERROR: Logger is not initialized")
+
         Logger.status_bar_active = False
+
+    @staticmethod
+    def _get_content(message: str, type: str, log_stamp: str = None):
+        """
+
+        :param message: the raw message to log or print
+        :param type: the type of the message
+        :param log_stamp: when passed, it returns a log string
+        :return: a string for cli logging or writing to rtf
+        """
+
+        # Check whether the type is known
+        if type in ['ERROR', 'WARNING', 'INFO', 'SUCCESS', '']:
+
+            # Create prephase when log stamp is given
+            if log_stamp is not None:
+
+                # Create a log message
+                if type == 'INFO':
+                    log_message = log_stamp + "     INFO    \t" + message
+                elif type == 'WARNING':
+                    log_message = log_stamp + "     WARN    \t" + message
+                elif type == 'ERROR':
+                    log_message = "\n" + log_stamp + "     ERROR   \t" + message + "\n"
+                elif type == 'SUCCESS':
+                    log_message = log_stamp + "     SUCCESS \t" + message
+                else:
+                    log_message = log_stamp + "     INFO    \t" + message
+
+                return log_message
+
+            else:
+
+                # Print loading message
+                if type == 'INFO':
+                    cli_message = bcolors.OKBLUE + "INFO    " + message + bcolors.ENDC
+                elif type == 'WARNING':
+                    cli_message = bcolors.WARNING + "WARN    " + message + bcolors.ENDC
+                elif type == 'ERROR':
+                    cli_message = bcolors.FAIL + "ERROR   " + message + bcolors.ENDC
+                elif type == 'SUCCESS':
+                    cli_message = bcolors.OKGREEN + "SUCCESS " + message + bcolors.ENDC
+                else:
+                    cli_message = "LOG     " + message
+
+                return cli_message
+
+        else:
+
+            # Notify that the output type is unknown
+            raise ValueError("ERROR: Logger out function does not recognize the message type")

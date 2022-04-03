@@ -15,8 +15,8 @@ import os
 from src.utils import Logger, Timer, bcolors
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
-from src.OrganNet25D.network import OrganNet25D
-from src.Dataloader.CTDataset import CTDataset
+from src.Model.OrganNet25D import OrganNet25D
+from src.Data.CTDataset import CTDataset
 
 
 class Runner:
