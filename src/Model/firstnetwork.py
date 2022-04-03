@@ -183,7 +183,7 @@ class OrganNet25D(nn.Module):
         :return: TODO: good question - what exactly?
 
         Input: 256,256,48
-        Output: 256,256,48,9 (# organs)
+        Output: 256,256,48,10 (# organs)
 
         NOTE: Order unsure
         """
@@ -217,7 +217,7 @@ class OrganNet25D(nn.Module):
         out5 = self.coarse_3d_2(out4)
         if verbose:
             print(f"\tOutput 5 shape : {out5.shape}")
-
+        return out5
         # Output 5 to Fine 3D Layer 1 (HDC) -> Output 6
 
         # Part 2 (Bottom, starting from the first Orange arrow)
@@ -236,10 +236,8 @@ class OrganNet25D(nn.Module):
         # Concatenate Output 1 and Output 16 -> Output 17
         # Output 17 to 2D layer 2 -> Output 18
         # Output 18 to 1x1x1 layer 3 -> Final output
-
-        output = x
-
-        return output
+        out18 = x
+        return out18
 
     def train_model(self, train_data, test_data, monitor_progress: bool = False):
         """
@@ -311,7 +309,8 @@ def main():
     expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
-    model = ToyOrganNet25D()
+    model = OrganNet25D()
+    # model = ToyOrganNet25D()
 
     output = model(input, verbose=True)
 
