@@ -225,7 +225,7 @@ class Runner:
 
             # Log the epoch success
             avg_loss = "{:.2f}".format(epoch_train_loss)
-            Logger.log('Epoch took ' + str(epoch_time) + 'seconds. Average loss ' + avg_loss, in_cli=self.debug)
+            Logger.log('Epoch took ' + str(epoch_time) + ' seconds. The average loss is ' + avg_loss, in_cli=self.debug)
 
             # TODO: if there is eval_data (not none), do some validation and early stopping if overfitting
 
