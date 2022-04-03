@@ -1,4 +1,5 @@
 import skimage.transform as transform
+from torchvision.transforms import CenterCrop
 import numpy as np
 import torch
 
@@ -84,7 +85,7 @@ class Rescale(object):
         self.height = height
 
     def __call__(self, vol):
-        return torch.from_numpy(transform.rescale(vol, (self.height, self.width, self.depth), anti_aliasing=True, order=3))
+        return torch.from_numpy(transform.rescale(vol, (self.depth, self.height, self.width), anti_aliasing=True, order=3))
 
 
 class Resize(object):
@@ -98,4 +99,19 @@ class Resize(object):
         self.height = height
 
     def __call__(self, vol):
-        return torch.from_numpy(transform.resize(vol, (self.height, self.width, self.depth), anti_aliasing=True, order=3))
+        return torch.from_numpy(transform.resize(vol, (self.depth, self.height, self.width), anti_aliasing=True, order=3))
+
+
+class EasyResize(object):
+    """
+    Resizes a volume to a desired size
+    """
+
+    def __init__(self, depth=1, width=1, height=1):
+        self.depth = depth
+        self.width = width
+        self.height = height
+
+    def __call__(self, vol):
+        return torch.from_numpy(transform.resize(vol, (self.depth, self.height, self.width), anti_aliasing=False, order=0))
+

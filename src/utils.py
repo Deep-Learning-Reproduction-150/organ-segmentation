@@ -90,6 +90,7 @@ class Logger:
 
     # Attribute stores whether there is a progressbar currently
     status_bar_active = False
+    last_status_bar = None
 
     # Whether or whether not the logger is initialized
     initialized = False
@@ -173,8 +174,6 @@ class Logger:
 
         :param message: message to be logged
         :param type: the type of the message
-
-        TODO: has to write last status bar again (there need to be a buffer)
         """
 
         # Check whether logger is initialized
@@ -188,6 +187,9 @@ class Logger:
             sys.stdout.write("\r" + cli_message)
             sys.stdout.flush()
             print("")
+            if Logger.last_status_bar is not None:
+                sys.stdout.write(Logger.last_status_bar)
+                sys.stdout.flush()
         else:
             print(cli_message)
 
@@ -207,9 +209,7 @@ class Logger:
 
         Logger.status_bar_active = True
         if done == 100.0:
-            sys.stdout.write(
-                "\r|" + bcolors.OKBLUE + ('.' * bar_width) + bcolors.ENDC + "| 100% " + title)
-            print("")
+            Logger.last_status_bar = "\r|" + bcolors.OKBLUE + ('.' * bar_width) + bcolors.ENDC + "| 100% " + title
         else:
             status_string = "|" + bcolors.OKBLUE
             state = "d"
@@ -225,8 +225,13 @@ class Logger:
                 state = nextstate
             status_string += bcolors.ENDC
             status_string += "| "
-            sys.stdout.write("\r" + status_string + str(round(done, 2)) + "% " + title)
+            Logger.last_status_bar = "\r" + status_string + str(round(done, 2)) + "% " + title
+
+        sys.stdout.write(Logger.last_status_bar)
+        if done != 100.0:
             sys.stdout.flush()
+        else:
+            print("")
 
     @staticmethod
     def end_status_bar():
@@ -239,6 +244,7 @@ class Logger:
             raise Exception("ERROR: Logger is not initialized")
 
         Logger.status_bar_active = False
+        print("")
 
     @staticmethod
     def _get_content(message: str, type: str, log_stamp: str = None):

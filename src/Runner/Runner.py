@@ -62,9 +62,6 @@ class Runner:
         # Create a timer instance for time measurements
         self.timer = Timer()
 
-        # Create an instance of the model TODO: could be passing different models here? Via job.json?
-        self.model = ToyOrganNet25D()
-
         # Initialize the job queue
         self.job_queue = []
 
@@ -111,14 +108,8 @@ class Runner:
             # Print CLI message
             Logger.log("Started '" + job['name'] + "'", "INFO", self.debug)
 
-            # Check if model shall be resetted
-            if job['model']['reset']:
-
-                # Create an instance of the model
-                self.model = OrganNet25D()
-
-                # Print CLI message
-                Logger.log("Resetted OrganNet25D", in_cli=self.debug)
+            # Create an instance of the model TODO: could be passing different models here? Via job.json?
+            self.model = OrganNet25D(input_shape=job['model']['input_shape'], hdc_dilations=(1, 2, 5))
 
             # Check if job contains index "training"
             if 'training' in job and type(job['training']) is dict:
@@ -162,8 +153,8 @@ class Runner:
 
         # Log dataset information
         Logger.log(str(len(dataset)) + ' samples have been '
-                          + ('loaded (preloading active)' if training_setup['dataset']['preload']
-                             else 'found (preloading inactive)'), type="INFO", in_cli=self.debug)
+                   + ('loaded (preloading active)' if training_setup['dataset']['preload']
+                      else 'found (preloading inactive)'), type="INFO", in_cli=self.debug)
 
         # Create optimizer
         optimizer = self._get_optimizer(training_setup['optimizer'])
@@ -176,6 +167,9 @@ class Runner:
 
             # Start epoch timer and log the start of this epoch
             Logger.log('Starting to run Epoch {}/{}'.format(epoch + 1, training_setup['epochs']), in_cli=False)
+
+            # Print epoch status bar
+            Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + " progress")
 
             # Start the epoch timer
             self.timer.start('epoch')
@@ -198,8 +192,18 @@ class Runner:
                 # Get output
                 model_output = self.model(inputs)
 
+                # TODO: "join" the label tensors in one tesnors
+
+                model_output = model_output[:, 1:, ...]
+                labels_input = torch.cat(labels, 1)
+
+                a1 = model_output.dtype
+                a2 = labels_input.dtype
+
+                b = 0
+
                 # Calculate loss
-                loss = loss_function(model_output, labels)
+                loss = loss_function(model_output, labels_input)
 
                 # Backpropagation
                 loss.backward()

@@ -7,6 +7,7 @@ Group: 150
 """
 
 import os
+import torch
 import nrrd
 import imageio
 import matplotlib.pyplot as plt
@@ -115,7 +116,7 @@ class CTData:
             self._load_data_from_file()
 
         # Return a tensor of data
-        return from_numpy(self.data)
+        return from_numpy(self.data).to(torch.float32)
 
     def visualize(self, show: bool = False, export_png: bool = False, export_gif: bool = False,
                   direction: str = "vertical", name: str = None, high_quality: bool = False,

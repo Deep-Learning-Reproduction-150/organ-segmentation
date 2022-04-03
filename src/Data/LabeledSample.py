@@ -133,8 +133,6 @@ class LabeledSample:
         This method returns the list of labels associated with this sample
 
         :return labels: list of tensors that are the labels
-
-        TODO: checkout exactly how the logic shall work - where are the label names!?
         """
 
         # Check if sample has been preprocessed
@@ -150,6 +148,8 @@ class LabeledSample:
             # Append a tensor
             tensors.append(label.get_tensor())
             labels.append(label.name)
+
+        # TODO: go veikko
 
         # return label data
         label_data = {
@@ -196,7 +196,7 @@ class LabeledSample:
             self.transformed_labels = []
 
             # Transform the sample data using the passed transformer
-            self.transformed_sample = transformer(sample_tensor)
+            self.transformed_sample = transformer(sample_tensor.transpose(0, -1))
 
             # Iterate through the labels and create
             for wanted_label in label_structure:
@@ -211,11 +211,11 @@ class LabeledSample:
 
                 # Check if label exists
                 if match and label is not None:
-                    data = transformer(label.get_tensor())
+                    data = transformer(label.get_tensor().transpose(0, -1)).unsqueeze(0)
                 else:
                     # Create zero sample
                     data = torch.zeros(self.transformed_sample.size())
-                    data = transformer(data)
+                    data = transformer(data).unsqueeze(0)
 
                 # Append the transformed label to it
                 self.transformed_labels.append(data)

@@ -14,7 +14,7 @@ class MSELoss(nn.Module):
     Determines l1 loss which is the absolute difference between input and output.
     """
 
-    def __init__(self, reduction: str = 'mean'):
+    def __init__(self, **params):
         """
         Initialize method of the MSE Loss object
 
@@ -22,7 +22,7 @@ class MSELoss(nn.Module):
                             'sum' will determine the summation of losses over all elements
         """
         super().__init__()
-        self.reduction = reduction
+        self.reduction = 'mean'
 
     def forward(self, output_batch, input_batch):
 

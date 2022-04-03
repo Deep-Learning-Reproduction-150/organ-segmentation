@@ -128,7 +128,7 @@ class CTDataset(Dataset):
             Logger.print_status_bar(done=100, title="imported")
             Logger.end_status_bar()
 
-        # Obtain one unified label structure
+        # Obtain one unified label structure FIXME: could be smarter :)
         for s in self.samples:
             for l in s.labels:
                 if l.name not in CTDataset.label_structure:
@@ -139,6 +139,9 @@ class CTDataset(Dataset):
 
             # Display details regarding data loading
             Logger.log("Done loading the dataset at " + self.root + " (" + str(counter) + " samples)", in_cli=True)
+
+            # Print loading message
+            Logger.log("Started applying the specified transformations to the samples ...", type="INFO", in_cli=True)
 
             # Already preprocess the data here
             for i, sample in enumerate(self.samples):

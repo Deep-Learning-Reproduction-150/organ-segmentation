@@ -1,17 +1,18 @@
 {
     "name": "testing_organ_segmentation",
     "model": {
-        "reset": true
+        "reset": true,
+        "input_shape": [32, 64, 64]
     },
     "training": {
         "epochs": 4,
         "loss": {
-            "name": "DiceLoss",
+            "name": "MSELoss",
             "parameter_a": 2
         },
         "split_ratio": null,
         "wandb_id": null,
-        "batch_size": 2,
+        "batch_size": 1,
         "num_workers": 0,
         "evaluate": true,
         "optimizer": {
@@ -25,15 +26,10 @@
             "remove_false_samples": true,
             "transform": [
                 {
-                    "name": "Resize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
-                },
-                {
-                    "name": "Normalize",
-                    "mean": 0,
-                    "std": 1
+                    "name": "EasyResize",
+                    "width": 64,
+                    "height": 64,
+                    "depth": 32
                 }
             ]
         }
