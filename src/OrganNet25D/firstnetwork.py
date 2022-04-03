@@ -68,7 +68,9 @@ def conv_2x3d_coarse(in_channels=16, out_channels=32, kernel_size=(3, 3, 3), str
 
 
 class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
-    def __init__(self, in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0) -> None:
+    def __init__(
+        self, global_pooling_size, in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0
+    ) -> None:
 
         super().__init__()
 
@@ -76,7 +78,7 @@ class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
             in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding
         )
         self.resse = nn.Sequential(
-            nn.AvgPool3d((20, 122, 122)),
+            nn.AvgPool3d(global_pooling_size),
             nn.Flatten(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
             nn.Linear(in_features=out_channels, out_features=out_channels),
@@ -132,10 +134,14 @@ class OrganNet25D(nn.Module):
         # Coarse 3D layers
 
         # First part of 2 x Conv + ResSE
-        self.coarse_3d_1 = DoubleConvResSE(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=0)
+        self.coarse_3d_1 = DoubleConvResSE(
+            (20, 122, 122), in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=0
+        )
         # conv_2x3d_coarse(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=0)
 
-        self.coarse_3d_2 = conv_2x3d_coarse()
+        self.coarse_3d_2 = DoubleConvResSE(
+            (6, 57, 57), in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=0
+        )
         self.coarse_3d_3 = conv_2x3d_coarse()
         self.coarse_3d_4 = conv_2x3d_coarse()
 
@@ -185,10 +191,10 @@ class OrganNet25D(nn.Module):
         if verbose:
             print(f"\tOutput 4 shape : {out4.shape}")
         # Output 4 to Coarse 3D layer 2 -> Output 5
-        return out4
         out5 = self.coarse_3d_2(out4)
         if verbose:
-            print(f"\tOutput 4 shape : {out5.shape}")
+            print(f"\tOutput 5 shape : {out5.shape}")
+        return out5
         # Output 5 to Fine 3D Layer 1 -> Output 6
 
         # Part 2 (Bottom, starting from the first Orange arrow)
