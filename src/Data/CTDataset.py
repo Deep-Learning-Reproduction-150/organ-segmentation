@@ -9,9 +9,12 @@ Group: 150
 import os
 import random
 import sys
+import importlib
+import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from src.utils import bcolors, Logger
 from src.Data.LabeledSample import LabeledSample
+from src.Data.utils import CustomCompose
 
 
 class CTDataset(Dataset):
@@ -35,13 +38,13 @@ class CTDataset(Dataset):
     # Whether to preload the data or load it when obtaining a sample
     preload = None
 
-    # Stores the transform object
-    transform = None
+    # Stores the transforms to be applied to the data set
+    transforms = None
 
     # Whether the data set has already been transformed
     transformed = None
 
-    def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, transform: list = []):
+    def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, transforms: list = []):
         """
         Constructor method of the dataloader. First parameter specifies directories that contain labels to the files
         provided. The dataloader is designed to work with nrrd files only at the moment. n-dimensional numpy arrays
@@ -64,8 +67,8 @@ class CTDataset(Dataset):
         # Whether or not to preload and preprocess volumes
         self.preload = preload
 
-        # Save the transform TODO: handle the transforms
-        self.transform = transform
+        # Save the transform
+        self.transforms = transforms
 
         # Check if given path leads to a directory
         if not os.path.isdir(root):
@@ -118,14 +121,17 @@ class CTDataset(Dataset):
 
         # Reset console for next print message
         if self.preload:
+            # Show the 100% status bar
             Logger.print_status_bar(done=100, title="imported")
             Logger.end_status_bar()
 
         # Only show status bar when preloading
         if self.preload:
-
             # Display details regarding data loading
             Logger.log("Done loading the dataset at " + self.root + " (" + str(counter) + " samples)", in_cli=True)
+
+            # Transform the whole data set given the passed transformations
+            self._transform()
 
     def __getitem__(self, index):
         """
@@ -139,10 +145,14 @@ class CTDataset(Dataset):
             - what about the labels? how do you return multi-labels?
         """
 
-        # TODO: Call transform (to assure that data has been transformed)
-
         # Get the sample with a certain index
         sample = self.samples[index]
+
+        # Check if not preloaded and transform now on the fly
+        if not self.preload:
+
+            # Transform this
+            self._transform(sample)
 
         # Return the tupel (data, labels)
         return sample.get_tensor(), sample.get_labels()
@@ -182,5 +192,49 @@ class CTDataset(Dataset):
         # Return the root path
         return self.root
 
-    def _transform(self):
+    def _transform(self, sample=None):
+        """
+        Applies transformations to either the whole data set (sample is None) or a specific sample
+
+        :param sample: a CTData sample to transform
+        """
+
+        # TODO: apply transformations
+
         a = 0
+
+    def get_transform(self, name=None):
+        """
+        Returns a transform based on identifier. This method will first look for a
+        local transform in utils.transforms and secondly, look for an official
+        pytorch transform.
+        """
+        # Try to import local custom module
+        try:
+            module = importlib.import_module('src.Data.transforms')
+            transform = getattr(module, name)
+        # Try to import pytorch transform
+        except AttributeError:
+            module = importlib.import_module('torchvision.transforms')
+            transform = getattr(module, name)
+        return transform()
+
+    def get_transforms(self):
+        """
+        Returns a list or single transform object based on a list or single transform description as dict.
+        """
+        # If we get a list of transform get all contained transforms
+        if isinstance(self.transforms, list):
+            transform_list = []
+            for t in transforms:
+                if isinstance(t, dict):
+                    t = self.get_transform(**t)
+                elif not isinstance(t, object) or not isinstance(t, nn.Module):
+                    raise TypeError('Expected type dict or transform.')
+                transform_list.append(t)
+            return CustomCompose(transform_list)
+        elif isinstance(transforms, dict):
+            return self.get_transform(**transforms)
+        elif isinstance(transforms, object) or isinstance(transforms, nn.Module) or transforms is None:
+            # We do not have to do anything in this case
+            return transforms

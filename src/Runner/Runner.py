@@ -16,6 +16,7 @@ from pathlib import Path
 from torch.utils.data import random_split, DataLoader
 from src.Data.utils import CTDataCollator
 from src.Model.OrganNet25D import OrganNet25D
+from src.Model.firstnetwork import ToyOrganNet25D
 from src.Data.CTDataset import CTDataset
 
 

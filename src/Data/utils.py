@@ -9,6 +9,27 @@ Group: 150
 import torch
 
 
+class CustomCompose(object):
+    """
+    Custom compose transform to make use of mask.
+    """
+
+    def __init__(self, transforms, return_mask=False):
+        self.transforms = transforms
+        self.return_mask = return_mask
+
+    def __call__(self, img, mask=None):
+        if mask is None:
+            for t in self.transforms:
+                img = t(img)
+            return img
+        for t in self.transforms:
+            img, mask = t(img, mask)
+        if self.return_mask:
+            return img, mask
+        return img
+
+
 class CTDataCollator(object):
     """
     This custom collate function is used by the data loader to create batches
@@ -35,23 +56,4 @@ class CTDataCollator(object):
         :return: tensor tupel which represents a batch and the label tensor
         """
 
-        # Obtain batch dimension
-        batch_dimension = len(batch)
-
-        # Channel dimension
-        channel_dimension = 10
-
-        # Obtain the desired 3D CT image dimensions
-        x_dim = self.batch_dimensions[0]
-        y_dim = self.batch_dimensions[1]
-        z_dim = self.batch_dimensions[2]
-
-        # TODO: generate a batch and label tensor based on loader
-
-        # Create a random batch
-        batch = torch.randn(batch_dimension, x_dim, y_dim, z_dim)
-
-        # Generate a tensor that contains the labels
-        labels = torch.randn(batch_dimension, x_dim, y_dim, z_dim, channel_dimension)
-
-        return batch, labels
+        return batch

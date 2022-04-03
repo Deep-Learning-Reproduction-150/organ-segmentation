@@ -19,7 +19,7 @@
         },
         "dataset": {
             "root": "./data",
-            "preload": false,
+            "preload": true,
             "remove_false_samples": true,
             "transform": [
                 {

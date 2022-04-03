@@ -51,6 +51,8 @@ class LabeledSample:
         :param path: the path to the folder that contains the files
         :param preload: whether to load the data directly when instantiating an object
         :param labels_folder_path: folder within path that contains files with labels
+
+        TODO: make sure that every instance of LabeledSample has the same label structure!!!
         """
 
         # Save whether sample should reload data
