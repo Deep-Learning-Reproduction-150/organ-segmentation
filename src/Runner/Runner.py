@@ -186,6 +186,11 @@ class Runner:
             # Initialize variables
             running_loss = 0
 
+            # Start the status bar to show transformation behavior (if no preload)
+            Logger.print_status_bar(
+                done=0, title="epoch 1/" + str(training_setup['epochs']) + " progress"
+            )
+
             # Run through batches and perform model training
             for batch, batch_input in enumerate(train_data):
 
@@ -268,10 +273,10 @@ class Runner:
         else:
             raise ValueError(bcolors.FAIL + "ERROR: Optimizer " + optimizer_setup['name'] + " not recognized, aborting" + bcolors.ENDC)
 
-    def _get_loss_function(self, name: str, **params):
+    def _get_loss_function(self, loss_function_setup):
         module = importlib.import_module('src.losses')
-        loss_class = getattr(module, name)
-        return loss_class(**params)
+        loss_class = getattr(module, loss_function_setup['name'])
+        return loss_class(**loss_function_setup)
 
     def _get_dataset(self, data: dict):
         """

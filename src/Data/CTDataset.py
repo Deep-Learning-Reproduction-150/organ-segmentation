@@ -164,8 +164,11 @@ class CTDataset(Dataset):
         # Preprocess the data (if that has not happened before)
         sample.preprocess(self.get_data_transformer(), CTDataset.label_structure, output_info=True)
 
+        # Create sample data (squeeze the dummy channel in there as well)
+        sample_data = sample.transformed_sample.unsqueeze(0)
+
         # Return the tupel (data, labels)
-        return sample.transformed_sample.unsqueeze(0), sample.transformed_labels
+        return sample_data, sample.transformed_labels
 
     def __len__(self):
         """

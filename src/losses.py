@@ -41,4 +41,17 @@ class DiceLoss(nn.Module):
     Computes the dice loss
     """
 
-    pass
+    def __init__(self, **params):
+        """
+        Initializes the dice score
+
+        TODO: params contains everything that is passed via job setup
+        """
+        super().__init__()
+
+    def forward(selfself, output_batch, input_batch):
+
+        a = 0
+        # TODO: write dice loss for this
+
+        return output_batch

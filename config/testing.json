@@ -5,10 +5,13 @@
     },
     "training": {
         "epochs": 4,
-        "loss": "MSELoss",
+        "loss": {
+            "name": "DiceLoss",
+            "parameter_a": 2
+        },
         "split_ratio": null,
         "wandb_id": null,
-        "batch_size": 1,
+        "batch_size": 2,
         "num_workers": 0,
         "evaluate": true,
         "optimizer": {

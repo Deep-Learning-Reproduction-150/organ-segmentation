@@ -195,10 +195,14 @@ class LabeledSample:
             # Initiate transformed labels
             self.transformed_labels = []
 
+            # Transform the sample data using the passed transformer
+            self.transformed_sample = transformer(sample_tensor)
+
             # Iterate through the labels and create
             for wanted_label in label_structure:
 
                 # Iterate through the labels and find it
+                label = None
                 match = False
                 for label in self.labels:
                     if label.name == wanted_label:
@@ -206,18 +210,16 @@ class LabeledSample:
                         break
 
                 # Check if label exists
-                if match:
+                if match and label is not None:
                     data = transformer(label.get_tensor())
                 else:
                     # Create zero sample
-                    data = torch.randn(100, 100, 100)
+                    data = torch.zeros(self.transformed_sample.size())
                     data = transformer(data)
 
                 # Append the transformed label to it
                 self.transformed_labels.append(data)
 
-            # Transform the sample data using the passed transformer
-            self.transformed_sample = transformer(sample_tensor)
-
         # Remember that this sample has been checked
         self.preprocessed = True
+
