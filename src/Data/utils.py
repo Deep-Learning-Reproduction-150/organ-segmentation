@@ -32,7 +32,7 @@ class CTDataCollator(object):
         Method returns batch tensor from data set subset
 
         :param batch: subset of the data set, based on sampler
-        :return: tensor which represents a batch
+        :return: tensor tupel which represents a batch and the label tensor
         """
 
         # Obtain batch dimension
@@ -46,9 +46,12 @@ class CTDataCollator(object):
         y_dim = self.batch_dimensions[1]
         z_dim = self.batch_dimensions[2]
 
+        # TODO: generate a batch and label tensor based on loader
+
         # Create a random batch
-        batch = torch.randn(x_dim, y_dim, z_dim, batch_dimension, channel_dimension)
+        batch = torch.randn(batch_dimension, x_dim, y_dim, z_dim)
 
-        # TODO: create a batch like really <3
+        # Generate a tensor that contains the labels
+        labels = torch.randn(batch_dimension, x_dim, y_dim, z_dim, channel_dimension)
 
-        return batch
+        return batch, labels

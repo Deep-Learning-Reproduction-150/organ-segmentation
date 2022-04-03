@@ -1,5 +1,5 @@
 {
-    "name": "organ_segmentation",
+    "name": "Give this job a name (will be used for log file etc. as well)",
     "model": {
         "reset": true
     },

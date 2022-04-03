@@ -190,14 +190,17 @@ class Runner:
             # Run through batches and perform model training
             for batch, batch_input in enumerate(train_data):
 
+                # Extract inputs and labels from the batch input
+                inputs, labels = batch_input
+
                 # Reset gradients
                 optimizer.zero_grad()
 
                 # Get output
-                model_output = self.model(batch_input)
+                model_output = self.model(inputs)
 
                 # Calculate loss
-                loss = loss_function(model_output, batch_input)
+                loss = loss_function(model_output, labels)
 
                 # Backpropagation
                 loss.backward()
@@ -213,6 +216,9 @@ class Runner:
                     done=(epoch + 1 / int(training_setup['epochs'])) * 100,
                     title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + " progress"
                 )
+
+            # Finish the status bar
+            Logger.end_status_bar()
 
             # Stop timer to measure epoch length
             epoch_time = self.timer.get_time('epoch')
