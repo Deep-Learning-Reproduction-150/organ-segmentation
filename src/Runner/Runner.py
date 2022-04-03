@@ -186,11 +186,6 @@ class Runner:
             # Initialize variables
             running_loss = 0
 
-            # Start the status bar to show transformation behavior (if no preload)
-            Logger.print_status_bar(
-                done=0, title="epoch 1/" + str(training_setup['epochs']) + " progress"
-            )
-
             # Run through batches and perform model training
             for batch, batch_input in enumerate(train_data):
 
