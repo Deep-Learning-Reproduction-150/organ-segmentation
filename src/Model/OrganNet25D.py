@@ -13,66 +13,9 @@ TODO:
 import torch
 from torch import nn
 
+from .utils import conv_2x3d_coarse, HDC, conv_2x2d, crop3d
+
 # from src.Dataloader.CTData import CTData
-
-
-# Placeholder functions for building the model
-def conv_2x2d(
-    in_channels=1, out_channels=16, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid", *args, **kwargs
-):
-    return nn.Sequential(
-        nn.Conv3d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            groups=groups,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-            *args,
-            **kwargs,
-        ),
-        nn.Conv3d(
-            in_channels=out_channels,
-            out_channels=out_channels,
-            groups=groups,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-            *args,
-            **kwargs,
-        ),
-        nn.ReLU(),  # Maybe not
-    )
-
-
-def conv_2x3d_coarse(in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0, *args, **kwargs):
-    """
-    The 2xConv with 3,3,3 kernel without the ResSE presented in the paper
-    """
-    return nn.Sequential(
-        nn.intrinsic.ConvBnReLU3d(  # does this speed things up?
-            nn.Conv3d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=kernel_size,
-                stride=stride,
-                padding=padding,
-            ),
-            torch.nn.BatchNorm3d(out_channels),
-            nn.ReLU(),
-        ),
-        nn.intrinsic.ConvBnReLU3d(  # does this speed things up?
-            nn.Conv3d(
-                in_channels=out_channels,
-                out_channels=out_channels,
-                kernel_size=kernel_size,
-                stride=stride,
-                padding=padding,
-            ),
-            torch.nn.BatchNorm3d(out_channels),
-            nn.ReLU(),
-        ),
-    )
 
 
 class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
@@ -105,29 +48,6 @@ class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
         return y
 
 
-def HDC(in_channels=64, out_channels=128, dilations=(1, 2, 5), kernel_size=(3, 3, 3)):
-    """
-    Creates a HDC layer.
-    """
-    max_dil = max(dilations)
-    layers = []
-    prev_out = in_channels
-    for dilation in dilations:
-        pad = max_dil - dilation
-        layer = nn.Conv3d(
-            in_channels=prev_out,
-            out_channels=out_channels,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=pad,
-            dilation=dilation,
-        )
-        layers.append(layer)
-        prev_out = out_channels
-    hdc = nn.Sequential(*layers)
-    return hdc
-
-
 class HDCResSE(nn.Module):  # See figure 2. from the paper
     def __init__(
         self,
@@ -141,9 +61,8 @@ class HDCResSE(nn.Module):  # See figure 2. from the paper
     ) -> None:
 
         super().__init__()
-
         self.hdc = HDC(
-            dilations=(1, 2, 5),
+            dilations=dilations,
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
@@ -168,27 +87,12 @@ class HDCResSE(nn.Module):  # See figure 2. from the paper
         return y
 
 
-def conv_3d_fine():
-    pass
-
-
-def default_pooling(kernel_size, stride):
-    """
-    U-Net: Convolutional Networks for Biomedical Image Segmentation reference for this.
-    """
-    return nn.MaxPool3d(kernel_size=kernel_size, stride=stride, padding=0, dilation=1)
-
-
 class OrganNet25D(nn.Module):
     """
     This represents the OrganNet25D model as proposed by Chen et. al.
-
-    TODO:
-        - Basically implement everything :D
-        - Would be really cool if this class already capsules some functionality
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, hdc_dilations=(1, 2, 5), input_shape=(48, 256, 256), *args, **kwargs):
         """
         Constructor method of the OrganNet
         """
@@ -196,7 +100,9 @@ class OrganNet25D(nn.Module):
         # Call torch superclass constructor
         super().__init__()
 
-        # 2D layers
+        d, h, w = input_shape
+
+        # First 2D layers
         self.two_d_1 = conv_2x2d(
             in_channels=1, out_channels=16, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid"
         )
@@ -207,24 +113,58 @@ class OrganNet25D(nn.Module):
 
         # Coarse 3D layers
 
+        d_here = d - 4  # 44 -> two 2x2x2 convolutions
+        h_here = int((h - 4) / 2) - 4  # 122, two 1x2x2 convolutions -> downsample -> two 2x2x2 convolutions
         # First part of 2 x Conv + ResSE
         self.coarse_3d_1 = DoubleConvResSE(
-            (44, 122, 122), in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0
+            (d_here, h_here, h_here), in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding="same"
         )
 
+        d_here = int(d_here / 2)  # - 4  # 18 # downsample + two 3x3x3 conv
+        h_here = int(h_here / 2)  # - 4  # 57  # downsample + two 3x3x3 conv
+
         self.coarse_3d_2 = DoubleConvResSE(
-            (18, 57, 57), in_channels=32, out_channels=64, kernel_size=(3, 3, 3), stride=1, padding=0
+            (d_here, h_here, h_here), in_channels=32, out_channels=64, kernel_size=(3, 3, 3), stride=1, padding="same"
         )
-        self.coarse_3d_3 = conv_2x3d_coarse()
 
         # Fine 3D block
 
-        self.fine_3d_1 = conv_3d_fine()
-        self.fine_3d_2 = conv_3d_fine()
-        self.fine_3d_3 = conv_3d_fine()
+        self.fine_3d_1 = HDCResSE((d_here, h_here, h_here), in_channels=64, out_channels=128, dilations=hdc_dilations)
+        self.fine_3d_2 = HDCResSE((d_here, h_here, h_here), in_channels=128, out_channels=256, dilations=hdc_dilations)
+        self.fine_3d_3 = HDCResSE((d_here, h_here, h_here), in_channels=256, out_channels=128, dilations=hdc_dilations)
 
-        # Final 1x1x1 conv
+        # Last two coarse 3d
+        d_here = d_here  # - 4  # 14  -> two 3x3x3 conv
+        h_here = h_here  # - 4  # 53  -> two 3x3x3 conv
+        self.coarse_3d_3 = DoubleConvResSE(
+            (d_here, h_here, h_here), in_channels=128, out_channels=64, kernel_size=(3, 3, 3), stride=1, padding="same"
+        )
+        d_here = d_here * 2  # - 4  # 14  -> upsample + two 3x3x3 conv
+        h_here = h_here * 2  # - 4  # 53  -> upsample + two 3x3x3 conv
+        self.coarse_3d_4 = DoubleConvResSE(
+            (d_here, h_here, h_here), in_channels=64, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding="same"
+        )
 
+        # 1x1x1 convs
+
+        self.one_d_1 = nn.Conv3d(
+            in_channels=256,
+            out_channels=128,
+            groups=1,
+            kernel_size=(1, 1, 1),
+            padding=0,  # TODO: Check on the padding, this is for the toy model
+            *args,
+            **kwargs,
+        )
+        self.one_d_2 = nn.Conv3d(
+            in_channels=128,
+            out_channels=64,
+            groups=1,
+            kernel_size=(1, 1, 1),
+            padding=0,  # TODO: Check on the padding, this is for the toy model
+            *args,
+            **kwargs,
+        )
         self.one_d_3 = nn.Conv3d(  # The final layer in the network
             in_channels=32,
             out_channels=10,
@@ -234,6 +174,13 @@ class OrganNet25D(nn.Module):
             *args,
             **kwargs,
         )
+        # Downsampling maxpool
+        self.downsample1 = nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2), padding=0, dilation=1)
+        self.downsample2 = nn.MaxPool3d(kernel_size=(2, 2, 2), stride=(2, 2, 2), padding=0, dilation=1)
+
+        # Upsampling layer
+        self.upsample1 = nn.ConvTranspose3d(in_channels=64, out_channels=32, stride=(2, 2, 2), kernel_size=(2, 2, 2))
+        self.upsample2 = nn.ConvTranspose3d(in_channels=32, out_channels=16, stride=(1, 2, 2), kernel_size=(1, 2, 2))
 
         return
 
@@ -260,47 +207,93 @@ class OrganNet25D(nn.Module):
 
         # Input to 2D layer 1 -> Output 1 (2,16,48,252,252)
         if verbose:
-            print(f"\tInput shape : {x.shape}")
+            print(f"\tInput shape:\t\t{x.shape}")
         out1 = self.two_d_1(x)
         if verbose:
-            print(f"\tOutput 1 shape : {out1.shape}")
+            print(f"\tOutput 1 shape:\t\t{out1.shape}")
         # Output 1 to max pooling layer S(1,2,2) -> Output 2 (2,16,48,126,126)
-        out2 = default_pooling(kernel_size=(1, 2, 2), stride=(1, 2, 2))(out1)
+        out2 = self.downsample1(out1)
         if verbose:
-            print(f"\tOutput 2 shape : {out2.shape}")
+            print(f"\tOutput 2 shape:\t\t{out2.shape}")
         # Output 2 to coarse 3D layer 1 -> Output 3 (2,32,44,122,122)
         out3 = self.coarse_3d_1(out2)
         if verbose:
-            print(f"\tOutput 3 shape : {out3.shape}")
+            print(f"\tOutput 3 shape:\t\t{out3.shape}")
         # Output 3 to max pooling layer S(2,2,2) -> Output 4 (2,32,22,61,61)
-        out4 = default_pooling(kernel_size=(2, 2, 2), stride=(2, 2, 2))(out3)
+        out4 = self.downsample2(out3)
         if verbose:
-            print(f"\tOutput 4 shape : {out4.shape}")
+            print(f"\tOutput 4 shape:\t\t{out4.shape}")
         # Output 4 to Coarse 3D layer 2 -> Output 5 (2, 64, 18, 57, 57)
         out5 = self.coarse_3d_2(out4)
         if verbose:
-            print(f"\tOutput 5 shape : {out5.shape}")
-        return out5
-        # Output 5 to Fine 3D Layer 1 (HDC) -> Output 6
+            print(f"\tOutput 5 shape:\t\t{out5.shape}")
+        # Output 5 to Fine 3D Layer 1 (HDC) -> Output 6 (2, 128, 16, 55, 55)
+        out6 = self.fine_3d_1(out5)
+        if verbose:
+            print(f"\tOutput 6 shape:\t\t{out6.shape}")
 
         # Part 2 (Bottom, starting from the first Orange arrow)
-        # Output 6 to Fine 3D Layer 2 -> Output 7
-        # Output 7 to "Conv 1x1x1" layer 1 -> Output 8 # TODO Elaborate on the 1x1x1 layer
-        # Concatenate Output 6 and Output 8 -> Output 9
-        # Output 9 to Fine 3D Layer 3 -> Output 10
-
+        # Output 6 to Fine 3D Layer 2 -> Output 7 (2,256,18,57,57)
+        out7 = self.fine_3d_2(out6)
+        if verbose:
+            print(f"\tOutput 7 shape:\t\t{out7.shape}")
+        # Output 7 to "Conv 1x1x1" layer 1 -> Output 8 (2,128,18,57,57)
+        out8 = self.one_d_1(out7)
+        if verbose:
+            print(f"\tOutput 8 shape:\t\t{out8.shape}")
+        # Concatenate Output 6 and Output 8 -> Output 9 (2,256,18,57,57)
+        out9 = torch.cat([out6, out8], dim=1)
+        if verbose:
+            print(f"\tOutput 9 shape:\t\t{out9.shape}")
+        # Output 9 to Fine 3D Layer 3 -> Output 10 (2,128,18,57,57)
+        out10 = self.fine_3d_3(out9)
+        if verbose:
+            print(f"\tOutput 10 shape:\t\t{out10.shape}")
         # Part 3 (Right side, starting from the bottom right yellow arrow)
-        # Output 10 to 1x1x1 layer 2 -> Output 11 # TODO still missing
+        # Output 10 to 1x1x1 layer 2 -> Output 11
+        out11 = self.one_d_2(out10)
+        if verbose:
+            print(f"\tOutput 11 shape:\t\t{out11.shape}")
         # Concatenate Output 11 and Output 5 -> Output 12
-        # Output 12 to Coarse 3d layer 3 -> Output 13
-        # Transpose Output 13 -> Output 14
+        out12 = torch.cat([out5, out11], dim=1)
+        if verbose:
+            print(f"\tOutput 12 shape:\t\t{out12.shape}")
+        # Output 12 to Fine 3d layer 3 -> Output 13
+        out13 = self.coarse_3d_3(out12)
+        if verbose:
+            print(f"\tOutput 13 shape:\t\t{out13.shape}")
+        # Transpose Convolute Output 13 -> Output 14
+        out14 = self.upsample1(out13)
+        if verbose:
+            print(f"\tOutput 14 shape:\t\t{out14.shape}")
         # Concatenate Output 14 and Output 3 -> Output 15
+        # First crop 3, (..., 122, 122) -> (..., 114, 114)
+        out3_xyzcropped = crop3d(out3, target_shape=out14.shape[-3:])
+        out15 = torch.cat([out3_xyzcropped, out14], dim=1)
+        if verbose:
+            print(f"\tOutput 15 shape:\t\t{out15.shape}")
         # Output 15 to Coarse 3d Layer 4 -> Output 16
+        out16 = self.coarse_3d_4(out15)
+        if verbose:
+            print(f"\tOutput 16 shape:\t\t{out16.shape}")
         # Concatenate Output 1 and Output 16 -> Output 17
+        out16up = self.upsample2(out16)
+        out1_xyzcropped = crop3d(out1, target_shape=out16up.shape[-3:])
+        if verbose:
+            print(f"\t\t16 upsampled:\t\t{out16up.shape}")
+            print(f"\t\tOutput 1 cropped:\t\t{out1_xyzcropped.shape}")
+        out17 = torch.cat([out1_xyzcropped, out16up], axis=1)
+        if verbose:
+            print(f"\tOutput 17 shape:\t\t{out17.shape}")
         # Output 17 to 2D layer 2 -> Output 18
+        out18 = self.two_d_2(out17)
+        if verbose:
+            print(f"\tOutput 18 shape:\t\t{out18.shape}")
         # Output 18 to 1x1x1 layer 3 -> Final output
-        out18 = x
-        return out18
+        out19 = self.one_d_3(out18)
+        if verbose:
+            print(f"\tOutput 19 (final) shape:\t\t{out19.shape}")
+        return out19
 
     def train_model(self, train_data, test_data, monitor_progress: bool = False):
         """
@@ -361,7 +354,7 @@ def main():
     """
 
     batch = 2
-    width = height = 256
+    width = height = 256  # * 2
     depth = 48
     channels_in = 1
     channels_out = 10
@@ -372,7 +365,7 @@ def main():
     expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
-    model = OrganNet25D()
+    model = OrganNet25D(input_shape=input_shape[-3::], hdc_dilations=(1, 5, 9))
     # model = ToyOrganNet25D()
 
     output = model(input, verbose=True)
