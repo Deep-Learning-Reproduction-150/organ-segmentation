@@ -8,17 +8,18 @@ Group: 150
 
 import torch
 import math
+import wandb
 import importlib
 import json
 import os
-from src.utils import Logger, Timer, bcolors, print_status_bar
+from src.utils import Logger, Timer, bcolors
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
 from src.OrganNet25D.network import OrganNet25D
 from src.Dataloader.CTDataset import CTDataset
 
 
-class Trainer:
+class Runner:
     """
     This trainer instance performs the training of the network by executing jobs
 
@@ -31,9 +32,6 @@ class Trainer:
 
     # Attribute stores an instance of the network
     model = None
-
-    # An instance of a logger to write into log files (if specified in job)
-    logger = None
 
     # An instance of a timer to measure the performances etc.
     timer = None
@@ -96,7 +94,7 @@ class Trainer:
 
             else:
                 # Print loading message
-                print(bcolors.FAIL + "ERROR: Given job path does not exist (" + job + ")" + bcolors.ENDC)
+                Logger.out("Given job path does not exist (" + job + ")", type="ERROR")
 
     def run(self):
         """
@@ -107,13 +105,13 @@ class Trainer:
         for index, job in enumerate(self.job_queue):
 
             # Create logger and clear the current file
-            self.logger = Logger(log_name=job['name'])
+            Logger.initialize(log_name=job['name'])
 
             # Reset the log file
-            self.logger.clear()
+            Logger.clear()
 
             # Print CLI message
-            self.logger.write("Started '" + job['name'] + "'", "INFO", self.debug)
+            Logger.log("Started '" + job['name'] + "'", "INFO", self.debug)
 
             # Check if model shall be resetted
             if job['model']['reset']:
@@ -122,13 +120,13 @@ class Trainer:
                 self.model = OrganNet25D()
 
                 # Print CLI message
-                self.logger.write("Resetted OrganNet25D", "INFO", self.debug)
+                Logger.log("Resetted OrganNet25D", in_cli=self.debug)
 
             # Check if job contains index "training"
             if 'training' in job and type(job['training']) is dict:
 
                 # Print CLI message
-                self.logger.write("Starting training of the model", "INFO", self.debug)
+                Logger.log("Starting training of the model", in_cli=self.debug)
 
                 # Call train method
                 self._train(job['training'])
@@ -137,7 +135,7 @@ class Trainer:
             if 'evaluation' in job and type(job['evaluation']) is dict:
 
                 # Print CLI message
-                self.logger.write("Starting evaluation of model", "INFO", self.debug)
+                Logger.log("Starting evaluation of model", in_cli=self.debug)
 
                 # Call evaluation method
                 self._evaluate(job['evaluation'])
@@ -146,7 +144,7 @@ class Trainer:
             if 'inference' in job and type(job['inference']) is dict:
 
                 # Print CLI message
-                self.logger.write("Inference is not implemented yet", "ERROR", self.debug)
+                Logger.log("Inference is not implemented yet", "ERROR", self.debug)
 
     def _train(self, training_setup: dict):
         """
@@ -158,6 +156,12 @@ class Trainer:
         # Get dataset if not given
         dataset = self._get_dataset(training_setup['dataset'])
 
+        # When preloading is on, check dimensionality of data set
+        if training_setup['dataset']['preload']:
+
+            # Check the dimensionality and remove false samples when needed
+            dataset.check_dimensionality(training_setup['dataset']['remove_false_samples'])
+
         # Get dataloader for both training and validation
         train_data, val_data = self._get_dataloader(dataset,
                                                    split_ratio=training_setup['split_ratio'],
@@ -165,7 +169,7 @@ class Trainer:
                                                    batch_size=training_setup['batch_size'])
 
         # Log dataset information
-        self.logger.write(str(len(dataset)) + ' samples have been '
+        Logger.log(str(len(dataset)) + ' samples have been '
                           + ('loaded (preloading active)' if training_setup['dataset']['preload']
                              else 'found (preloading inactive)'), type="INFO", in_cli=self.debug)
 
@@ -179,7 +183,7 @@ class Trainer:
         for epoch in range(training_setup['epochs']):
 
             # Start epoch timer and log the start of this epoch
-            self.logger.write('Starting to run Epoch {}/{}'.format(epoch + 1, training_setup['epochs']), in_cli=False)
+            Logger.log('Starting to run Epoch {}/{}'.format(epoch + 1, training_setup['epochs']), in_cli=False)
 
             # Start the epoch timer
             self.timer.start('epoch')
@@ -212,7 +216,7 @@ class Trainer:
                 running_loss += loss.detach().cpu().numpy()
 
                 # Print epoch status bar
-                print_status_bar(
+                Logger.print_status_bar(
                     done=(epoch + 1 / int(training_setup['epochs'])) * 100,
                     title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + " progress"
                 )
@@ -224,7 +228,7 @@ class Trainer:
             epoch_train_loss = running_loss / len(train_data)
 
             # Log the epoch success
-            self.logger.write('Took : ' + str(epoch_time) + ', loss is ' + str(epoch_train_loss), in_cli=self.debug)
+            Logger.log('Took : ' + str(epoch_time) + ', loss is ' + str(epoch_train_loss), in_cli=self.debug)
 
             # TODO: perform syncing with wandb
 
@@ -249,6 +253,8 @@ class Trainer:
         # TODO: implement this tests and default autocomplete later (prioritizing!)
 
         # TODO: flash warnings when specific parts of the job description are missing and defaults are used
+
+        self.id = job_data.setdefault('wand_id', wandb.util.generate_id())
 
         return job_data
 

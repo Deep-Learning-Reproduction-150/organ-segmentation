@@ -10,7 +10,7 @@ import os
 import random
 import sys
 from torch.utils.data import DataLoader, Dataset
-from src.utils import bcolors, print_status_bar
+from src.utils import bcolors, Logger
 from src.Dataloader.LabeledSample import LabeledSample
 
 
@@ -38,6 +38,9 @@ class CTDataset(Dataset):
     # Stores the transform object
     transform = None
 
+    # Whether the data set has already been transformed
+    transformed = None
+
     def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, transform: list = []):
         """
         Constructor method of the dataloader. First parameter specifies directories that contain labels to the files
@@ -55,10 +58,13 @@ class CTDataset(Dataset):
         # Call super class constructor
         super().__init__()
 
+        # Initiate transformed with false
+        self.transformed = False
+
         # Whether or not to preload and preprocess volumes
         self.preload = preload
 
-        # Save the transform
+        # Save the transform TODO: handle the transforms
         self.transform = transform
 
         # Check if given path leads to a directory
@@ -76,8 +82,8 @@ class CTDataset(Dataset):
         if self.preload:
 
             # Print loading message
-            print(bcolors.OKCYAN + "INFO: Started loading the data set with possibly " + str(possible_target_count) +
-                  " samples ..." + bcolors.ENDC)
+            Logger.log("Started loading the data set with possibly " + str(possible_target_count) +
+                       " samples ...", type="INFO", in_cli=True)
 
         # Initiate the sample attribute
         self.samples = []
@@ -99,12 +105,8 @@ class CTDataset(Dataset):
 
             # Print error of unexpected file in the passed directory
             if element.is_file():
-
-                # Display a warning about unexpected file in the specified data directory
-                warning = bcolors.WARNING + "WARNING: Unexpected file was found in data directory (" + str(element) + ")" + bcolors.ENDC
-                sys.stdout.write("\r" + warning)
-                sys.stdout.flush()
-                print("")
+                # Log warning
+                Logger.log("Unexpected file was found in data directory (" + str(element) + ")", type="WARNING", in_cli=True)
 
             # Only show status bar when preloading
             if self.preload:
@@ -112,17 +114,18 @@ class CTDataset(Dataset):
                 # Print the changing import status line
                 done = (i / possible_target_count) * 100
                 # Finish the status bar
-                print_status_bar(done=done, title="imported")
+                Logger.print_status_bar(done=done, title="imported")
 
         # Reset console for next print message
         if self.preload:
-            print_status_bar(done=100, title="imported")
+            Logger.print_status_bar(done=100, title="imported")
+            Logger.end_status_bar()
 
         # Only show status bar when preloading
         if self.preload:
 
             # Display details regarding data loading
-            print("INFO: Done loading the dataset at " + self.root + " (found and loaded " + str(counter) + " samples)")
+            Logger.log("Done loading the dataset at " + self.root + " (found and loaded " + str(counter) + " samples)", in_cli=True)
 
     def __getitem__(self, index):
         """
@@ -135,6 +138,8 @@ class CTDataset(Dataset):
             - also do the transformations, maybe initially passed to the dataset?
             - what about the labels? how do you return multi-labels?
         """
+
+        # TODO: Call transform (to assure that data has been transformed)
 
         # Get the sample with a certain index
         sample = self.samples[index]
@@ -176,3 +181,50 @@ class CTDataset(Dataset):
 
         # Return the root path
         return self.root
+
+    def check_dimensionality(self, remove_false_samples: bool = False):
+        """
+        Method scans all samples and checks if the dimensions add up
+
+        :param remove_false_samples: removes samples when their dimensions dont add up
+
+        TODO: maybe later use transform to unify them all?
+        """
+
+        # Initiate a sample shape
+        global_shape = None
+
+        shapes = []
+
+        # Check for different dimensions
+        for sample in self.samples:
+
+            # Preprocess the sample
+            sample.preprocess()
+            # Get the dimensions
+            sample_shape = sample.get_tensor().data.shape
+
+            shapes.append(sample_shape)
+
+        a = 0
+
+        # Check for different dimensions
+        for sample in self.samples:
+            # Preprocess the sample
+            sample.preprocess()
+            # Get the dimensions
+            sample_shape = sample.get_tensor().data.shape
+
+            # Check if global shape is still none
+            if global_shape is None:
+                global_shape = sample_shape
+
+            # Check if they differ
+            if global_shape != sample_shape:
+
+                # Check if shall remove false sample
+                if remove_false_samples:
+                    Logger.log("Sample " + sample.path + " has varying dimensions, it will be removed", type="WARNING", in_cli=True)
+                    self.samples.remove(sample)
+                else:
+                    Logger.log("Sample " + sample.path + " has varying dimensions from the rest of the samples", type="ERROR", in_cli=True)

@@ -11,7 +11,7 @@ import nrrd
 import imageio
 import matplotlib.pyplot as plt
 from torch import from_numpy
-from src.utils import bcolors, print_status_bar
+from src.utils import bcolors, Logger
 
 
 class CTData:
@@ -143,7 +143,7 @@ class CTData:
             raise ValueError(bcolors.FAIL + "ERROR: Direction has to either be 'vertical' or 'horizontal'" + bcolors.ENDC)
 
         # Print a status update
-        print("INFO: Creating visualization of " + str(self.data.ndim) + "-dimensional data " + self.name + " with direction " + direction)
+        Logger.log("Creating visualization of " + str(self.data.ndim) + "-dimensional data " + self.name + " with direction " + direction, in_cli=True)
 
         # Extract the three dimensions from the data set
         shape = self.data.shape
@@ -217,13 +217,18 @@ class CTData:
             # Print the changing import status line
             if show_status_bar:
                 done = ((index + 1) / dim_counter) * 100
-                print_status_bar(done=done, title="processing")
+                Logger.print_status_bar(done=done, title="processing")
+
+            # Always stop status bar after this
+            if show_status_bar:
+                Logger.end_status_bar()
 
         # If system shall export a GIF from it, do so
         if export_gif:
 
             # Print status update
-            print("INFO: Creating visualization of " + str(self.data.ndim) + "-dimensional data " + str(self.name) + ", saving GIF file")
+            Logger.log("Creating visualization of " + str(self.data.ndim) + "-dimensional data " + str(self.name) +
+                       ", saving GIF file", in_cli=True)
 
             # Remove the tmp tile
             os.remove('visualizations/tmp.png')

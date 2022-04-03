@@ -6,16 +6,14 @@ Date: 25.03.2022
 Group: 150
 """
 
-from src.Trainer.Trainer import Trainer
+from src.Runner.Runner import Runner
 
 
 # Gather the wanted jobs in a list (only testing job for now)
-jobs = [
-    'config/testing.json'
-]
+jobs = ['config/testing.json']
 
 # Create a trainer object and call him robert
-robert = Trainer(jobs=jobs, debug=True, wandb=False)
+worker = Runner(jobs=jobs, debug=True, wandb=False)
 
 # Run the jobs
-robert.run()
+worker.run()

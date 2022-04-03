@@ -11,7 +11,7 @@ Group: 150
 import os
 import glob
 from torch import from_numpy
-from src.utils import bcolors
+from src.utils import bcolors, Logger
 from src.Dataloader.CTData import CTData
 
 
@@ -39,6 +39,9 @@ class LabeledSample:
     # Whether or whether not to preload data
     preload = None
 
+    # Stores whether the sample has been processed already
+    preprocessed = None
+
     def __init__(self, path, preload: bool = True, labels_folder_path: str = "structures"):
         """
         Constructor of the LabeledSample object. Expected by default is a folder that contains one nrrd file which
@@ -56,6 +59,9 @@ class LabeledSample:
         # Assign an id and increment the id store
         self.id = LabeledSample.id_store
         LabeledSample.id_store += 1
+
+        # Save the path to this sample
+        self.path = path
 
         # Check if this file exists
         if not os.path.isdir(path):
@@ -85,6 +91,10 @@ class LabeledSample:
             # Store the label in the labels attribute
             self.labels.append(label)
 
+        # If data has been preloaded, check dimensions
+        if self.preload:
+            self.preprocess()
+
     def visualize(self, show: bool = False, export_png: bool = False, export_gif: bool = False,
                   direction: str = "vertical", name: str = None, high_quality: bool = False,
                   show_status_bar: bool = True):
@@ -109,6 +119,9 @@ class LabeledSample:
         :return tensor: which contains the data points
         """
 
+        # Check dimensions if not happened yet (no preloading)
+        self.preprocess()
+
         # Return the sample (which is a tensor)
         return self.sample.get_tensor()
 
@@ -121,16 +134,27 @@ class LabeledSample:
         TODO: checkout exactly how the logic shall work - where are the label names!?
         """
 
+        # Check dimensions if not happened yet (no preloading)
+        self.preprocess()
+
         # Initialize a list of labels
-        label_tensors = []
+        tensors = []
+        labels = []
 
         # Iterate through the labels and get tensors of each
         for label in self.labels:
             # Append a tensor
-            label_tensors.append(label.get_tensor())
+            tensors.append(label.get_tensor())
+            labels.append(label.name)
+
+        # return label data
+        label_data = {
+            'features': tensors,
+            'label': labels
+        }
 
         # Return the list of labels
-        return label_tensors
+        return label_data
 
     def add_label(self, label: CTData):
         """
@@ -142,3 +166,32 @@ class LabeledSample:
 
         # Append the given label to this sample object
         self.labels.append(label)
+
+    def preprocess(self):
+        """
+        This method checks the dimensions of the labels and the sample data
+
+        :raise ValueError: when dimensions of labels and sample don't match
+        """
+        # Preprocess only if that did not happen yet
+        if not self.preprocessed:
+
+            # Get the tensor of the sample CT data
+            sample_tensor = self.sample.get_tensor()
+
+            # Iterate through all labels
+            for label in self.labels:
+
+                # Get the tensor of the label
+                label_tensor = label.get_tensor()
+
+                # Check if any dimension mismatches (no of dimensions is checked in CTData)
+                x_mismatch = label_tensor.data.shape[0] != sample_tensor.data.shape[0]
+                y_mismatch = label_tensor.data.shape[1] != sample_tensor.data.shape[1]
+                z_mismatch = label_tensor.data.shape[2] != sample_tensor.data.shape[2]
+                if x_mismatch or y_mismatch or z_mismatch:
+                    Logger.log("Dimension of LabeledSample at " + str(self.path) + " do not match: " +
+                               str(sample_tensor.data.shape) + " VS. " + str(label_tensor.data.shape), type="ERROR", in_cli=True)
+
+        # Remember that this sample has been checked
+        self.preprocessed = True
