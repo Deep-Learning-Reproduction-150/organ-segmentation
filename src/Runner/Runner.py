@@ -1,5 +1,5 @@
 """
-This file contains the trainer class which performs jobs
+This file contains the runner class which runs jobs
 
 Course: Deep Learning
 Date: 03.04.2022
@@ -7,7 +7,6 @@ Group: 150
 """
 
 import torch
-import math
 import wandb
 import importlib
 import json
@@ -24,10 +23,8 @@ class Runner:
     This trainer instance performs the training of the network by executing jobs
 
     TODO:
-        - this logic could be extended to multi trainers (using threading)
-        - the job type of being will dictate _ functions
         - feel free to add ideas what the trainer should be able to do
-        - !!! We should definitely include a "resume" option in the trainer !!!
+        - we should definitely include a "resume" option in the trainer, so save pytorch checkpoints (as .tar)
     """
 
     # Attribute stores an instance of the network

@@ -46,6 +46,8 @@
             ]
         }
     },
-    "evaluation": false,
-    "inference": false,
+    "evaluation": {
+        "evaluator": "DiceEvaluator"
+    },
+    "inference": false
 }
