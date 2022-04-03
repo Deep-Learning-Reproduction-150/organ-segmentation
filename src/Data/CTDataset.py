@@ -10,8 +10,8 @@ import os
 import random
 import sys
 from torch.utils.data import DataLoader, Dataset
-from src.utils import bcolors, print_status_bar
-from src.Dataloader.LabeledSample import LabeledSample
+from src.utils import bcolors, Logger
+from src.Data.LabeledSample import LabeledSample
 
 
 class CTDataset(Dataset):
@@ -21,45 +21,69 @@ class CTDataset(Dataset):
 
     TODO:
         - How can this be used smartly in training
+        - Implement preloading or on demand loading (if set)
         - Are lists efficient? Should there be transformation already?
 
     """
 
     # Stores the location of the raw data set
-    path = None
-
-    # Attribute representing usage of cross validation
-    cross_validate = None
+    root = None
 
     # Attribute containing a list of provided samples
     samples = None
 
-    def __init__(self, path_to_samples, label_folder_name: str = "structures", use_cross_validation: bool = True):
+    # Whether to preload the data or load it when obtaining a sample
+    preload = None
+
+    # Stores the transform object
+    transform = None
+
+    # Whether the data set has already been transformed
+    transformed = None
+
+    def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, transform: list = []):
         """
         Constructor method of the dataloader. First parameter specifies directories that contain labels to the files
         provided. The dataloader is designed to work with nrrd files only at the moment. n-dimensional numpy arrays
         could be included later on as well.
 
+        :param root: where the data is stored (directory containing directories)
         :param label_folder_name: folder that contains labels
-        :param path_to_samples: where the data is stored (directory containing directories)
+        :param preload: when true, system will load data directly when instantiating an object
+        :param transform: a transformer (can be composed from many before passing it to constructor)
 
         TODO: think about passing the transformers here to stick to PyTorch logic
         """
 
+        # Call super class constructor
+        super().__init__()
+
+        # Initiate transformed with false
+        self.transformed = False
+
+        # Whether or not to preload and preprocess volumes
+        self.preload = preload
+
+        # Save the transform TODO: handle the transforms
+        self.transform = transform
+
         # Check if given path leads to a directory
-        if not os.path.isdir(path_to_samples):
+        if not os.path.isdir(root):
             # Raise exception that the path is wrong
             raise ValueError(bcolors.FAIL + "ERROR: Given path is not a directory. Provide valid data directory." + bcolors.ENDC)
 
         # Remember the location of the data
-        self.path = path_to_samples
+        self.root = root
 
         # Get the count of files in the path (potential objects
-        possible_target_count = len(os.listdir(self.path))
+        possible_target_count = len(os.listdir(self.root))
 
-        # Print message
-        print(bcolors.OKCYAN + "INFO: Started loading the data set with possibly " + str(possible_target_count) +
-              " samples ..." + bcolors.ENDC)
+        # Only show status bar when preloading
+        if self.preload:
+
+            # Print loading message
+            Logger.log("Started loading the data set with possibly " + str(possible_target_count) +
+                       " samples ...", type="INFO", in_cli=True)
 
         # Initiate the sample attribute
         self.samples = []
@@ -68,39 +92,40 @@ class CTDataset(Dataset):
         counter = 0
 
         # Save all the samples
-        for i, element in enumerate(os.scandir(self.path)):
+        for i, element in enumerate(os.scandir(self.root)):
 
             # Check if the element is a directory (wanted structure for a labeled entry)
             if element.is_dir():
 
                 # Append a labeled sample object
-                self.samples.append(LabeledSample(path=element.path, labels_folder_path=label_folder_name))
+                self.samples.append(LabeledSample(path=element.path, preload=self.preload, labels_folder_path=label_folder_name))
 
                 # Increment the counter
                 counter += 1
 
             # Print error of unexpected file in the passed directory
             if element.is_file():
+                # Log warning
+                Logger.log("Unexpected file was found in data directory (" + str(element) + ")", type="WARNING", in_cli=True)
 
-                # Display a warning about unexpected file in the specified data directory
-                warning = bcolors.WARNING + "WARNING: Unexpected file was found in data directory (" + str(element) + ")" + bcolors.ENDC
-                sys.stdout.write("\r" + warning)
-                sys.stdout.flush()
-                print("")
+            # Only show status bar when preloading
+            if self.preload:
 
-            # Print the changing import status line
-            done = (i / possible_target_count) * 100
-            # Finish the status bar
-            print_status_bar(done=done, title="imported")
+                # Print the changing import status line
+                done = (i / possible_target_count) * 100
+                # Finish the status bar
+                Logger.print_status_bar(done=done, title="imported")
 
         # Reset console for next print message
-        print_status_bar(done=100, title="imported")
+        if self.preload:
+            Logger.print_status_bar(done=100, title="imported")
+            Logger.end_status_bar()
 
-        # Save whether the dataset should utilize cross validation
-        self.cross_validate = use_cross_validation
+        # Only show status bar when preloading
+        if self.preload:
 
-        # Display details regarding data loading
-        print("INFO: Done loading the dataset at " + self.path + " (found and loaded " + str(counter) + " samples)")
+            # Display details regarding data loading
+            Logger.log("Done loading the dataset at " + self.root + " (" + str(counter) + " samples)", in_cli=True)
 
     def __getitem__(self, index):
         """
@@ -113,6 +138,8 @@ class CTDataset(Dataset):
             - also do the transformations, maybe initially passed to the dataset?
             - what about the labels? how do you return multi-labels?
         """
+
+        # TODO: Call transform (to assure that data has been transformed)
 
         # Get the sample with a certain index
         sample = self.samples[index]
@@ -144,3 +171,16 @@ class CTDataset(Dataset):
             # Create visualization
             sample.visualize(export_gif=True, direction=direction, high_quality=False,
                              name="Sample " + str(sample.id), show_status_bar=True)
+
+    def get_dataset_path(self):
+        """
+        Method returns the path where this data set is obtained from
+
+        :return: path of the data set
+        """
+
+        # Return the root path
+        return self.root
+
+    def _transform(self):
+        a = 0

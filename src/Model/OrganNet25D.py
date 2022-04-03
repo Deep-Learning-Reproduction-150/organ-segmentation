@@ -11,7 +11,7 @@ TODO:
 """
 
 import torch
-from src.Dataloader.CTData import CTData
+from src.Data.CTData import CTData
 
 
 class OrganNet25D(torch.nn.Module):

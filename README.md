@@ -35,7 +35,7 @@ demonstrate that OrganNet2.5D achieves promising performance compared to state-o
 
 You are going to find some really nice charts here soon. 
 
-![Data Example](./data_example.gif)
+![Data Example](./sample.gif)
 
 
 ## References and External Links

@@ -1,0 +1,53 @@
+{
+    "name": "testing_organ_segmentation",
+    "model": {
+        "reset": true
+    },
+    "training": {
+        "epochs": 4,
+        "loss": "MSELoss",
+        "split_ratio": 0.8,
+        "wandb_id": null,
+        "batch_size": 4,
+        "batch_dimensions": [256, 256, 48],
+        "num_workers": 0,
+        "evaluate": true,
+        "optimizer": {
+            "name": "Adam",
+            "learning_rate": 0.001,
+            "betas": [0.9, 0.999]
+        },
+        "dataset": {
+            "root": "./data",
+            "preload": false,
+            "remove_false_samples": true,
+            "transform": [
+                {
+                    "name": "ShiftToZero"
+                },
+                {
+                    "name": "Padding",
+                    "height": 500,
+                    "width": 500,
+                    "depth": 100
+                },
+                {
+                    "name": "Normalize",
+                    "params": [
+                        0,
+                        1
+                    ]
+                },
+                {
+                    "name": "EliminateNans"
+                },
+                {
+                    "name": "Rescale"
+                }
+            ]
+        }
+    },
+    "evaluation": {
+        "evaluator": "DiceEvaluator"
+    }
+}
