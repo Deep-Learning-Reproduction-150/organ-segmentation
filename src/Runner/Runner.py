@@ -14,8 +14,8 @@ import os
 from src.utils import Logger, Timer, bcolors
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
-from src.Data.utils import CTDataCollator
 from src.Model.OrganNet25D import OrganNet25D
+from src.Model.OrganNet25D import ToyOrganNet25D
 from src.Data.CTDataset import CTDataset
 
 
@@ -62,8 +62,8 @@ class Runner:
         # Create a timer instance for time measurements
         self.timer = Timer()
 
-        # Create an instance of the model
-        self.model = OrganNet25D()
+        # Create an instance of the model TODO: could be passing different models here? Via job.json?
+        self.model = ToyOrganNet25D()
 
         # Initialize the job queue
         self.job_queue = []
@@ -158,8 +158,7 @@ class Runner:
         train_data, val_data = self._get_dataloader(dataset,
                                                     split_ratio=training_setup['split_ratio'],
                                                     num_workers=training_setup['num_workers'],
-                                                    batch_size=training_setup['batch_size'],
-                                                    batch_dimensions=tuple(training_setup['batch_dimensions']))
+                                                    batch_size=training_setup['batch_size'])
 
         # Log dataset information
         Logger.log(str(len(dataset)) + ' samples have been '
@@ -269,10 +268,10 @@ class Runner:
         else:
             raise ValueError(bcolors.FAIL + "ERROR: Optimizer " + optimizer_setup['name'] + " not recognized, aborting" + bcolors.ENDC)
 
-    def _get_loss_function(self, name: str, **params):
+    def _get_loss_function(self, loss_function_setup):
         module = importlib.import_module('src.losses')
-        loss_class = getattr(module, name)
-        return loss_class(**params)
+        loss_class = getattr(module, loss_function_setup['name'])
+        return loss_class(**loss_function_setup)
 
     def _get_dataset(self, data: dict):
         """
@@ -288,12 +287,12 @@ class Runner:
         dataset_path = os.path.join(base_path, data['root'])
 
         # Create an instance of the dataloader and pass location of data
-        dataset = CTDataset(dataset_path, preload=data['preload'], transform=data['transform'])
+        dataset = CTDataset(dataset_path, preload=data['preload'], transforms=data['transform'])
 
         return dataset
 
     def _get_dataloader(self, dataset, shuffle: bool = True, split_ratio: float = 0.5, num_workers: int = 0,
-                        batch_size: int = 64, pin_memory: bool = True, batch_dimensions: tuple = (128, 128, 128)):
+                        batch_size: int = 64, pin_memory: bool = True):
         """
         The method returns data loader instances (if split) or just one dataloader based on the passed dataset
 
@@ -302,16 +301,12 @@ class Runner:
         :param split_ratio: the ratio that the split shall be based on (if none, no split)
         :param num_workers: number of workers for laoding data
         :param batch_size: batch size of returned samples
-        :param batch_dimensions: the desired dimensions of one sample in a batch
         :param pin_memory: speeds up data loading on GPU
         :return:
         """
 
         # Initialize the second split (as it might be none)
         second_split = None
-
-        # Generate the data collator
-        collator = CTDataCollator(batch_dimensions=batch_dimensions)
 
         # Check whether the user wants a split data set
         if split_ratio is not None:
@@ -324,15 +319,15 @@ class Runner:
 
             # Initialize data loaders for both parts of the split data set
             first_split = DataLoader(first_split, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
-                                     pin_memory=pin_memory, collate_fn=collator)
+                                     pin_memory=pin_memory)
             second_split = DataLoader(second_split, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
-                                      pin_memory=pin_memory, collate_fn=collator)
+                                      pin_memory=pin_memory)
 
         else:
 
             # Just return one data loader then
             first_split = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
-                                     pin_memory=pin_memory, collate_fn=collator)
+                                     pin_memory=pin_memory)
 
         # Return tupel of splits
         return first_split, second_split

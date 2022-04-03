@@ -173,6 +173,8 @@ class Logger:
 
         :param message: message to be logged
         :param type: the type of the message
+
+        TODO: has to write last status bar again (there need to be a buffer)
         """
 
         # Check whether logger is initialized

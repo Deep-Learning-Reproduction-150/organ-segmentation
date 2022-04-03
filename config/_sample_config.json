@@ -1,15 +1,17 @@
 {
-    "name": "Give this job a name (will be used for log file etc. as well)",
+    "name": "testing_organ_segmentation",
     "model": {
         "reset": true
     },
     "training": {
         "epochs": 4,
-        "loss": "MSELoss",
-        "split_ratio": 0.8,
+        "loss": {
+            "name": "DiceLoss",
+            "parameter_a": 2
+        },
+        "split_ratio": null,
         "wandb_id": null,
-        "batch_size": 16,
-        "batch_dimensions": [128, 128, 128],
+        "batch_size": 2,
         "num_workers": 0,
         "evaluate": true,
         "optimizer": {
@@ -19,36 +21,30 @@
         },
         "dataset": {
             "root": "./data",
-            "preload": true,
+            "preload": false,
             "remove_false_samples": true,
             "transform": [
                 {
-                    "name": "ShiftToZero"
+                    "name": "Resize",
+                    "width": 256,
+                    "height": 256,
+                    "depth": 48
                 },
                 {
-                    "name": "Padding",
-                    "height": 500,
-                    "width": 500,
-                    "depth": 100
+                    "name": "Reshape",
+                    "width": 256,
+                    "height": 256,
+                    "depth": 48
                 },
                 {
                     "name": "Normalize",
-                    "params": [
-                        0,
-                        1
-                    ]
-                },
-                {
-                    "name": "EliminateNans"
-                },
-                {
-                    "name": "Rescale"
+                    "mean": 0,
+                    "std": 1
                 }
             ]
         }
     },
     "evaluation": {
         "evaluator": "DiceEvaluator"
-    },
-    "inference": false
+    }
 }

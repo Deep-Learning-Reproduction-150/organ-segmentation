@@ -10,9 +10,11 @@ Group: 150
 
 import os
 import glob
+import torch
 from torch import from_numpy
 from src.utils import bcolors, Logger
 from src.Data.CTData import CTData
+from src.Data.utils import DataTransformer
 
 
 class LabeledSample:
@@ -29,9 +31,11 @@ class LabeledSample:
 
     # This attribute stores the CTData
     sample = None
+    transformed_sample = None
 
     # This list stores the labels (also of type CTData)
     labels = None
+    transformed_labels = None
 
     # Attribute that stores the path to the folder that contains the sample data
     path = None
@@ -51,6 +55,8 @@ class LabeledSample:
         :param path: the path to the folder that contains the files
         :param preload: whether to load the data directly when instantiating an object
         :param labels_folder_path: folder within path that contains files with labels
+
+        TODO: make sure that every instance of LabeledSample has the same label structure!!!
         """
 
         # Save whether sample should reload data
@@ -91,10 +97,6 @@ class LabeledSample:
             # Store the label in the labels attribute
             self.labels.append(label)
 
-        # If data has been preloaded, check dimensions
-        if self.preload:
-            self.preprocess()
-
     def visualize(self, show: bool = False, export_png: bool = False, export_gif: bool = False,
                   direction: str = "vertical", name: str = None, high_quality: bool = False,
                   show_status_bar: bool = True):
@@ -112,18 +114,19 @@ class LabeledSample:
         self.sample.visualize(export_png=export_png, export_gif=export_gif, direction=direction, name=sample_name,
                               high_quality=high_quality, show=show, show_status_bar=show_status_bar)
 
-    def get_tensor(self):
+    def get_tensor(self, take_original: bool = False):
         """
         This method returns a tensor that contains the data of this sample
 
         :return tensor: which contains the data points
         """
 
-        # Check dimensions if not happened yet (no preloading)
-        self.preprocess()
+        # Check if sample has been preprocessed
+        if not self.preprocessed:
+            raise Exception("ERROR: Data sample has not been preprocessed yet")
 
         # Return the sample (which is a tensor)
-        return self.sample.get_tensor()
+        return self.sample.get_tensor() if take_original else self.transformed_sample
 
     def get_labels(self):
         """
@@ -134,8 +137,9 @@ class LabeledSample:
         TODO: checkout exactly how the logic shall work - where are the label names!?
         """
 
-        # Check dimensions if not happened yet (no preloading)
-        self.preprocess()
+        # Check if sample has been preprocessed
+        if not self.preprocessed:
+            raise Exception("ERROR: Data sample has not been preprocessed yet")
 
         # Initialize a list of labels
         tensors = []
@@ -156,25 +160,20 @@ class LabeledSample:
         # Return the list of labels
         return label_data
 
-    def add_label(self, label: CTData):
-        """
-        This method can be used to add a computed label to this sample. That is done in inference mode by the
-        OrganNet25D
-
-        :param label: an instance of a computer tomography data
-        """
-
-        # Append the given label to this sample object
-        self.labels.append(label)
-
-    def preprocess(self):
+    def preprocess(self, transformer: DataTransformer, label_structure: list, output_info: bool = False):
         """
         This method checks the dimensions of the labels and the sample data
 
+        :param transformer: the transformer that is applied to every data sample
+        :param label_structure: the structure of labels to go with
         :raise ValueError: when dimensions of labels and sample don't match
         """
         # Preprocess only if that did not happen yet
         if not self.preprocessed:
+
+            # If outputting of info should happen, do it here
+            if output_info:
+                Logger.log("Preprocessing and applying transformations to sample " + str(self.id))
 
             # Get the tensor of the sample CT data
             sample_tensor = self.sample.get_tensor()
@@ -193,5 +192,34 @@ class LabeledSample:
                     Logger.log("Dimension of LabeledSample at " + str(self.path) + " do not match: " +
                                str(sample_tensor.data.shape) + " VS. " + str(label_tensor.data.shape), type="ERROR", in_cli=True)
 
+            # Initiate transformed labels
+            self.transformed_labels = []
+
+            # Transform the sample data using the passed transformer
+            self.transformed_sample = transformer(sample_tensor)
+
+            # Iterate through the labels and create
+            for wanted_label in label_structure:
+
+                # Iterate through the labels and find it
+                label = None
+                match = False
+                for label in self.labels:
+                    if label.name == wanted_label:
+                        match = True
+                        break
+
+                # Check if label exists
+                if match and label is not None:
+                    data = transformer(label.get_tensor())
+                else:
+                    # Create zero sample
+                    data = torch.zeros(self.transformed_sample.size())
+                    data = transformer(data)
+
+                # Append the transformed label to it
+                self.transformed_labels.append(data)
+
         # Remember that this sample has been checked
         self.preprocessed = True
+
