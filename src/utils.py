@@ -8,6 +8,7 @@ Group: 150
 
 import sys
 import time
+from pathlib import Path
 from datetime import datetime
 import os
 import numpy as np
@@ -110,7 +111,10 @@ class Logger:
     Class that logs messages.
     """
 
-    def __init__(self, path=None, file_name=None, **kwargs):
+    # Stores the path of the log file
+    path = None
+
+    def __init__(self, log_name=None, **kwargs):
         """Initialize method
 
         Parameters
@@ -121,46 +125,83 @@ class Logger:
             name of the log file that will be created
 
         """
+
+        # Obtain the base path at looking at the parent of the parents parent
+        base_path = Path(__file__).parent.parent.resolve()
+
+        # Create log path
+        log_path = os.path.join(base_path, 'logs')
+
+        # Check if log dir exists, if not create
+        Path(log_path).mkdir(parents=True, exist_ok=True)
+
         # Save variables
-        if file_name is not None and path is not None:
+        if log_name is not None and log_path is not None:
             # Define path
-            self.path = os.path.join(path, file_name + '.txt')
+            self.path = os.path.join(log_path, log_name + '.txt')
             # Create file if it does not exist yet
             if not os.path.isfile(self.path):
                 open(self.path, 'w+')
         else:
             self.path = None
 
-    def write(self, message: str):
+    def clear(self):
+        """
+        Clears the log file
+
+        :return:
+        """
+
+        # Clears the file
+        with open(self.path, 'w') as file:
+            file.write("")
+
+    def write(self, message: str, type: str = "INFO", in_cli: bool = True):
         """
         Writes a log message to log file. Message will also be printed in terminal.
 
-        Parameters
-        ----------
-        message: str
-            message to be logged
-
+        :param message: message to be logged
+        :param type: the type of the message
+        :param in_cli: whether to also print the message
         """
-        message = str(message)
+
+        if in_cli:
+            self.out(message, type)
+
         if self.path is not None:
             with open(self.path, 'a+') as file:
                 if message != '':
                     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     file.write(time_str + '         ' + message)
                 file.write('\n')
-        print(message)
 
-    def debug_write(self, message: str):
+    def out(self, message: str, type: str):
         """
         Only writes message to terminal for debugging purposes.
 
-        Parameters
-        ----------
-        message: str
-            message to be logged
-
+        :param message: message to be logged
+        :param type: the type of the message
         """
-        print(message)
+
+        # Check whether the type is known
+        if type in ['ERROR', 'WARNING', 'INFO', 'SUCCESS']:
+
+            # Print loading message
+            if type == 'INFO':
+                print(bcolors.OKBLUE + "INFO: " + message + bcolors.ENDC)
+            elif type == 'WARNING':
+                print(bcolors.WARNING + "WARNING: " + message + bcolors.ENDC)
+            elif type == 'ERROR':
+                print(bcolors.FAIL + "ERROR: " + message + bcolors.ENDC)
+            elif type == 'SUCCESS':
+                print(bcolors.OKGREEN + "SUCCESS: " + message + bcolors.ENDC)
+            else:
+                print(message)
+
+        else:
+
+            # Notify that the output type is unknown
+            raise ValueError("ERROR: Logger out function does not recognize the message type")
 
 
 def print_status_bar(title: str = "done", done: float = 0):

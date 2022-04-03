@@ -2,7 +2,7 @@
 .idea/
 
 # Exclude the path where the trainer writes his/her logs
-log
+logs
 
 # Exclude macOS files
 *.DS_Store

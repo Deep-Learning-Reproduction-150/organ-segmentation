@@ -11,7 +11,7 @@ import math
 import importlib
 import json
 import os
-from src.utils import Logger, Timer, bcolors
+from src.utils import Logger, Timer, bcolors, print_status_bar
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
 from src.OrganNet25D.network import OrganNet25D
@@ -56,24 +56,12 @@ class Trainer:
         :param wandb: uses wandb when true and possible to sync dev information
         """
 
-        # Print loading message
-        print(bcolors.OKBLUE + "INFO: Trainer is setting up and initiating job queue  ..." + bcolors.ENDC)
-
         # Obtain the base path at looking at the parent of the parents parent
         base_path = Path(__file__).parent.parent.parent.resolve()
-
-        # Create log path
-        log_path = os.path.join(base_path, 'log')
-
-        # Check if log dir exists, if not create
-        Path(log_path).mkdir(parents=True, exist_ok=True)
 
         # Save whether debug and wandb shall be true or false
         self.debug = debug
         self.use_wandb = wandb
-
-        # Create logger
-        self.logger = Logger(log_path, file_name='log')
 
         # Create a timer instance for time measurements
         self.timer = Timer()
@@ -107,6 +95,7 @@ class Trainer:
                     raise ValueError(bcolors.FAIL + "ERROR: Job file can not be read (" + job + ")" + bcolors.ENDC)
 
             else:
+                # Print loading message
                 print(bcolors.FAIL + "ERROR: Given job path does not exist (" + job + ")" + bcolors.ENDC)
 
     def run(self):
@@ -117,8 +106,14 @@ class Trainer:
         # Iterate through all jobs
         for index, job in enumerate(self.job_queue):
 
-            # Print loading message
-            print(bcolors.OKBLUE + "INFO: Started job " + str(index) + ": " + job['name'] + bcolors.ENDC)
+            # Create logger and clear the current file
+            self.logger = Logger(log_name=job['name'])
+
+            # Reset the log file
+            self.logger.clear()
+
+            # Print CLI message
+            self.logger.write("Started '" + job['name'] + "'", "INFO", self.debug)
 
             # Check if model shall be resetted
             if job['model']['reset']:
@@ -126,22 +121,23 @@ class Trainer:
                 # Create an instance of the model
                 self.model = OrganNet25D()
 
-                # Print loading message
-                print(bcolors.OKBLUE + "INFO: Resetted OrganNet25D" + bcolors.ENDC)
+                # Print CLI message
+                self.logger.write("Resetted OrganNet25D", "INFO", self.debug)
 
             # Check if job contains index "training"
             if 'training' in job and type(job['training']) is dict:
 
-                # Print loading message
-                print(bcolors.OKBLUE + "INFO: Starting training of the model" + bcolors.ENDC)
+                # Print CLI message
+                self.logger.write("Starting training of the model", "INFO", self.debug)
 
                 # Call train method
                 self._train(job['training'])
 
             # Check if job contains index "training"
             if 'evaluation' in job and type(job['evaluation']) is dict:
-                # Print loading message
-                print(bcolors.OKBLUE + "INFO: Starting evaluation of model" + bcolors.ENDC)
+
+                # Print CLI message
+                self.logger.write("Starting evaluation of model", "INFO", self.debug)
 
                 # Call evaluation method
                 self._evaluate(job['evaluation'])
@@ -149,8 +145,8 @@ class Trainer:
             # Check if job contains index "training"
             if 'inference' in job and type(job['inference']) is dict:
 
-                # Print loading message
-                print(bcolors.FAIL + "ERROR: Inference is not implemented yet" + bcolors.ENDC)
+                # Print CLI message
+                self.logger.write("Inference is not implemented yet", "ERROR", self.debug)
 
     def _train(self, training_setup: dict):
         """
@@ -169,10 +165,9 @@ class Trainer:
                                                    batch_size=training_setup['batch_size'])
 
         # Log dataset information
-        self.logger.write('{} samples.'.format(len(dataset)))
-
-        # Create a variable that stores the best value loss
-        best_val_loss = math.inf
+        self.logger.write(str(len(dataset)) + ' samples have been '
+                          + ('loaded (preloading active)' if training_setup['dataset']['preload']
+                             else 'found (preloading inactive)'), type="INFO", in_cli=self.debug)
 
         # Create optimizer
         optimizer = self._get_optimizer(training_setup['optimizer'])
@@ -180,12 +175,13 @@ class Trainer:
         # Create loss function
         loss_function = self._get_loss_function(training_setup['loss'])
 
-        # --------------------------- Training routine --------------------------
-        # Iterate through epochs
+        # Iterate through epochs (based on jobs setting)
         for epoch in range(training_setup['epochs']):
 
-            # Start epoch timer
-            self.logger.write('Epoch {}/{}'.format(epoch + 1, training_setup['epochs']))
+            # Start epoch timer and log the start of this epoch
+            self.logger.write('Starting to run Epoch {}/{}'.format(epoch + 1, training_setup['epochs']), in_cli=False)
+
+            # Start the epoch timer
             self.timer.start('epoch')
 
             # Set model to train mode
@@ -194,16 +190,17 @@ class Trainer:
             # Initialize variables
             running_loss = 0
 
-            # ------------------------- Batch training -------------------------
+            # Run through batches and perform model training
             for batch, batch_input in enumerate(train_data):
+
                 # Reset gradients
                 optimizer.zero_grad()
 
                 # Get output
-                reconstructed = self.model(batch_input)
+                model_output = self.model(batch_input)
 
                 # Calculate loss
-                loss = loss_function(reconstructed, batch_input)
+                loss = loss_function(model_output, batch_input)
 
                 # Backpropagation
                 loss.backward()
@@ -214,8 +211,24 @@ class Trainer:
                 # Add loss
                 running_loss += loss.detach().cpu().numpy()
 
+                # Print epoch status bar
+                print_status_bar(
+                    done=(epoch + 1 / int(training_setup['epochs'])) * 100,
+                    title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + " progress"
+                )
+
+            # Stop timer to measure epoch length
+            epoch_time = self.timer.get_time('epoch')
+
             # Calculate epoch los
             epoch_train_loss = running_loss / len(train_data)
+
+            # Log the epoch success
+            self.logger.write('Took : ' + str(epoch_time) + ', loss is ' + str(epoch_train_loss), in_cli=self.debug)
+
+            # TODO: perform syncing with wandb
+
+            # TODO: perform saving of checkpoints in training (current model state)
 
     def _evaluate(self, evaluation_setup: dict):
         """
@@ -268,7 +281,8 @@ class Trainer:
 
         return dataset
 
-    def _get_dataloader(self, dataset, shuffle: bool = True, split_ratio: float = 0.5, num_workers: int = 0, batch_size: int = 64, pin_memory: bool = True):
+    def _get_dataloader(self, dataset, shuffle: bool = True, split_ratio: float = 0.5, num_workers: int = 0,
+                        batch_size: int = 64, pin_memory: bool = True):
         """
         The method returns data loader instances (if split) or just one dataloader based on the passed dataset
 
