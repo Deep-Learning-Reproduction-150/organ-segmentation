@@ -183,6 +183,9 @@ class Logger:
         # Get the CLI mssage to display
         cli_message = Logger._get_content(message, type)
 
+        if 'Epoch took' in cli_message:
+            a = 0
+
         if Logger.status_bar_active:
             sys.stdout.write("\r" + cli_message)
             sys.stdout.flush()
@@ -244,7 +247,7 @@ class Logger:
             raise Exception("ERROR: Logger is not initialized")
 
         Logger.status_bar_active = False
-        print("")
+        # print("")
 
     @staticmethod
     def _get_content(message: str, type: str, log_stamp: str = None):

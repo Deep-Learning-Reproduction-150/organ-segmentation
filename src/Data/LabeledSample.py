@@ -168,21 +168,6 @@ class LabeledSample:
             tensors.append(label.get_tensor())
             labels.append(label.name)
 
-        # TODO: go veikko
-        label_threshold = -1000.0
-        background_voxel_value = -1024.0
-
-        label_mask = torch.zeros_like(self.sample)  # By default choose entire image
-
-        for label in labels:
-            current_label_mask = label > label_threshold  # Choose volume under the organ
-            label_mask = label_mask | current_label_mask  # Select it
-
-        background = deepcopy(self.sample)
-        background[~label_mask] = background_voxel_value
-        tensors.append(background)
-        labels.append("background")
-
         # return label data
         label_data = {"features": tensors, "label": labels}
 
@@ -256,6 +241,21 @@ class LabeledSample:
 
                 # Append the transformed label to it
                 self.transformed_labels.append(data)
+
+            # TODO: Maybe make it more efficient
+            # TODO: Watch out that the "numbers are dynamic"
+
+            label_mask = torch.zeros_like(self.transformed_sample, dtype=torch.bool)  # By default choose entire image
+            background_voxel_value = self.transformed_sample.min()
+
+            for label in self.transformed_labels:
+                label_threshold = label.mean()
+                current_label_mask = label > label_threshold  # Choose volume under the organ
+                label_mask = label_mask | current_label_mask  # Select it
+
+            background = deepcopy(self.transformed_sample).unsqueeze(0)
+            background[label_mask] = background_voxel_value
+            self.transformed_labels.append(background)
 
         # Remember that this sample has been checked
         self.preprocessed = True

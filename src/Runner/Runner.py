@@ -146,10 +146,10 @@ class Runner:
         dataset = self._get_dataset(training_setup['dataset'])
 
         # Get dataloader for both training and validation
-        train_data, val_data = self._get_dataloader(dataset,
-                                                    split_ratio=training_setup['split_ratio'],
-                                                    num_workers=training_setup['num_workers'],
-                                                    batch_size=training_setup['batch_size'])
+        train_data, eval_data = self._get_dataloader(dataset,
+                                                     split_ratio=training_setup['split_ratio'],
+                                                     num_workers=training_setup['num_workers'],
+                                                     batch_size=training_setup['batch_size'])
 
         # Log dataset information
         Logger.log(str(len(dataset)) + ' samples have been '
@@ -192,15 +192,8 @@ class Runner:
                 # Get output
                 model_output = self.model(inputs)
 
-                # TODO: "join" the label tensors in one tesnors
-
-                model_output = model_output[:, 1:, ...]
+                # "join" the label tensors in one tensor for the loss function
                 labels_input = torch.cat(labels, 1)
-
-                a1 = model_output.dtype
-                a2 = labels_input.dtype
-
-                b = 0
 
                 # Calculate loss
                 loss = loss_function(model_output, labels_input)
@@ -216,8 +209,8 @@ class Runner:
 
                 # Print epoch status bar
                 Logger.print_status_bar(
-                    done=(epoch + 1 / int(training_setup['epochs'])) * 100,
-                    title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + " progress"
+                    done=((epoch + batch + 1) / (int(training_setup['epochs']) * len(train_data))) * 100,
+                    title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + " current los: " + str(running_loss / batch)
                 )
 
             # Finish the status bar
@@ -230,9 +223,13 @@ class Runner:
             epoch_train_loss = running_loss / len(train_data)
 
             # Log the epoch success
-            Logger.log('Took : ' + str(epoch_time) + ', loss is ' + str(epoch_train_loss), in_cli=self.debug)
+            Logger.log('Epoch took ' + str(epoch_time) + 'seconds. Loss is ' + str(epoch_train_loss), in_cli=self.debug)
 
-            # TODO: perform syncing with wandb
+            # TODO: if there is eval_data (not none), do some validation and early stopping if overfitting
+
+            # TODO: utilize a lr scheduler (decaying learning rate)
+
+            # TODO: perform syncing with wandb / tensorboard
 
             # TODO: perform saving of checkpoints in training (current model state)
 

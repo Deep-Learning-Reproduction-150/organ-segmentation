@@ -25,6 +25,11 @@ class BaseEvaluator:
 class DiceEvaluator(BaseEvaluator):
     """
     This evaluator is based on the dice score
+
+    TODO: Some notes from the paper that we shall output
+        - Dice Score
+        - Confidence Interval
+        - k-fold cross validation
     """
 
     def evaluate(self, model, eval_set):
