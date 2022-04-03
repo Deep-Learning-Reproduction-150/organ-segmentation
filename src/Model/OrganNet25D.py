@@ -18,6 +18,16 @@ from torchvision.transforms import CenterCrop
 # from src.Dataloader.CTData import CTData
 
 
+def crop3d(x: torch.Tensor, target_shape: tuple):
+    """
+    Assuming (..., D, H, H) input and shapes.
+    """
+    out_xycropped = CenterCrop(target_shape[-1])(x)
+    diff = (x.shape[-3] - target_shape[-3]) // 2
+    out_xyzcropped = out_xycropped[:, :, diff:-diff, ...]
+    return out_xyzcropped
+
+
 # Placeholder functions for building the model
 def conv_2x2d(
     in_channels=1, out_channels=16, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid", *args, **kwargs
@@ -197,7 +207,7 @@ class OrganNet25D(nn.Module):
 
         d, h, w = input_shape
 
-        # 2D layers
+        # First 2D layers
         self.two_d_1 = conv_2x2d(
             in_channels=1, out_channels=16, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid"
         )
@@ -215,20 +225,30 @@ class OrganNet25D(nn.Module):
             (d_here, h_here, h_here), in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0
         )
 
-        d_here = int(d_here / 2) - 4  # 18 # downsample + two 2x2x2 conv
-        h_here = int(h_here / 2) - 4  # 57  # downsample + two 2x2x2 conv
+        d_here = int(d_here / 2) - 4  # 18 # downsample + two 3x3x3 conv
+        h_here = int(h_here / 2) - 4  # 57  # downsample + two 3x3x3 conv
 
         self.coarse_3d_2 = DoubleConvResSE(
             (d_here, h_here, h_here), in_channels=32, out_channels=64, kernel_size=(3, 3, 3), stride=1, padding=0
         )
-        self.coarse_3d_3 = conv_2x3d_coarse()
 
         # Fine 3D block
 
         self.fine_3d_1 = HDCResSE((d_here, h_here, h_here), in_channels=64, out_channels=128, dilations=hdc_dilations)
         self.fine_3d_2 = HDCResSE((d_here, h_here, h_here), in_channels=128, out_channels=256, dilations=hdc_dilations)
         self.fine_3d_3 = HDCResSE((d_here, h_here, h_here), in_channels=256, out_channels=128, dilations=hdc_dilations)
-        self.fine_3d_4 = HDCResSE((d_here, h_here, h_here), in_channels=128, out_channels=64, dilations=hdc_dilations)
+
+        # Last two coarse 3d
+        d_here = d_here - 4  # 14  -> two 3x3x3 conv
+        h_here = h_here - 4  # 53  -> two 3x3x3 conv
+        self.coarse_3d_3 = DoubleConvResSE(
+            (d_here, h_here, h_here), in_channels=128, out_channels=64, kernel_size=(3, 3, 3), stride=1, padding=0
+        )
+        d_here = d_here * 2 - 4  # 14  -> upsample + two 3x3x3 conv
+        h_here = h_here * 2 - 4  # 53  -> upsample + two 3x3x3 conv
+        self.coarse_3d_4 = DoubleConvResSE(
+            (d_here, h_here, h_here), in_channels=64, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0
+        )
 
         # 1x1x1 convs
 
@@ -264,7 +284,8 @@ class OrganNet25D(nn.Module):
         self.downsample2 = nn.MaxPool3d(kernel_size=(2, 2, 2), stride=(2, 2, 2), padding=0, dilation=1)
 
         # Upsampling layer
-        self.upsample = nn.ConvTranspose3d(in_channels=64, out_channels=32, stride=(2, 2, 2), kernel_size=(2, 2, 2))
+        self.upsample1 = nn.ConvTranspose3d(in_channels=64, out_channels=32, stride=(2, 2, 2), kernel_size=(2, 2, 2))
+        self.upsample2 = nn.ConvTranspose3d(in_channels=32, out_channels=16, stride=(1, 2, 2), kernel_size=(1, 2, 2))
 
         return
 
@@ -342,29 +363,41 @@ class OrganNet25D(nn.Module):
         out12 = torch.cat([out5, out11], dim=1)
         if verbose:
             print(f"\tOutput 12 shape : {out12.shape}")
-        # Output 12 to Coarse 3d layer 3 -> Output 13
-        out13 = self.fine_3d_4(out12)
+        # Output 12 to Fine 3d layer 3 -> Output 13
+        # TODO Change to coarse 3d conv
+        # out13 = self.fine_3d_4(out12)
+        out13 = self.coarse_3d_3(out12)
         if verbose:
             print(f"\tOutput 13 shape : {out13.shape}")
         # Transpose Convolute Output 13 -> Output 14
-        out14 = self.upsample(out13)
+        out14 = self.upsample1(out13)
         if verbose:
             print(f"\tOutput 14 shape : {out14.shape}")
         # Concatenate Output 14 and Output 3 -> Output 15
         # First crop 3, (..., 122, 122) -> (..., 114, 114)
-        out3_xycropped = CenterCrop(144)(out3)
-        diff = (out3.shape[-3] - 36) // 2
-        out3_xyzcropped = out3_xycropped[:, :, diff:-diff, ...]
-        print(out3_xyzcropped.shape)
+        out3_xyzcropped = crop3d(out3, target_shape=out14.shape[-3:])
         out15 = torch.cat([out3_xyzcropped, out14], dim=1)
         if verbose:
-            print(f"\tOutput 14 shape : {out14.shape}")
+            print(f"\tOutput 15 shape : {out15.shape}")
         # Output 15 to Coarse 3d Layer 4 -> Output 16
+        out16 = self.coarse_3d_4(out15)
+        if verbose:
+            print(f"\tOutput 16 shape : {out16.shape}")
         # Concatenate Output 1 and Output 16 -> Output 17
+        out16up = self.upsample2(out16)
+        out1_xyzcropped = crop3d(out1, target_shape=out16up.shape[-3:])
+        out17 = torch.cat([out1_xyzcropped, out16up], axis=1)
+        if verbose:
+            print(f"\tOutput 17 shape : {out17.shape}")
         # Output 17 to 2D layer 2 -> Output 18
+        out18 = self.two_d_2(out17)
+        if verbose:
+            print(f"\tOutput 18 shape : {out18.shape}")
         # Output 18 to 1x1x1 layer 3 -> Final output
-        out18 = x
-        return out18
+        out19 = self.one_d_3(out18)
+        if verbose:
+            print(f"\tOutput 19 (final) shape : {out19.shape}")
+        return out19
 
     def train_model(self, train_data, test_data, monitor_progress: bool = False):
         """
@@ -425,7 +458,7 @@ def main():
     """
 
     batch = 2
-    width = height = 128  # * 2
+    width = height = 256  # * 2
     depth = 48
     channels_in = 1
     channels_out = 10
@@ -436,8 +469,8 @@ def main():
     expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
-    # model = OrganNet25D(input_shape=input_shape[-3::])
-    model = ToyOrganNet25D()
+    model = OrganNet25D(input_shape=input_shape[-3::])
+    # model = ToyOrganNet25D()
 
     output = model(input, verbose=True)
 
