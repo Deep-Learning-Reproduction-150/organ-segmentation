@@ -233,7 +233,8 @@ class Runner:
 
         :param evaluation_setup: the dict containing everything regarding the current job
         """
-        a = 0
+        evaluator = self._get_evaluator(evaluation_setup)
+        evaluator.evaluate(self.model, )
 
     def _check_job_data(self, job_data: dict):
         """
@@ -250,6 +251,11 @@ class Runner:
         self.id = job_data.setdefault('wand_id', wandb.util.generate_id())
 
         return job_data
+
+    def _get_evaluator(self, evaluation_setup: dict):
+        module = importlib.import_module('src.eval')
+        evaluater_class = getattr(module, evaluation_setup['evaluator'])
+        return evaluater_class(evaluation_setup)
 
     def _get_optimizer(self, optimizer_setup: dict, **params):
         if optimizer_setup['name'] == 'Adam':

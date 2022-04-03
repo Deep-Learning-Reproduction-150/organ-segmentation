@@ -12,9 +12,6 @@ import torch
 class CTDataCollator(object):
     """
     This custom collate function is used by the data loader to create batches
-
-    :param dataset: batch data ste
-    :return: tensor for network
     """
 
     # Storing the desired batch dimensions
@@ -35,11 +32,22 @@ class CTDataCollator(object):
         Method returns batch tensor from data set subset
 
         :param batch: subset of the data set, based on sampler
-        :return: tensor which represents batch
+        :return: tensor which represents a batch
         """
 
+        # Obtain batch dimension
+        batch_dimension = len(batch)
+
+        # Channel dimension
+        channel_dimension = 10
+
+        # Obtain the desired 3D CT image dimensions
+        x_dim = self.batch_dimensions[0]
+        y_dim = self.batch_dimensions[1]
+        z_dim = self.batch_dimensions[2]
+
         # Create a random batch
-        batch = torch.randn(128, 128, 128)
+        batch = torch.randn(x_dim, y_dim, z_dim, batch_dimension, channel_dimension)
 
         # TODO: create a batch like really <3
 
