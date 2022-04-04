@@ -27,7 +27,7 @@ class CombinedLoss(nn.Module):
         for
         background, brain stem, optic chiasma, mandible, optic nerve left, optic nerve right, parotid gland left, parotid gland right, submandibular left, submandibular right
         """
-        super(CombinedLoss, self).__init__(*args, **kwargs)
+        super(CombinedLoss, self).__init__()
 
         self.dice = DiceLoss()
         self.focal = FocalLoss()
