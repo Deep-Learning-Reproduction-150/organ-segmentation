@@ -9,6 +9,7 @@ Group: 150
 import torch
 import importlib
 import json
+import wandb
 import os
 from torch.optim.lr_scheduler import LinearLR
 from src.utils import Logger, Timer, bcolors
@@ -48,6 +49,9 @@ class Runner:
 
     # When true, trainer will output much more details about jobs progress
     debug = None
+
+    # This attribute stores the current job the runner is working on
+    job = None
 
     # Attribute that stores the jobs that still need to be done
     job_queue = None
@@ -116,6 +120,9 @@ class Runner:
         # Iterate through all jobs
         for index, job in enumerate(self.job_queue):
 
+            # Save the current job for instance access
+            self.job = job
+
             # Obtain the base path at looking at the parent of the parents parent
             base_path = Path(__file__).parent.parent.parent.resolve()
 
@@ -181,7 +188,7 @@ class Runner:
             if 'training' in job and type(job['training']) is dict:
 
                 # Call train method
-                self._train(job['training'], preload=job['preload'])
+                self._train()
 
             # Check if job contains index "training"
             if 'evaluation' in job and type(job['evaluation']) is dict:
@@ -195,7 +202,7 @@ class Runner:
                 # Print CLI message
                 Logger.log("Inference is not implemented yet", "ERROR", self.debug)
 
-    def _train(self, training_setup: dict, preload: bool = True):
+    def _train(self):
         """
         This method will train the network
 
@@ -219,11 +226,22 @@ class Runner:
             # Fallback to a default start epoch of zero
             start_epoch = 0
 
+        # Check if wandb shall be used
+        if self.job['wandb_api_key']:
+
+            # Flash notification
+            Logger.log("Loading wand and creating run for project " + self.job['wandb_project_name'])
+
+            # Load wandb
+            os.environ["WANDB_SILENT"] = "true"
+            wandb.login(key=self.job['wandb_api_key'])
+            wandb.init(project=self.job['wandb_project_name'])
+
         # Start timer to measure data set
         self.timer.start('creating dataset')
 
         # Get dataset if not given
-        dataset = self._get_dataset(training_setup['dataset'], preload=preload)
+        dataset = self._get_dataset(self.job['training']['dataset'], preload=self.job['preload'])
 
         # Start timer to measure data set
         creation_took = self.timer.get_time('creating dataset')
@@ -234,23 +252,27 @@ class Runner:
 
         # Get dataloader for both training and validation
         self.train_data, self.eval_data = self._get_dataloader(dataset,
-                                                     split_ratio=training_setup['split_ratio'],
-                                                     num_workers=training_setup['num_workers'],
-                                                     batch_size=training_setup['batch_size'])
+                                                     split_ratio=self.job['training']['split_ratio'],
+                                                     num_workers=self.job['training']['num_workers'],
+                                                     batch_size=self.job['training']['batch_size'])
 
         # Log dataset information
         Logger.log('Start training on ' + str(len(self.train_data)) + ' batches '
-                   + ('(preloading active)' if preload
+                   + ('(preloading active)' if self.job['preload']
                       else 'found (preloading inactive)'), type="INFO", in_cli=self.debug)
 
         # Create optimizer
-        optimizer = self._get_optimizer(training_setup['optimizer'])
+        optimizer = self._get_optimizer(self.job['training']['optimizer'])
 
         # Create scheduler
-        scheduler = self._get_lr_scheduler(optimizer, training_setup['lr_scheduler'])
+        scheduler = self._get_lr_scheduler(optimizer, self.job['training']['lr_scheduler'])
 
         # Create loss function
-        loss_function = self._get_loss_function(training_setup['loss'])
+        loss_function = self._get_loss_function(self.job['training']['loss'])
+
+        # Enable wandb logging
+        if self.job['wandb_api_key']:
+            wandb.watch(self.model, log="gradients", log_freq=1)
 
         # Check if start epoch is not zero and notify
         if start_epoch > 0:
@@ -259,13 +281,13 @@ class Runner:
             Logger.log("Resuming training in epoch " + str(start_epoch), in_cli=True)
 
         # Iterate through epochs (based on jobs setting)
-        for epoch in range(start_epoch, training_setup['epochs']):
+        for epoch in range(start_epoch, self.job['training']['epochs']):
 
             # Start epoch timer and log the start of this epoch
-            Logger.log('Starting to run Epoch {}/{}'.format(epoch + 1, training_setup['epochs']), in_cli=False)
+            Logger.log('Starting to run Epoch {}/{}'.format(epoch + 1, self.job['training']['epochs']), in_cli=False)
 
             # Print epoch status bar
-            Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']))
+            Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(self.job['training']['epochs']))
 
             # Start the epoch timer
             self.timer.start('epoch')
@@ -278,7 +300,6 @@ class Runner:
 
             # Run through batches and perform model training
             for batch, batch_input in enumerate(self.train_data):
-
 
                 # Extract inputs and labels from the batch input
                 inputs, labels = batch_input
@@ -301,11 +322,13 @@ class Runner:
                 # Add loss
                 running_loss += loss.detach().cpu().numpy()
 
+                # Get the current running los
+                current_loss = running_loss / batch if batch > 0 else running_loss
+
                 # Print epoch status bar
-                avg_loss = "{:.2f}".format(running_loss / batch if batch > 0 else 9999999)
                 Logger.print_status_bar(
                     done=((batch + 1) / len(self.train_data)) * 100,
-                    title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + ", loss: " + avg_loss
+                    title="epoch " + str(epoch + 1) + "/" + str(self.job['training']['epochs']) + ", loss: " + "{:.2f}".format(current_loss)
                 )
 
             # Finish the status bar
@@ -331,7 +354,7 @@ class Runner:
                 self.model.eval()
 
                 # Initialize a running loss of 99999
-                eval_running_loss = 999999
+                eval_running_loss = 0
 
                 # Perform validation on healthy images
                 for batch, batch_input in enumerate(self.eval_data):
@@ -379,9 +402,20 @@ class Runner:
             # Also perform a step for the learning rate scheduler
             scheduler.step()
 
+            # Obtain the current learning rate
+            current_lr = scheduler.get_last_lr()[0]
+
             # Print the current learning rate
-            lr_formatted = "{:.4f}".format(scheduler.get_last_lr()[0])
+            lr_formatted = "{:.6f}".format(current_lr)
             Logger.log("Learning rate currently at " + str(lr_formatted), in_cli=True)
+
+            # Report the current loss to wandb if it's set
+            if self.job['wandb_api_key']:
+                wandb.log({
+                    "training loss": epoch_train_loss,
+                    "evaluation loss": epoch_evaluation_loss,
+                    "learning rate": current_lr,
+                })
 
             # Log that the checkpoint is saved
             Logger.log("Saving checkpoint for epoch " + str(epoch + 1), in_cli=True)
@@ -394,7 +428,7 @@ class Runner:
                 'lr_scheduler': scheduler.state_dict(),
                 'train_loss': epoch_train_loss,
                 'eval_loss': epoch_evaluation_loss,
-                'training_done': epoch == (training_setup['epochs'] - 1),
+                'training_done': epoch == (self.job['training']['epochs'] - 1),
             })
 
             # Write log message that the training has been completed
@@ -402,6 +436,10 @@ class Runner:
 
         # Write log message that the training has been completed
         Logger.log("Training of the model completed", type="SUCCESS", in_cli=True)
+
+        # Check if wandb shall be used
+        if self.job['wandb_api_key']:
+            wandb.finish()
 
     def _evaluate(self, evaluation_setup: dict):
         """
