@@ -113,6 +113,8 @@ class Runner:
             # Save this path to the runner object for now to be able to store stuff in there
             self.path = job_data_dir
 
+            # TODO: should also save the underlying json file in log folder (and compare and ggf. reload everthing if json changed)
+
             # Check if log dir exists, if not create
             Path(job_data_dir).mkdir(parents=True, exist_ok=True)
 
