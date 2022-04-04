@@ -215,6 +215,8 @@ class OrganNet25D(nn.Module):
         self.upsample1 = nn.ConvTranspose3d(in_channels=64, out_channels=32, stride=(2, 2, 2), kernel_size=(2, 2, 2))
         self.upsample2 = nn.ConvTranspose3d(in_channels=32, out_channels=16, stride=(1, 2, 2), kernel_size=(1, 2, 2))
 
+        self.final_sigmoid = torch.Sigmoid()
+
         return
 
     def forward(self, x: torch.Tensor, verbose=None, mock=True):
@@ -327,7 +329,7 @@ class OrganNet25D(nn.Module):
         if verbose:
             print(f"\tOutput 19 (final) shape:\t\t{out19.shape}")
 
-        final = torch.Sigmoid()(out19)
+        final = self.final_sigmoid(out19)
         return final
 
     def train_model(self, train_data, test_data, monitor_progress: bool = False):
