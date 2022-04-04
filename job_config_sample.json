@@ -2,7 +2,7 @@
     "name": "paper_reproduction",
     "resume": true,
     "preload": false,
-    "wandb_project_name": "testing-project",
+    "wandb_project_name": "organ segmentation",
     "wandb_api_key": "<your wandb api key>",
     "tensorboard": null,
     "model": {
