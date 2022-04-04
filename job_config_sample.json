@@ -2,12 +2,15 @@
     "name": "paper_reproduction",
     "resume": true,
     "preload": false,
+    "wandb_project_name": "organ segmentation",
+    "wandb_api_key": "<your wandb api key>",
+    "tensorboard": null,
     "model": {
         "reset": true,
         "input_shape": [48, 256, 256]
     },
     "training": {
-        "epochs": 4,
+        "epochs": 200,
         "loss": {
             "name": "MSELoss",
             "parameter_a": 2
