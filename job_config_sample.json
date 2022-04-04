@@ -36,6 +36,11 @@
                     "width": 256,
                     "height": 256,
                     "depth": 48
+                },
+                {
+                    "name": "Normalize",
+                    "mean": 0,
+                    "std": 1
                 }
             ]
         }
