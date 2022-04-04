@@ -351,6 +351,9 @@ class Runner:
                 'training_done': epoch == (training_setup['epochs'] - 1),
             })
 
+            # Write log message that the training has been completed
+            Logger.log("Checkpoint updated (data has been saved)", in_cli=True)
+
         # Write log message that the training has been completed
         Logger.log("Training of the model completed", type="SUCCESS", in_cli=True)
 
