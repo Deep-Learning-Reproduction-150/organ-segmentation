@@ -7,10 +7,10 @@ Group: 150
 """
 
 import torch
-import wandb
 import importlib
 import json
 import os
+from torch.optim.lr_scheduler import LinearLR
 from src.utils import Logger, Timer, bcolors
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
@@ -246,6 +246,9 @@ class Runner:
         # Create optimizer
         optimizer = self._get_optimizer(training_setup['optimizer'])
 
+        # Create scheduler
+        scheduler = self._get_lr_scheduler(optimizer, training_setup['lr_scheduler'])
+
         if self.checkpoint is not None:
 
             # Load the optimizer state
@@ -283,6 +286,7 @@ class Runner:
 
             # Run through batches and perform model training
             for batch, batch_input in enumerate(self.train_data):
+
 
                 # Extract inputs and labels from the batch input
                 inputs, labels = batch_input
@@ -380,6 +384,9 @@ class Runner:
 
             # TODO: perform syncing with wandb / tensorboard
 
+            # Also perform a step for the learning rate scheduler
+            scheduler.step()
+
             # Save a checkpoint for this job after each epoch (to be able to resume)
             self._save_checkpoint({
                 'epoch': epoch,
@@ -428,6 +435,14 @@ class Runner:
 
         # TODO: flash warnings when specific parts of the job description are missing and defaults are used
 
+        # Add a default scheduler
+        job_data['training'].setdefault('lr_scheduler', {
+            "name": "LinearLR",
+            "start_factor": 1,
+            "end_factor": 0.01,
+            "total_iters": 100
+        })
+
         return job_data
 
     def _get_evaluator(self, evaluation_setup: dict):
@@ -446,6 +461,23 @@ class Runner:
             return torch.optim.Adam(self.model.parameters(), lr=optimizer_setup['learning_rate'], betas=optimizer_setup['betas'], **params)
         else:
             raise ValueError(bcolors.FAIL + "ERROR: Optimizer " + optimizer_setup['name'] + " not recognized, aborting" + bcolors.ENDC)
+
+    def _get_lr_scheduler(self, optimizer, scheduler_setup: dict):
+        """
+        Returns a scheduler for the learning rate
+
+        :param optimizer:
+        :param scheduler_setup:
+        :return:
+
+        TODO: make this dynamic
+        """
+        return LinearLR(
+            optimizer,
+            start_factor=scheduler_setup['start_factor'],
+            end_factor=scheduler_setup['end_factor'],
+            total_iters=scheduler_setup['total_iters'],
+        )
 
     def _get_loss_function(self, loss_function_setup):
         module = importlib.import_module('src.losses')
