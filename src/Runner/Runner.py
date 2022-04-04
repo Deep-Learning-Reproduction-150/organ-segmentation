@@ -147,17 +147,19 @@ class Runner:
 
             # check whether the job description has changed (if that is the case, re-run the job)
             specification_path = os.path.join(self.path, 'specification.json')
-            if os.path.exists(specification_path):
-                existing_specification = json.load(open(specification_path))
-                if str(existing_specification) != str(job):
 
-                    # Remove the last checkpoint
-                    checkpoint_path = os.path.join(self.path, 'checkpoint.tar')
-                    if os.path.exists(checkpoint_path):
-                        os.remove(checkpoint_path)
-
-                    # Notify user regarding rerunning of job
-                    Logger.log("The json job specification has changed, deleting checkpoint", type="WARNING", in_cli=True)
+            # if os.path.exists(specification_path):
+            #     existing_specification = json.load(open(specification_path))
+            #     if str(existing_specification) != str(job):
+            #
+            #         # Remove the last checkpoint
+            #         checkpoint_path = os.path.join(self.path, 'checkpoint.tar')
+            #         if os.path.exists(checkpoint_path):
+            #             os.remove(checkpoint_path)
+            #
+            #         # Notify user regarding rerunning of job
+            #         Logger.log("The json job specification has changed, deleting checkpoint", type="WARNING",
+            #         in_cli=True)
 
             # Write the specification file to the job
             with open(specification_path, 'w') as fp:
@@ -220,11 +222,13 @@ class Runner:
 
             # Extract epoch to continue training
             start_epoch = self.checkpoint['epoch'] + 1
+            wandb_id = self.checkpoint['wandb_run_id']
 
         else:
 
             # Fallback to a default start epoch of zero
             start_epoch = 0
+            wandb_id = None
 
         # Check if wandb shall be used
         if self.job['wandb_api_key']:
@@ -233,9 +237,10 @@ class Runner:
             Logger.log("Loading wand and creating run for project " + self.job['wandb_project_name'])
 
             # Load wandb
+            wandb_run_id = wandb_id if not None else self.job['wandb_run_id']
             os.environ["WANDB_SILENT"] = "true"
             wandb.login(key=self.job['wandb_api_key'])
-            wandb.init(project=self.job['wandb_project_name'])
+            wandb.init(project=self.job['wandb_project_name'], resume=start_epoch > 0, id=wandb_run_id)
 
         # Start timer to measure data set
         self.timer.start('creating dataset')
@@ -415,6 +420,7 @@ class Runner:
                     "training loss": epoch_train_loss,
                     "evaluation loss": epoch_evaluation_loss,
                     "learning rate": current_lr,
+                    "epoch rate": epoch + 1,
                 })
 
             # Log that the checkpoint is saved
@@ -429,6 +435,7 @@ class Runner:
                 'train_loss': epoch_train_loss,
                 'eval_loss': epoch_evaluation_loss,
                 'training_done': epoch == (self.job['training']['epochs'] - 1),
+                'wandb_run_id': self.job['wandb_run_id']
             })
 
             # Write log message that the training has been completed
@@ -479,6 +486,7 @@ class Runner:
             "end_factor": 0.01,
             "total_iters": 100
         })
+        job_data.setdefault('wandb_run_id', wandb.util.generate_id())
 
         return job_data
 
@@ -634,3 +642,4 @@ class Runner:
         """
         save_path = os.path.join('results', self.path, 'checkpoint.tar')
         torch.save(checkpoint_dict, save_path)
+        wandb.save(save_path)

@@ -12,8 +12,7 @@
     "training": {
         "epochs": 200,
         "loss": {
-            "name": "MSELoss",
-            "parameter_a": 2
+            "name": "DiceLoss"
         },
         "split_ratio": 0.9,
         "wandb_id": null,

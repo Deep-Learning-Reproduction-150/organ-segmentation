@@ -6,7 +6,90 @@ Date: 03.04.2022
 Group: 150
 """
 
-import torch.nn as nn
+import torch
+from torch import nn
+import torch.nn.functional as F
+from tqdm import tqdm
+
+from matplotlib import pyplot as plt
+
+
+DEFAULT_AC = torch.Tensor(
+    [0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0]
+)  # focal loss weights per channels from the paper
+
+
+class CombinedLoss(nn.Module):
+
+    def __init__(self, weight=None, size_average=True):
+        """
+        TODO: Implement weights["focal"] as
+        0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, and 3.0
+        for
+        background, brain stem, optic chiasma, mandible, optic nerve left, optic nerve right, parotid gland left, parotid gland right, submandibular left, submandibular right
+        """
+        super(CombinedLoss, self).__init__()
+
+        self.dice = DiceLoss()
+        self.focal = FocalLoss()
+
+    def forward(
+        self,
+        inputs,
+        targets,
+        l=1.0,
+        gamma=2,
+        alpha=DEFAULT_AC,
+    ):
+
+        dice = self.dice(inputs, targets)
+        focal = self.focal(inputs, targets, alpha=alpha, gamma=gamma)
+
+        combined = focal + l * dice
+        return combined
+
+
+class DiceCoefficient(nn.Module):
+
+    def __init__(self, **params):
+        super().__init__()
+
+    def forward(self, inputs, targets):
+        # # flatten label and prediction tensors
+        inputs = inputs.view(-1)
+        targets = targets.view(-1)
+
+        intersection = (inputs * targets).sum()
+        dice = (2.0 * intersection) / (inputs.sum() + targets.sum())
+        return dice
+
+
+class DiceLoss(nn.Module):
+
+    def __init__(self, **params):
+        super().__init__()
+
+    def forward(self, inputs, targets):
+        dice = DiceCoefficient()(inputs, targets)
+        return 1 - dice
+
+
+class FocalLoss(nn.Module):
+
+    def __init__(self, **params):
+        super().__init__()
+
+    def forward(self, inputs, targets, alpha=DEFAULT_AC, gamma=2.0):
+        # flatten label and prediction tensors
+        inputs = inputs.view(-1)
+        targets = (alpha * targets.view(-1, len(alpha))).view(-1)
+
+        # first compute binary cross-entropy
+        BCE = F.binary_cross_entropy(inputs, targets, reduction="mean")
+        BCE_EXP = torch.exp(-BCE)
+        focal_loss = (1 - BCE_EXP) ** gamma * BCE
+
+        return focal_loss
 
 
 class MSELoss(nn.Module):
@@ -34,24 +117,3 @@ class MSELoss(nn.Module):
             loss = loss / input_batch.shape[0]
 
         return loss
-
-
-class DiceLoss(nn.Module):
-    """
-    Computes the dice loss
-    """
-
-    def __init__(self, **params):
-        """
-        Initializes the dice score
-
-        TODO: params contains everything that is passed via job setup
-        """
-        super().__init__()
-
-    def forward(selfself, output_batch, input_batch):
-
-        a = 0
-        # TODO: write dice loss for this
-
-        return output_batch
