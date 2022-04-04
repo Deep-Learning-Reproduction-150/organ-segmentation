@@ -11,7 +11,7 @@ from src.Runner.Runner import Runner
 
 # Gather the wanted jobs in a list (only testing job for now)
 jobs = [
-    # 'config/testing.json',
+    'config/testing.json',
     'config/paper_reproduction.json'
 ]
 

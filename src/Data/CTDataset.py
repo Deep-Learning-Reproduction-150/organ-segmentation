@@ -157,7 +157,7 @@ class CTDataset(Dataset):
         sample_data = sample.sample
 
         # Return the tupel (data, labels)
-        return sample_data, torch.cat(sample.sample, 0)
+        return sample_data, torch.cat(sample.labels, 0)
 
     def __len__(self):
         """
