@@ -20,7 +20,14 @@ from .utils import conv_2x3d_coarse, HDC, conv_2x2d, crop3d
 
 class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
     def __init__(
-        self, global_pooling_size, in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0
+        self,
+        global_pooling_size,
+        activation=nn.Sigmoid(),
+        in_channels=16,
+        out_channels=32,
+        kernel_size=(3, 3, 3),
+        stride=1,
+        padding=0,
     ) -> None:
 
         super().__init__()
@@ -33,7 +40,7 @@ class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
             nn.Flatten(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
             nn.Linear(in_features=out_channels, out_features=out_channels),
-            nn.Sigmoid(),
+            activation,
             nn.Unflatten(1, (out_channels, 1, 1, 1)),
         )
 
@@ -92,7 +99,9 @@ class OrganNet25D(nn.Module):
     This represents the OrganNet25D model as proposed by Chen et. al.
     """
 
-    def __init__(self, hdc_dilations=(1, 2, 5), input_shape=(48, 256, 256), *args, **kwargs):
+    def __init__(
+        self, hdc_dilations=(1, 2, 5), input_shape=(48, 256, 256), resse_activation=nn.Sigmoid(), *args, **kwargs
+    ):
         """
         Constructor method of the OrganNet
         """
@@ -117,14 +126,26 @@ class OrganNet25D(nn.Module):
         h_here = int((h - 4) / 2) - 4  # 122, two 1x2x2 convolutions -> downsample -> two 2x2x2 convolutions
         # First part of 2 x Conv + ResSE
         self.coarse_3d_1 = DoubleConvResSE(
-            (d_here, h_here, h_here), in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding="same"
+            (d_here, h_here, h_here),
+            activation=resse_activation,
+            in_channels=16,
+            out_channels=32,
+            kernel_size=(3, 3, 3),
+            stride=1,
+            padding="same",
         )
 
         d_here = int(d_here / 2)  # - 4  # 18 # downsample + two 3x3x3 conv
         h_here = int(h_here / 2)  # - 4  # 57  # downsample + two 3x3x3 conv
 
         self.coarse_3d_2 = DoubleConvResSE(
-            (d_here, h_here, h_here), in_channels=32, out_channels=64, kernel_size=(3, 3, 3), stride=1, padding="same"
+            (d_here, h_here, h_here),
+            activation=resse_activation,
+            in_channels=32,
+            out_channels=64,
+            kernel_size=(3, 3, 3),
+            stride=1,
+            padding="same",
         )
 
         # Fine 3D block
@@ -137,12 +158,24 @@ class OrganNet25D(nn.Module):
         d_here = d_here  # - 4  # 14  -> two 3x3x3 conv
         h_here = h_here  # - 4  # 53  -> two 3x3x3 conv
         self.coarse_3d_3 = DoubleConvResSE(
-            (d_here, h_here, h_here), in_channels=128, out_channels=64, kernel_size=(3, 3, 3), stride=1, padding="same"
+            (d_here, h_here, h_here),
+            activation=resse_activation,
+            in_channels=128,
+            out_channels=64,
+            kernel_size=(3, 3, 3),
+            stride=1,
+            padding="same",
         )
         d_here = d_here * 2  # - 4  # 14  -> upsample + two 3x3x3 conv
         h_here = h_here * 2  # - 4  # 53  -> upsample + two 3x3x3 conv
         self.coarse_3d_4 = DoubleConvResSE(
-            (d_here, h_here, h_here), in_channels=64, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding="same"
+            (d_here, h_here, h_here),
+            activation=resse_activation,
+            in_channels=64,
+            out_channels=32,
+            kernel_size=(3, 3, 3),
+            stride=1,
+            padding="same",
         )
 
         # 1x1x1 convs
