@@ -122,7 +122,8 @@ class Runner:
             Logger.initialize(log_path=job_data_dir)
 
             # Reset the log file
-            Logger.clear()
+            if not job['resume']:
+                Logger.clear()
 
             # Print CLI message
             Logger.log("Started the job '" + job['name'] + "'", "HEADLINE", self.debug)

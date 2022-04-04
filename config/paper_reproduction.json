@@ -27,7 +27,7 @@
             "remove_false_samples": true,
             "transform": [
                 {
-                    "name": "Resize",
+                    "name": "EasyResize",
                     "width": 256,
                     "height": 256,
                     "depth": 48
