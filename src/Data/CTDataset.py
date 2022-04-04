@@ -92,7 +92,7 @@ class CTDataset(Dataset):
                 self.samples.append(new_sample)
 
                 # Iterate through the samples labels and remember them globally
-                for label in new_sample.raw_labels:
+                for label in new_sample.labels:
                     if label.name not in CTDataset.label_structure:
                         CTDataset.label_structure.append(label.name)
 
