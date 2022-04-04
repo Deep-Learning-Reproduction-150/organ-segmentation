@@ -89,7 +89,7 @@ class CTDataset(Dataset):
 
             # Print loading message
             Logger.log("Started loading the data set with possibly " + str(possible_target_count) +
-                       " samples ...", type="INFO", in_cli=True)
+                       " samples", type="INFO", in_cli=True)
 
         # Initiate the sample attribute
         self.samples = []
@@ -120,12 +120,12 @@ class CTDataset(Dataset):
                 # Print the changing import status line
                 done = (i / possible_target_count) * 100
                 # Finish the status bar
-                Logger.print_status_bar(done=done, title="importing")
+                Logger.print_status_bar(done=done, title="importing data")
 
         # Reset console for next print message
         if self.preload:
             # Show the 100% status bar
-            Logger.print_status_bar(done=100, title="importing")
+            Logger.print_status_bar(done=100, title="importing data")
             Logger.end_status_bar()
 
         # Obtain one unified label structure FIXME: could be smarter :)
@@ -141,13 +141,16 @@ class CTDataset(Dataset):
             Logger.log("Finished loading the dataset (" + str(counter) + " samples)", in_cli=True)
 
             # Print loading message
-            Logger.log("Started applying the specified transformations to the samples ...", in_cli=True)
+            Logger.log("Started applying the specified transformations to the samples", in_cli=True)
 
             # Already preprocess the data here
             for i, sample in enumerate(self.samples):
-                Logger.print_status_bar(done=((i + 1) / len(self.samples))*100, title="transforming")
+                Logger.print_status_bar(done=((i + 1) / len(self.samples))*100, title="transforming data")
                 sample.preprocess(self.get_data_transformer(), CTDataset.label_structure, output_info=False)
             Logger.end_status_bar()
+
+            # Log that preloading was successful
+            Logger.log("Loading of data completed", type="SUCCESS", in_cli=True)
 
     def __getitem__(self, index):
         """

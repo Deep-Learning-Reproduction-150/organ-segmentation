@@ -31,6 +31,12 @@ class Runner:
     # Attribute stores an instance of the network
     model = None
 
+    # The path to the current jobs directory (in ./logs/<job_name>)
+    path = None
+
+    # Attribute will contain the last checkpoint if exists (else none)
+    checkpoint = None
+
     # An instance of a timer to measure the performances etc.
     timer = None
 
@@ -99,8 +105,20 @@ class Runner:
         # Iterate through all jobs
         for index, job in enumerate(self.job_queue):
 
+            # Obtain the base path at looking at the parent of the parents parent
+            base_path = Path(__file__).parent.parent.parent.resolve()
+
+            # A directory that stores jobs data
+            job_data_dir = os.path.join(base_path, 'logs', job['name'])
+
+            # Save this path to the runner object for now to be able to store stuff in there
+            self.path = job_data_dir
+
+            # Check if log dir exists, if not create
+            Path(job_data_dir).mkdir(parents=True, exist_ok=True)
+
             # Create logger and clear the current file
-            Logger.initialize(log_name=job['name'])
+            Logger.initialize(log_path=job_data_dir)
 
             # Reset the log file
             Logger.clear()
@@ -111,20 +129,30 @@ class Runner:
             # Create an instance of the model TODO: could be passing different models here? Via job.json?
             self.model = OrganNet25D(input_shape=job['model']['input_shape'], hdc_dilations=(1, 2, 5))
 
+            # Recover the last checkpoint (if exists)
+            if job['resume']:
+                self.checkpoint = self._load_checkpoint()
+
+                # Check if checkpoint exists
+                if self.checkpoint is not None:
+
+                    # Recover model from last
+                    self.model.load_state_dict(self.checkpoint['model'])
+
+                    # Log a status message about recovery of model
+                    Logger.log("Recovered model from the last checkpoint", type="WARNING", in_cli=True)
+
+            else:
+                self.checkpoint = None
+
             # Check if job contains index "training"
             if 'training' in job and type(job['training']) is dict:
-
-                # Print CLI message
-                Logger.log("Starting training of the model", in_cli=self.debug)
 
                 # Call train method
                 self._train(job['training'])
 
             # Check if job contains index "training"
             if 'evaluation' in job and type(job['evaluation']) is dict:
-
-                # Print CLI message
-                Logger.log("Starting evaluation of model", in_cli=self.debug)
 
                 # Call evaluation method
                 self._evaluate(job['evaluation'])
@@ -142,6 +170,23 @@ class Runner:
         :param training_setup: the dict containing everything regarding the current job
         """
 
+        # Check if the model has been trained in a previous run already
+        if self.checkpoint is not None:
+
+            # Check if training is already done
+            if self.checkpoint['training_done']:
+                # Log that training has already been done
+                Logger.log("Model is already fully trained, skipping training", type="SUCCESS", in_cli=True)
+                return True
+
+            # Extract epoch to continue training
+            start_epoch = self.checkpoint['epoch']
+
+        else:
+
+            # Fallback to a default start epoch of zero
+            start_epoch = 0
+
         # Get dataset if not given
         dataset = self._get_dataset(training_setup['dataset'])
 
@@ -152,18 +197,32 @@ class Runner:
                                                      batch_size=training_setup['batch_size'])
 
         # Log dataset information
-        Logger.log(str(len(dataset)) + ' samples have been '
-                   + ('loaded (preloading active)' if training_setup['dataset']['preload']
+        Logger.log('Start training on ' + str(len(dataset)) + ' samples '
+                   + ('(preloading active)' if training_setup['dataset']['preload']
                       else 'found (preloading inactive)'), type="INFO", in_cli=self.debug)
 
         # Create optimizer
         optimizer = self._get_optimizer(training_setup['optimizer'])
 
+        if self.checkpoint is not None:
+
+            # Load the optimizer state
+            optimizer.load_state_dict(self.checkpoint['optimizer'])
+
+            # Log that optimizer is being recovered from checkpoint
+            Logger.log("Recovered optimizer from the last checkpoint", type="WARNING", in_cli=True)
+
         # Create loss function
         loss_function = self._get_loss_function(training_setup['loss'])
 
+        # Check if start epoch is not zero and notify
+        if start_epoch > 0:
+
+            # Print notification
+            Logger.log("Resuming training in epoch " + str(start_epoch), in_cli=True)
+
         # Iterate through epochs (based on jobs setting)
-        for epoch in range(training_setup['epochs']):
+        for epoch in range(start_epoch, training_setup['epochs']):
 
             # Start epoch timer and log the start of this epoch
             Logger.log('Starting to run Epoch {}/{}'.format(epoch + 1, training_setup['epochs']), in_cli=False)
@@ -210,7 +269,7 @@ class Runner:
                 # Print epoch status bar
                 avg_loss = "{:.2f}".format(running_loss / batch if batch > 0 else 9999999)
                 Logger.print_status_bar(
-                    done=((epoch + batch + 1) / len(train_data)) * 100,
+                    done=((batch + 1) / len(train_data)) * 100,
                     title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + ", loss: " + avg_loss
                 )
 
@@ -227,6 +286,37 @@ class Runner:
             avg_loss = "{:.2f}".format(epoch_train_loss)
             Logger.log('Epoch took ' + str(epoch_time) + ' seconds. The average loss is ' + avg_loss, in_cli=self.debug)
 
+            # Perform validation
+            if eval_data is not None:
+
+                # Set model to evaluation mode
+                self.model.eval()
+
+                # Initialize running loss
+                eval_running_loss = 999999
+
+                # Perform validation on healthy images
+                for batch, batch_input in enumerate(eval_data):
+
+                    # Load data to device
+                    batch_input = batch_input.to(torch.device('cpu'))
+
+                    # Calculate output
+                    reconstructed = self.model(batch_input)
+
+                    # Determine loss
+                    eval_loss = loss_function(reconstructed, batch_input)
+
+                    # Add to running validation loss
+                    eval_running_loss += eval_loss.detach().cpu().numpy()
+
+                # Calculate epoch train val loss
+                epoch_evaluation_loss = eval_running_loss / len(eval_data)
+
+            else:
+                # If no validation is done, we take the train loss as val loss
+                epoch_evaluation_loss = epoch_train_loss
+
             # TODO: if there is eval_data (not none), do some validation and early stopping if overfitting
 
             # TODO: utilize a lr scheduler (decaying learning rate)
@@ -235,6 +325,20 @@ class Runner:
 
             # TODO: perform saving of checkpoints in training (current model state)
 
+            # Save a checkpoint for this job after each epoch (to be able to resume)
+            self._save_checkpoint({
+                'epoch': epoch,
+                'model': self.model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'lr_scheduler': None,
+                'train_loss': epoch_train_loss,
+                'eval_loss': epoch_evaluation_loss,
+                'training_done': epoch == (training_setup['epochs'] - 1),
+            })
+
+        # Write log message that the training has been completed
+        Logger.log("Training of the model completed", type="SUCCESS", in_cli=True)
+
     def _evaluate(self, evaluation_setup: dict):
         """
         This method will evaluate the network
@@ -242,7 +346,7 @@ class Runner:
         :param evaluation_setup: the dict containing everything regarding the current job
         """
         evaluator = self._get_evaluator(evaluation_setup)
-        evaluator.evaluate(self.model, )
+        evaluator.evaluate(self.model, None)
 
     def _check_job_data(self, job_data: dict):
         """
@@ -334,3 +438,28 @@ class Runner:
 
         # Return tupel of splits
         return first_split, second_split
+
+    def _load_checkpoint(self, checkpoint_name='checkpoint'):
+        """
+        Returns the checkpoint dict found in path.
+
+        TODO: map location could be switched to possible GPUs theoretically
+        """
+
+        # Generate a variable that stores the checkpoint path
+        checkpoint_path = os.path.join(self.path, checkpoint_name + '.tar')
+
+        # Check if the file exists
+        if not os.path.exists(checkpoint_path):
+            return None
+
+        # Load the checkpoint
+        return torch.load(checkpoint_path, map_location=torch.device('cpu'))
+
+    def _save_checkpoint(self, checkpoint_dict, name='checkpoint.tar'):
+        """
+        Saves a checkpoint dictionary in a tar object to load in case this job is repeated
+        """
+        name = name + '.tar' if not name.endswith('.tar') else name
+        save_path = os.path.join('results', self.path, name)
+        torch.save(checkpoint_dict, save_path)

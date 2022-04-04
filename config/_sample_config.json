@@ -1,5 +1,6 @@
 {
     "name": "testing_organ_segmentation",
+    "resume": true,
     "model": {
         "reset": true
     },

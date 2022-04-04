@@ -94,25 +94,16 @@ class Logger:
     initialized = False
 
     @staticmethod
-    def initialize(log_name=None, **kwargs):
+    def initialize(log_path=None, **kwargs):
         """Initialize method
 
-        :param log_name: the name of the log
+        :param log_path: the name of the log
         """
 
-        # Obtain the base path at looking at the parent of the parents parent
-        base_path = Path(__file__).parent.parent.resolve()
-
-        # Create log path
-        log_path = os.path.join(base_path, 'logs')
-
-        # Check if log dir exists, if not create
-        Path(log_path).mkdir(parents=True, exist_ok=True)
-
         # Save variables
-        if log_name is not None and log_path is not None:
+        if log_path is not None:
             # Define path
-            Logger.path = os.path.join(log_path, log_name + '.txt')
+            Logger.path = os.path.join(log_path, 'log.txt')
             # Create file if it does not exist yet
             if not os.path.isfile(Logger.path):
                 open(Logger.path, 'w+')
@@ -199,14 +190,18 @@ class Logger:
         if not Logger.initialized:
             raise Exception("ERROR: Logger is not initialized")
 
+        # Check if done is weird
+        if done > 100:
+            done = 100
+
         # The start buffer is appended before the loading bar
-        start_buffer = "RUN     "
+        start_buffer = bcolors.OKBLUE + "RUN     "
 
         Logger.status_bar_active = True
         if done == 100.0:
-            Logger.last_status_bar = "\r" + start_buffer + "100.0% " + bcolors.OKBLUE + ('.' * bar_width) + bcolors.ENDC + " " + title
+            Logger.last_status_bar = "\r" + start_buffer + "100.0% " + ('.' * bar_width) + " " + title + bcolors.ENDC
         else:
-            status_string = "" + bcolors.OKBLUE
+            status_string = ""
             state = "d"
             for j in range(bar_width):
                 nextstate = state
@@ -215,15 +210,16 @@ class Logger:
                 else:
                     if state == 'd':
                         nextstate = 'nd'
-                        status_string += bcolors.FAIL
-                    status_string += "."
+                        status_string += " "
+                        status_string += bcolors.ENDC
+                    else:
+                        status_string += "."
                 state = nextstate
-            status_string += bcolors.ENDC
             status_string += " "
             done_string = "{:.2f}".format(done)
             if done < 10:
                 done_string = done_string + " "
-            Logger.last_status_bar = "\r" + start_buffer + done_string + "% " + status_string + title
+            Logger.last_status_bar = "\r" + start_buffer + done_string + "% " + status_string + title + bcolors.ENDC
 
         sys.stdout.write(Logger.last_status_bar)
         if done != 100.0:
@@ -266,9 +262,9 @@ class Logger:
                 elif type == 'ERROR':
                     log_message = "\n" + log_stamp + "     ERROR   \t" + message + "\n"
                 elif type == 'SUCCESS':
-                    log_message = log_stamp + "     SUCCESS \t" + message
+                    log_message = log_stamp + "     DONE    \t" + message + "\n\n"
                 else:
-                    log_message = log_stamp + "     INFO    \t" + message
+                    log_message = log_stamp + "     LOG     \t" + message
 
                 return log_message
 
@@ -282,7 +278,7 @@ class Logger:
                 elif type == 'ERROR':
                     cli_message = bcolors.FAIL + "ERROR   " + message + bcolors.ENDC
                 elif type == 'SUCCESS':
-                    cli_message = bcolors.OKGREEN + "SUCCESS " + message + bcolors.ENDC
+                    cli_message = bcolors.OKGREEN + "DONE    " + message + bcolors.ENDC + "\n\n"
                 else:
                     cli_message = "LOG     " + message
 
