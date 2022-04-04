@@ -215,7 +215,7 @@ class OrganNet25D(nn.Module):
         self.upsample1 = nn.ConvTranspose3d(in_channels=64, out_channels=32, stride=(2, 2, 2), kernel_size=(2, 2, 2))
         self.upsample2 = nn.ConvTranspose3d(in_channels=32, out_channels=16, stride=(1, 2, 2), kernel_size=(1, 2, 2))
 
-        self.final_sigmoid = torch.Sigmoid()
+        self.final_sigmoid = nn.Sigmoid()
 
         return
 
