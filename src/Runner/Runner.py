@@ -123,7 +123,7 @@ class Runner:
             Logger.clear()
 
             # Print CLI message
-            Logger.log("Started the job '" + job['name'] + "'", "INFO", self.debug)
+            Logger.log("Started the job '" + job['name'] + "'", "HEADLINE", self.debug)
 
             # Create an instance of the model TODO: could be passing different models here? Via job.json?
             self.model = OrganNet25D(input_shape=job['model']['input_shape'], hdc_dilations=(1, 2, 5))

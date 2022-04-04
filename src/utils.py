@@ -249,7 +249,7 @@ class Logger:
         """
 
         # Check whether the type is known
-        if type in ['ERROR', 'WARNING', 'INFO', 'SUCCESS', '']:
+        if type in ['ERROR', 'WARNING', 'INFO', 'SUCCESS', 'HEADLINE', '']:
 
             # Create prephase when log stamp is given
             if log_stamp is not None:
@@ -263,6 +263,8 @@ class Logger:
                     log_message = "\n" + log_stamp + "     ERROR   \t" + message + "\n"
                 elif type == 'SUCCESS':
                     log_message = log_stamp + "     DONE    \t" + message + "\n\n"
+                elif type == 'HEADLINE':
+                    log_message = log_stamp + "     HEAD    \t" + message + "\n\n"
                 else:
                     log_message = log_stamp + "     LOG     \t" + message
 
@@ -279,6 +281,8 @@ class Logger:
                     cli_message = bcolors.FAIL + "ERROR   " + message + bcolors.ENDC
                 elif type == 'SUCCESS':
                     cli_message = bcolors.OKGREEN + "DONE    " + message + bcolors.ENDC + "\n\n"
+                elif type == 'HEADLINE':
+                    cli_message = bcolors.HEADER + "HEAD    " + message + bcolors.ENDC
                 else:
                     cli_message = "LOG     " + message
 
