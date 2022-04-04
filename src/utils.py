@@ -282,7 +282,7 @@ class Logger:
                 elif type == 'SUCCESS':
                     cli_message = bcolors.OKGREEN + "DONE    " + message + bcolors.ENDC + "\n\n"
                 elif type == 'HEADLINE':
-                    cli_message = bcolors.HEADER + "HEAD    " + message + bcolors.ENDC
+                    cli_message = "\n" + bcolors.UNDERLINE + message + bcolors.ENDC + "\n"
                 else:
                     cli_message = "LOG     " + message
 
