@@ -1,5 +1,5 @@
 {
-    "name": "testing_organ_segmentation",
+    "name": "paper_reproduction",
     "resume": true,
     "model": {
         "reset": true,
