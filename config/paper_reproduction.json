@@ -3,7 +3,7 @@
     "resume": true,
     "model": {
         "reset": true,
-        "input_shape": [32, 64, 64]
+        "input_shape": [48, 256, 256]
     },
     "training": {
         "epochs": 4,
