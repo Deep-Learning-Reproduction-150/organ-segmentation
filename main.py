@@ -16,7 +16,7 @@ jobs = [
 ]
 
 # Create a trainer object and call him robert
-worker = Runner(jobs=jobs, debug=True, wandb=False)
+worker = Runner(jobs=jobs, debug=True)
 
 # Run the jobs
 worker.run()

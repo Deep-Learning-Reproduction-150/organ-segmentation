@@ -39,8 +39,12 @@ class Runner:
     # An instance of a timer to measure the performances etc.
     timer = None
 
-    # Stores whether the trainer shall use wandb to sync dev data
-    use_wandb = None
+    # A data set that will overwrite the data set specified in the job
+    dataset = None
+
+    # The current eval and train data used by the runner
+    train_data = None
+    eval_data = None
 
     # When true, trainer will output much more details about jobs progress
     debug = None
@@ -48,13 +52,13 @@ class Runner:
     # Attribute that stores the jobs that still need to be done
     job_queue = None
 
-    def __init__(self, jobs=None, debug=False, wandb=False):
+    def __init__(self, jobs=None, debug=False, dataset=None):
         """
         Constructor of trainer where some basic operations are done
 
         :param jobs: a list of json files to be executed
         :param debug: when debug mode is on, more status messages will be printed
-        :param wandb: uses wandb when true and possible to sync dev information
+        :param dataset: A data set that will overwrite the data set specified in the job
 
         TODO: OVERWRITE dataset if you pass a dataset
         """
@@ -64,7 +68,13 @@ class Runner:
 
         # Save whether debug and wandb shall be true or false
         self.debug = debug
-        self.use_wandb = wandb
+
+        # A data set that will overwrite the data set specified in the job
+        self.dataset = dataset
+
+        # Initialize eval and train data variables
+        self.eval_data = None
+        self.train_data = None
 
         # Create a timer instance for time measurements
         self.timer = Timer()
@@ -448,6 +458,15 @@ class Runner:
 
         :return: CTDataset instance that contains samples
         """
+
+        # Check if there is a passed data set that shall overwrite this
+        if self.dataset is not None:
+
+            # Warn user about overwriting the dataset
+            Logger.log("Dataset has been passed to runner. This overwrites the specification in the job config.", type="WARNING", in_cli=True)
+
+            # Return the overwrite data set
+            return self.dataset
 
         # Obtain the base path at looking at the parent of the parents parent
         base_path = Path(__file__).parent.parent.parent.resolve()
