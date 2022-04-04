@@ -439,7 +439,7 @@ class Runner:
         """
         module = importlib.import_module('src.eval')
         evaluater_class = getattr(module, evaluation_setup['name'])
-        return evaluater_class(evaluation_setup)
+        return evaluater_class()
 
     def _get_optimizer(self, optimizer_setup: dict, **params):
         if optimizer_setup['name'] == 'Adam':
