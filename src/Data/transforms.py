@@ -115,3 +115,15 @@ class EasyResize(object):
     def __call__(self, vol):
         return torch.from_numpy(transform.resize(vol, (self.depth, self.height, self.width), anti_aliasing=False, order=0))
 
+
+class Transpose(object):
+
+    dim_1 = None
+    dim_2 = None
+
+    def __init__(self, dim_1, dim_2):
+        self.dim_1 = dim_1
+        self.dim_2 = dim_2
+
+    def __call__(self, tensor):
+        return tensor.transpose(self.dim_1, self.dim_2)

@@ -1,6 +1,7 @@
 {
     "name": "paper_reproduction",
     "resume": true,
+    "preload": true,
     "model": {
         "reset": true,
         "input_shape": [48, 256, 256]
@@ -23,9 +24,13 @@
         },
         "dataset": {
             "root": "./data",
-            "preload": true,
             "remove_false_samples": true,
             "transform": [
+                {
+                    "name": "Transpose",
+                    "dim_1": 0,
+                    "dim_2": -1
+                },
                 {
                     "name": "EasyResize",
                     "width": 256,

@@ -210,7 +210,7 @@ class Logger:
                 else:
                     if state == 'd':
                         nextstate = 'nd'
-                        status_string += " "
+                        status_string += "."
                         status_string += bcolors.ENDC
                     else:
                         status_string += "."

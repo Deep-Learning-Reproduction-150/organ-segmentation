@@ -30,38 +30,33 @@ class LabeledSample:
     # Attribute storing the id of this sample
     id = None
 
-    # This attribute stores the CTData
-    sample = None
+    # This attribute stores the actual CTData (raw)
+    raw_sample = None
+
+    # This attribute stores the actual CTData (transformed)
     transformed_sample = None
 
     # This list stores the labels (also of type CTData)
-    labels = None
+    raw_labels = None
+
+    # This list stores the transformed labels
     transformed_labels = None
 
     # Attribute that stores the path to the folder that contains the sample data
     path = None
 
-    # Whether or whether not to preload data
-    preload = None
-
     # Stores whether the sample has been processed already
-    preprocessed = None
+    loaded = None
 
-    def __init__(self, path, preload: bool = True, labels_folder_path: str = "structures"):
+    def __init__(self, path, labels_folder_path: str = "structures"):
         """
         Constructor of the LabeledSample object. Expected by default is a folder that contains one nrrd file which
         is the sample data and a folder with name <labels_folder_path> that contains n labels, itself encoded as nrrd
         files.
 
         :param path: the path to the folder that contains the files
-        :param preload: whether to load the data directly when instantiating an object
         :param labels_folder_path: folder within path that contains files with labels
-
-        TODO: make sure that every instance of LabeledSample has the same label structure!!!
         """
-
-        # Save whether sample should reload data
-        self.preload = preload
 
         # Assign an id and increment the id store
         self.id = LabeledSample.id_store
@@ -90,17 +85,17 @@ class LabeledSample:
             )
         else:
             # Create the sample CT file instance
-            self.sample = CTData(glob.glob(path + "/*.nrrd")[0], preload=self.preload)
+            self.raw_sample = CTData(path=glob.glob(path + "/*.nrrd")[0])
 
         # Initiate a sample list
-        self.labels = []
+        self.raw_labels = []
 
         # Iterate through the labels and create CT image instances for them as well
         for element in glob.glob(os.path.join(path, labels_folder_path) + "/*.nrrd"):
             # Create a label for storing
-            label = CTData(element, preload=self.preload)
+            label = CTData(path=element)
             # Store the label in the labels attribute
-            self.labels.append(label)
+            self.raw_labels.append(label)
 
     def visualize(
         self,
@@ -123,7 +118,7 @@ class LabeledSample:
         sample_name = name if name is not None else "sample_" + str(self.id)
 
         # Check given parameters
-        self.sample.visualize(
+        self.raw_sample.visualize(
             export_png=export_png,
             export_gif=export_gif,
             direction=direction,
@@ -141,21 +136,22 @@ class LabeledSample:
         """
 
         # Check if sample has been preprocessed
-        if not self.preprocessed:
+        if not self.loaded:
             raise Exception("ERROR: Data sample has not been preprocessed yet")
 
         # Return the sample (which is a tensor)
-        return self.sample.get_tensor() if take_original else self.transformed_sample
+        return self.raw_sample.get_tensor() if take_original else self.transformed_sample
 
     def get_labels(self):
         """
         This method returns the list of labels associated with this sample
 
         :return labels: list of tensors that are the labels
+        TODO: not used?
         """
 
         # Check if sample has been preprocessed
-        if not self.preprocessed:
+        if not self.loaded:
             raise Exception("ERROR: Data sample has not been preprocessed yet")
 
         # Initialize a list of labels
@@ -163,7 +159,7 @@ class LabeledSample:
         labels = []
 
         # Iterate through the labels and get tensors of each
-        for label in self.labels:
+        for label in self.raw_labels:
             # Append a tensor
             tensors.append(label.get_tensor())
             labels.append(label.name)
@@ -174,7 +170,7 @@ class LabeledSample:
         # Return the list of labels
         return label_data
 
-    def preprocess(self, transformer: DataTransformer, label_structure: list, output_info: bool = False):
+    def load(self, transformer: DataTransformer, label_structure: list):
         """
         This method checks the dimensions of the labels and the sample data
 
@@ -183,79 +179,61 @@ class LabeledSample:
         :raise ValueError: when dimensions of labels and sample don't match
         """
         # Preprocess only if that did not happen yet
-        if not self.preprocessed:
+        if not self.loaded:
 
-            # If outputting of info should happen, do it here
-            if output_info:
-                Logger.log("Preprocessing and applying transformations to sample " + str(self.id))
+            # Load sample
+            self.raw_sample.load()
 
-            # Get the tensor of the sample CT data
-            sample_tensor = self.sample.get_tensor()
+            # Load labels
+            for label in self.raw_labels:
+                label.load()
 
-            # Iterate through all labels
-            for label in self.labels:
+            # Get the transformed tensor from the sample
+            transformed_sample = self.raw_sample.get_tensor(transformer=transformer)
 
-                # Get the tensor of the label
-                label_tensor = label.get_tensor()
-
-                # Check if any dimension mismatches (no of dimensions is checked in CTData)
-                x_mismatch = label_tensor.data.shape[0] != sample_tensor.data.shape[0]
-                y_mismatch = label_tensor.data.shape[1] != sample_tensor.data.shape[1]
-                z_mismatch = label_tensor.data.shape[2] != sample_tensor.data.shape[2]
-                if x_mismatch or y_mismatch or z_mismatch:
-                    Logger.log(
-                        "Dimension of LabeledSample at "
-                        + str(self.path)
-                        + " do not match: "
-                        + str(sample_tensor.data.shape)
-                        + " VS. "
-                        + str(label_tensor.data.shape),
-                        type="ERROR",
-                        in_cli=True,
-                    )
+            # Change the depth and x dimension
+            self.transformed_sample = transformed_sample.unsqueeze(0)
 
             # Initiate transformed labels
             self.transformed_labels = []
-
-            # Transform the sample data using the passed transformer
-            self.transformed_sample = transformer(sample_tensor.transpose(0, -1))
 
             # Iterate through the labels and create
             for wanted_label in label_structure:
 
                 # Iterate through the labels and find it
-                label = None
-                match = False
-                for label in self.labels:
+                data = None
+                for label in self.raw_labels:
                     if label.name == wanted_label:
-                        match = True
+                        data = label.get_tensor(transformer=transformer).unsqueeze(0)
                         break
 
                 # Check if label exists
-                if match and label is not None:
-                    data = transformer(label.get_tensor().transpose(0, -1)).unsqueeze(0)
-                else:
+                if data is None:
                     # Create zero sample
-                    data = torch.zeros(self.transformed_sample.size())
+                    data = torch.zeros(transformed_sample.size())
                     data = transformer(data).unsqueeze(0)
 
                 # Append the transformed label to it
                 self.transformed_labels.append(data)
 
-            # TODO: Maybe make it more efficient
-            # TODO: Watch out that the "numbers are dynamic"
+            # TODO: The following could maybe get some more improvements
 
-            label_mask = torch.zeros_like(self.transformed_sample, dtype=torch.bool)  # By default choose entire image
+            # By default choose entire image
+            label_mask = torch.zeros_like(self.transformed_sample, dtype=torch.bool)
             background_voxel_value = self.transformed_sample.min()
 
+            # Iterate through the transformed labels
             for label in self.transformed_labels:
                 label_threshold = label.mean()
                 current_label_mask = label > label_threshold  # Choose volume under the organ
                 label_mask = label_mask | current_label_mask  # Select it
 
-            background = deepcopy(self.transformed_sample).unsqueeze(0)
+            background = deepcopy(self.transformed_sample)
             background[label_mask] = background_voxel_value
             self.transformed_labels.append(background)
 
         # Remember that this sample has been checked
-        self.preprocessed = True
+        self.loaded = True
+
+    def drop(self):
+        a = 0
