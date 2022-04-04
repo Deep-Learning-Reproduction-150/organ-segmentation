@@ -154,10 +154,10 @@ class CTDataset(Dataset):
         )
 
         # Create sample data (squeeze the dummy channel in there as well)
-        sample_data = sample.transformed_sample
+        sample_data = sample.sample
 
         # Return the tupel (data, labels)
-        return sample_data, torch.cat(sample.transformed_labels, 0)
+        return sample_data, torch.cat(sample.sample, 0)
 
     def __len__(self):
         """
