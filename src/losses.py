@@ -20,15 +20,14 @@ DEFAULT_AC = torch.Tensor(
 
 
 class CombinedLoss(nn.Module):
-
-    def __init__(self, weight=None, size_average=True):
+    def __init__(self, weight=None, size_average=True, *args, **kwargs):
         """
         TODO: Implement weights["focal"] as
         0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, and 3.0
         for
         background, brain stem, optic chiasma, mandible, optic nerve left, optic nerve right, parotid gland left, parotid gland right, submandibular left, submandibular right
         """
-        super(CombinedLoss, self).__init__()
+        super(CombinedLoss, self).__init__(weight=weight, size_average=size_average, *args, **kwargs)
 
         self.dice = DiceLoss()
         self.focal = FocalLoss()
@@ -50,7 +49,6 @@ class CombinedLoss(nn.Module):
 
 
 class DiceCoefficient(nn.Module):
-
     def __init__(self, **params):
         super().__init__()
 
@@ -65,7 +63,6 @@ class DiceCoefficient(nn.Module):
 
 
 class DiceLoss(nn.Module):
-
     def __init__(self, **params):
         super().__init__()
 
@@ -75,7 +72,6 @@ class DiceLoss(nn.Module):
 
 
 class FocalLoss(nn.Module):
-
     def __init__(self, **params):
         super().__init__()
 
@@ -105,7 +101,7 @@ class MSELoss(nn.Module):
                             'sum' will determine the summation of losses over all elements
         """
         super().__init__()
-        self.reduction = 'mean'
+        self.reduction = "mean"
 
     def forward(self, output_batch, input_batch):
 
@@ -113,7 +109,7 @@ class MSELoss(nn.Module):
         loss = nn.MSELoss(reduction=self.reduction)(output_batch, input_batch)
 
         # In case of summation we want the batch loss, hence we divide by the batch size
-        if self.reduction == 'sum':
+        if self.reduction == "sum":
             loss = loss / input_batch.shape[0]
 
         return loss
