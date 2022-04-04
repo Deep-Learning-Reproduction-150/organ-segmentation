@@ -7,10 +7,10 @@ Group: 150
 """
 
 import torch
-import wandb
 import importlib
 import json
 import os
+from torch.optim.lr_scheduler import LinearLR
 from src.utils import Logger, Timer, bcolors
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
@@ -106,7 +106,7 @@ class Runner:
 
             else:
                 # Print loading message
-                Logger.out("Given job path does not exist (" + job + ")", type="ERROR")
+                print(bcolors.FAIL + "Given job path does not exist (" + job + ")" + bcolors.ENDC)
 
     def run(self):
         """
@@ -246,13 +246,8 @@ class Runner:
         # Create optimizer
         optimizer = self._get_optimizer(training_setup['optimizer'])
 
-        if self.checkpoint is not None:
-
-            # Load the optimizer state
-            optimizer.load_state_dict(self.checkpoint['optimizer'])
-
-            # Log that optimizer is being recovered from checkpoint
-            Logger.log("Recovered optimizer from the last checkpoint", type="WARNING", in_cli=True)
+        # Create scheduler
+        scheduler = self._get_lr_scheduler(optimizer, training_setup['lr_scheduler'])
 
         # Create loss function
         loss_function = self._get_loss_function(training_setup['loss'])
@@ -283,6 +278,7 @@ class Runner:
 
             # Run through batches and perform model training
             for batch, batch_input in enumerate(self.train_data):
+
 
                 # Extract inputs and labels from the batch input
                 inputs, labels = batch_input
@@ -380,12 +376,22 @@ class Runner:
 
             # TODO: perform syncing with wandb / tensorboard
 
+            # Also perform a step for the learning rate scheduler
+            scheduler.step()
+
+            # Print the current learning rate
+            lr_formatted = "{:.4f}".format(scheduler.get_last_lr()[0])
+            Logger.log("Learning rate currently at " + str(lr_formatted), in_cli=True)
+
+            # Log that the checkpoint is saved
+            Logger.log("Saving checkpoint for epoch " + str(epoch + 1), in_cli=True)
+
             # Save a checkpoint for this job after each epoch (to be able to resume)
             self._save_checkpoint({
                 'epoch': epoch,
                 'model': self.model.state_dict(),
                 'optimizer': optimizer.state_dict(),
-                'lr_scheduler': None,
+                'lr_scheduler': scheduler.state_dict(),
                 'train_loss': epoch_train_loss,
                 'eval_loss': epoch_evaluation_loss,
                 'training_done': epoch == (training_setup['epochs'] - 1),
@@ -428,6 +434,14 @@ class Runner:
 
         # TODO: flash warnings when specific parts of the job description are missing and defaults are used
 
+        # Add a default scheduler
+        job_data['training'].setdefault('lr_scheduler', {
+            "name": "LinearLR",
+            "start_factor": 1,
+            "end_factor": 0.01,
+            "total_iters": 100
+        })
+
         return job_data
 
     def _get_evaluator(self, evaluation_setup: dict):
@@ -443,9 +457,48 @@ class Runner:
 
     def _get_optimizer(self, optimizer_setup: dict, **params):
         if optimizer_setup['name'] == 'Adam':
-            return torch.optim.Adam(self.model.parameters(), lr=optimizer_setup['learning_rate'], betas=optimizer_setup['betas'], **params)
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=optimizer_setup['learning_rate'], betas=optimizer_setup['betas'], **params)
+            if self.checkpoint is not None:
+                Logger.log("Recovering optimizer from the last checkpoint", type="WARNING", in_cli=True)
+                try:
+                    optimizer.load_state_dict(self.checkpoint['optimizer'])
+                except Exception:
+                    Logger.log("Could not recover optimizer checkpoint state", type="ERROR", in_cli=True)
+            return optimizer
         else:
             raise ValueError(bcolors.FAIL + "ERROR: Optimizer " + optimizer_setup['name'] + " not recognized, aborting" + bcolors.ENDC)
+
+    def _get_lr_scheduler(self, optimizer, scheduler_setup: dict):
+        """
+        Returns a scheduler for the learning rate
+
+        :param optimizer:
+        :param scheduler_setup:
+        :return:
+
+        TODO: make this dynamic
+        """
+
+        # Create a scheduler based on the description
+        scheduler = LinearLR(
+            optimizer,
+            start_factor=scheduler_setup['start_factor'],
+            end_factor=scheduler_setup['end_factor'],
+            total_iters=scheduler_setup['total_iters'],
+        )
+
+        # Check if there is a checkpoint
+        if self.checkpoint is not None:
+            Logger.log("Recovering scheduler from the last checkpoint", type="WARNING", in_cli=True)
+
+            # Load the state dict
+            try:
+                scheduler.load_state_dict(self.checkpoint['lr_scheduler'])
+            except Exception:
+                Logger.log("Could not recover scheduler checkpoint state", type="ERROR", in_cli=True)
+
+        # Return the scheduler
+        return scheduler
 
     def _get_loss_function(self, loss_function_setup):
         module = importlib.import_module('src.losses')
