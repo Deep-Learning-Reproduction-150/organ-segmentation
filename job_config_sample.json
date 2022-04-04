@@ -10,7 +10,7 @@
         "input_shape": [48, 256, 256]
     },
     "training": {
-        "epochs": 4,
+        "epochs": 200,
         "loss": {
             "name": "MSELoss",
             "parameter_a": 2
