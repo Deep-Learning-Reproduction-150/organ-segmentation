@@ -55,6 +55,8 @@ class Runner:
         :param jobs: a list of json files to be executed
         :param debug: when debug mode is on, more status messages will be printed
         :param wandb: uses wandb when true and possible to sync dev information
+
+        TODO: OVERWRITE dataset if you pass a dataset
         """
 
         # Obtain the base path at looking at the parent of the parents parent
@@ -200,7 +202,7 @@ class Runner:
                 return True
 
             # Extract epoch to continue training
-            start_epoch = self.checkpoint['epoch']
+            start_epoch = self.checkpoint['epoch'] + 1
 
         else:
 
@@ -221,13 +223,13 @@ class Runner:
         Logger.log("Generation of data set took " + dataset_constructor_took + " seconds", in_cli=True)
 
         # Get dataloader for both training and validation
-        train_data, eval_data = self._get_dataloader(dataset,
+        self.train_data, self.eval_data = self._get_dataloader(dataset,
                                                      split_ratio=training_setup['split_ratio'],
                                                      num_workers=training_setup['num_workers'],
                                                      batch_size=training_setup['batch_size'])
 
         # Log dataset information
-        Logger.log('Start training on ' + str(len(train_data)) + ' samples '
+        Logger.log('Start training on ' + str(len(self.train_data)) + ' batches '
                    + ('(preloading active)' if preload
                       else 'found (preloading inactive)'), type="INFO", in_cli=self.debug)
 
@@ -270,7 +272,7 @@ class Runner:
             running_loss = 0
 
             # Run through batches and perform model training
-            for batch, batch_input in enumerate(train_data):
+            for batch, batch_input in enumerate(self.train_data):
 
                 # Extract inputs and labels from the batch input
                 inputs, labels = batch_input
@@ -296,7 +298,7 @@ class Runner:
                 # Print epoch status bar
                 avg_loss = "{:.2f}".format(running_loss / batch if batch > 0 else 9999999)
                 Logger.print_status_bar(
-                    done=((batch + 1) / len(train_data)) * 100,
+                    done=((batch + 1) / len(self.train_data)) * 100,
                     title="epoch " + str(epoch + 1) + "/" + str(training_setup['epochs']) + ", loss: " + avg_loss
                 )
 
@@ -307,17 +309,17 @@ class Runner:
             epoch_time = self.timer.get_time('epoch')
 
             # Calculate epoch los
-            epoch_train_loss = running_loss / len(train_data)
+            epoch_train_loss = running_loss / len(self.train_data)
 
             # Log the epoch success
             avg_loss = "{:.2f}".format(epoch_train_loss)
             Logger.log('Epoch took ' + str(epoch_time) + ' seconds. The average loss is ' + avg_loss, in_cli=self.debug)
 
             # Perform validation
-            if eval_data is not None:
+            if self.eval_data is not None:
 
                 # Notify the user regarding validation
-                Logger.log('Validating the model on ' + str(len(eval_data)) + " validation samples ...", in_cli=self.debug)
+                Logger.log('Validating the model on ' + str(len(self.eval_data)) + " validation batches ...", in_cli=self.debug)
 
                 # Set model to evaluation mode
                 self.model.eval()
@@ -326,7 +328,7 @@ class Runner:
                 eval_running_loss = 999999
 
                 # Perform validation on healthy images
-                for batch, batch_input in enumerate(eval_data):
+                for batch, batch_input in enumerate(self.eval_data):
 
                     # TODO: if using GPU, one could load the batch to the GPU now
 
@@ -344,7 +346,7 @@ class Runner:
 
                     # Print epoch status bar
                     Logger.print_status_bar(
-                        done=((batch + 1) / len(eval_data)) * 100,
+                        done=((batch + 1) / len(self.eval_data)) * 100,
                         title="validating model"
                     )
 
@@ -352,7 +354,7 @@ class Runner:
                 Logger.end_status_bar()
 
                 # Calculate epoch train val loss
-                epoch_evaluation_loss = eval_running_loss / len(eval_data)
+                epoch_evaluation_loss = eval_running_loss / len(self.eval_data)
 
                 # Notify the user regarding validation
                 avg_loss = "{:.2f}".format(epoch_evaluation_loss)
@@ -395,8 +397,11 @@ class Runner:
         # Log dataset information
         Logger.log('Start evaluation of the model', type="INFO", in_cli=self.debug)
 
+        # Get the evaluation instance
         evaluator = self._get_evaluator(evaluation_setup)
-        evaluator.evaluate(self.model, None)
+
+        # Call evaluate on the evaluator
+        evaluator.evaluate(self.model, self.eval_data, self.path)
 
         # Write log message that the training has been completed
         Logger.log("Evaluation of the model completed", type="SUCCESS", in_cli=True)
@@ -456,7 +461,7 @@ class Runner:
         return dataset
 
     def _get_dataloader(self, dataset, shuffle: bool = True, split_ratio: float = 0.5, num_workers: int = 0,
-                        batch_size: int = 64, pin_memory: bool = True):
+                        batch_size: int = 64, pin_memory: bool = False):
         """
         The method returns data loader instances (if split) or just one dataloader based on the passed dataset
 

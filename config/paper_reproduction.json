@@ -1,7 +1,7 @@
 {
     "name": "paper_reproduction",
     "resume": true,
-    "preload": true,
+    "preload": false,
     "model": {
         "reset": true,
         "input_shape": [48, 256, 256]
@@ -41,6 +41,6 @@
         }
     },
     "evaluation": {
-        "name": "DiceEvaluator"
+        "name": "ChenEvaluator"
     }
 }

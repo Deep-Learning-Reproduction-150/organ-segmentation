@@ -51,6 +51,6 @@
         }
     },
     "evaluation": {
-        "name": "DiceEvaluator"
+        "name": "ChenEvaluator"
     }
 }
