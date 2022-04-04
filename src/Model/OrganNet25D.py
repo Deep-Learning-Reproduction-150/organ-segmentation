@@ -326,7 +326,9 @@ class OrganNet25D(nn.Module):
         out19 = self.one_d_3(out18)
         if verbose:
             print(f"\tOutput 19 (final) shape:\t\t{out19.shape}")
-        return out19
+
+        final = torch.Sigmoid()(out19)
+        return final
 
     def train_model(self, train_data, test_data, monitor_progress: bool = False):
         """
