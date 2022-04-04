@@ -1,6 +1,7 @@
 import skimage.transform as transform
 from torchvision.transforms import CenterCrop
 import numpy as np
+from sklearn.preprocessing import MinMaxScaler
 import torch
 
 
@@ -127,3 +128,13 @@ class Transpose(object):
 
     def __call__(self, tensor):
         return tensor.transpose(self.dim_1, self.dim_2)
+
+
+class StandardScaleTensor(object):
+
+    def __init__(self, **params):
+        super().__init__()
+
+    def __call__(self, tensor):
+        scaled_tensor = (tensor - tensor.min()) / (tensor.max() - tensor.min())
+        return scaled_tensor
