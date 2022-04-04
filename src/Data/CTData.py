@@ -65,8 +65,8 @@ class CTData:
 
             # Extract the name of the file from the path where it is located
             if name is None:
-                filename = path.split('/')[-1]
-                self.name = filename.split('.')[0]
+                path, file = os.path.split(self.path)
+                self.name = file
             else:
                 self.name = name
 
