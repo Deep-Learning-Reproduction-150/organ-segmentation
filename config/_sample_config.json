@@ -46,6 +46,6 @@
         }
     },
     "evaluation": {
-        "evaluator": "DiceEvaluator"
+        "name": "DiceEvaluator"
     }
 }

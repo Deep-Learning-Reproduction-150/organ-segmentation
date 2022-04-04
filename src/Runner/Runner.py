@@ -15,7 +15,6 @@ from src.utils import Logger, Timer, bcolors
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
 from src.Model.OrganNet25D import OrganNet25D
-from src.Model.OrganNet25D import ToyOrganNet25D
 from src.Data.CTDataset import CTDataset
 
 
@@ -124,7 +123,7 @@ class Runner:
             Logger.clear()
 
             # Print CLI message
-            Logger.log("Started '" + job['name'] + "'", "INFO", self.debug)
+            Logger.log("Started the job '" + job['name'] + "'", "INFO", self.debug)
 
             # Create an instance of the model TODO: could be passing different models here? Via job.json?
             self.model = OrganNet25D(input_shape=job['model']['input_shape'], hdc_dilations=(1, 2, 5))
@@ -197,7 +196,7 @@ class Runner:
                                                      batch_size=training_setup['batch_size'])
 
         # Log dataset information
-        Logger.log('Start training on ' + str(len(dataset)) + ' samples '
+        Logger.log('Start training on ' + str(len(train_data)) + ' samples '
                    + ('(preloading active)' if training_setup['dataset']['preload']
                       else 'found (preloading inactive)'), type="INFO", in_cli=self.debug)
 
@@ -251,11 +250,8 @@ class Runner:
                 # Get output
                 model_output = self.model(inputs)
 
-                # "join" the label tensors in one tensor for the loss function
-                labels_input = torch.cat(labels, 1)
-
                 # Calculate loss
-                loss = loss_function(model_output, labels_input)
+                loss = loss_function(model_output, labels)
 
                 # Backpropagation
                 loss.backward()
@@ -289,41 +285,57 @@ class Runner:
             # Perform validation
             if eval_data is not None:
 
+                # Notify the user regarding validation
+                Logger.log('Validating the model on ' + str(len(eval_data)) + " validation samples ...", in_cli=self.debug)
+
                 # Set model to evaluation mode
                 self.model.eval()
 
-                # Initialize running loss
+                # Initialize a running loss of 99999
                 eval_running_loss = 999999
 
                 # Perform validation on healthy images
                 for batch, batch_input in enumerate(eval_data):
 
-                    # Load data to device
-                    batch_input = batch_input.to(torch.device('cpu'))
+                    # TODO: if using GPU, one could load the batch to the GPU now
+
+                    # Extract inputs and labels from the batch input
+                    inputs, labels = batch_input
 
                     # Calculate output
-                    reconstructed = self.model(batch_input)
+                    model_output = self.model(inputs)
 
                     # Determine loss
-                    eval_loss = loss_function(reconstructed, batch_input)
+                    eval_loss = loss_function(model_output, labels)
 
                     # Add to running validation loss
                     eval_running_loss += eval_loss.detach().cpu().numpy()
 
+                    # Print epoch status bar
+                    Logger.print_status_bar(
+                        done=((batch + 1) / len(eval_data)) * 100,
+                        title="validating model"
+                    )
+
+                # End status bar
+                Logger.end_status_bar()
+
                 # Calculate epoch train val loss
                 epoch_evaluation_loss = eval_running_loss / len(eval_data)
+
+                # Notify the user regarding validation
+                avg_loss = "{:.2f}".format(epoch_evaluation_loss)
+                Logger.log('Valuation done with an average epoch loss of ' + str(avg_loss), in_cli=self.debug)
+
+                # TODO: here, we could do an early stopping if the model is extremely overfitting or so
 
             else:
                 # If no validation is done, we take the train loss as val loss
                 epoch_evaluation_loss = epoch_train_loss
 
-            # TODO: if there is eval_data (not none), do some validation and early stopping if overfitting
-
             # TODO: utilize a lr scheduler (decaying learning rate)
 
             # TODO: perform syncing with wandb / tensorboard
-
-            # TODO: perform saving of checkpoints in training (current model state)
 
             # Save a checkpoint for this job after each epoch (to be able to resume)
             self._save_checkpoint({
@@ -345,8 +357,15 @@ class Runner:
 
         :param evaluation_setup: the dict containing everything regarding the current job
         """
+
+        # Log dataset information
+        Logger.log('Start evaluation of the model', type="INFO", in_cli=self.debug)
+
         evaluator = self._get_evaluator(evaluation_setup)
         evaluator.evaluate(self.model, None)
+
+        # Write log message that the training has been completed
+        Logger.log("Evaluation of the model completed", type="SUCCESS", in_cli=True)
 
     def _check_job_data(self, job_data: dict):
         """
@@ -365,8 +384,14 @@ class Runner:
         return job_data
 
     def _get_evaluator(self, evaluation_setup: dict):
+        """
+        This method will return an evaluator that is specified in the jobs json file
+
+        :param evaluation_setup:
+        :return: evaluator instance
+        """
         module = importlib.import_module('src.eval')
-        evaluater_class = getattr(module, evaluation_setup['evaluator'])
+        evaluater_class = getattr(module, evaluation_setup['name'])
         return evaluater_class(evaluation_setup)
 
     def _get_optimizer(self, optimizer_setup: dict, **params):

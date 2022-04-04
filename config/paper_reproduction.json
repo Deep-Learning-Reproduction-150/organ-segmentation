@@ -11,9 +11,9 @@
             "name": "MSELoss",
             "parameter_a": 2
         },
-        "split_ratio": 0.8,
+        "split_ratio": 0.9,
         "wandb_id": null,
-        "batch_size": 1,
+        "batch_size": 2,
         "num_workers": 0,
         "evaluate": true,
         "optimizer": {
@@ -27,10 +27,10 @@
             "remove_false_samples": true,
             "transform": [
                 {
-                    "name": "EasyResize",
-                    "width": 64,
-                    "height": 64,
-                    "depth": 32
+                    "name": "Resize",
+                    "width": 256,
+                    "height": 256,
+                    "depth": 48
                 }
             ]
         }

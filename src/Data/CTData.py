@@ -18,9 +18,6 @@ from src.utils import bcolors, Logger
 class CTData:
     """
     This class represents a CT Image and is used to depict HaN CT images
-
-    TODO:
-        - What "else" functionality should a CT Image have?
     """
 
     # This attribute stores the data in a ndarray format

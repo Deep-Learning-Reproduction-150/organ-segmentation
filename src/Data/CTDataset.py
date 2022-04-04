@@ -7,11 +7,10 @@ Group: 150
 """
 
 import os
-import random
-import sys
+import torch
 import importlib
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 from src.utils import bcolors, Logger
 from src.Data.LabeledSample import LabeledSample
 from src.Data.utils import DataTransformer
@@ -21,12 +20,6 @@ class CTDataset(Dataset):
     """
     The Data Loader can load data from folders and return a list of images
     represented by objects of the type CTData
-
-    TODO:
-        - How can this be used smartly in training
-        - Implement preloading or on demand loading (if set)
-        - Are lists efficient? Should there be transformation already?
-
     """
 
     # Attribute stores a global label structure to apply for every sample
@@ -56,9 +49,7 @@ class CTDataset(Dataset):
         :param root: where the data is stored (directory containing directories)
         :param label_folder_name: folder that contains labels
         :param preload: when true, system will load data directly when instantiating an object
-        :param transform: a transformer (can be composed from many before passing it to constructor)
-
-        TODO: think about passing the transformers here to stick to PyTorch logic
+        :param transforms: a transformer (can be composed from many before passing it to constructor)
         """
 
         # Call super class constructor
@@ -158,10 +149,6 @@ class CTDataset(Dataset):
 
         :param index: the index of the data sample
         :return: a random example from the data set
-
-        TODO:
-            - also do the transformations, maybe initially passed to the dataset?
-            - what about the labels? how do you return multi-labels?
         """
 
         # Get the sample with a certain index
@@ -174,7 +161,7 @@ class CTDataset(Dataset):
         sample_data = sample.transformed_sample.unsqueeze(0)
 
         # Return the tupel (data, labels)
-        return sample_data, sample.transformed_labels
+        return sample_data, torch.cat(sample.transformed_labels, 0)
 
     def __len__(self):
         """

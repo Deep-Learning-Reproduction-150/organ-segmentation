@@ -1,15 +1,18 @@
+"""
+This file contains the evaluator class which evaluates the trained model
+
+Course: Deep Learning
+Date: 04.04.2022
+Group: 150
+"""
+
+from src.utils import Logger
 
 
 class BaseEvaluator:
     """
     This is the base evaluator class that implements some general methods that every evaluator shall have
     """
-
-    def __init__(self):
-        """
-        Constructor method of the Base evaluator
-        """
-        a = 0
 
     def evaluate(self, model, eval_set):
         """
@@ -32,13 +35,18 @@ class DiceEvaluator(BaseEvaluator):
         - k-fold cross validation
     """
 
+    def __init__(self, setup):
+        a = 0
+
     def evaluate(self, model, eval_set):
         """
         Evaluate the model based on the dice score
         :return:
         """
 
-        # TODO: do some dice score computations
+        Logger.log("Creating some really cool metrics with the trained model <3", in_cli=True)
 
-        # Return the dice score
+        # TODO: do some awesome evaluations of the model
+
+        # Return something interesting
         return 100
