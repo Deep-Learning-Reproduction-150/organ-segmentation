@@ -31,14 +31,8 @@ class CTDataset(Dataset):
     # Attribute containing a list of provided samples
     samples = None
 
-    # Whether to preload the data or load it when obtaining a sample
-    preload = None
-
     # Stores the transforms to be applied to the data set
     transforms = None
-
-    # Whether the data set has already been transformed
-    transformed = None
 
     def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, transforms: list = []):
         """
@@ -55,12 +49,6 @@ class CTDataset(Dataset):
         # Call super class constructor
         super().__init__()
 
-        # Initiate transformed with false
-        self.transformed = False
-
-        # Whether or not to preload and preprocess volumes
-        self.preload = preload
-
         # Save the transform
         self.transforms = transforms
 
@@ -75,12 +63,9 @@ class CTDataset(Dataset):
         # Get the count of files in the path (potential objects
         possible_target_count = len(os.listdir(self.root))
 
-        # Only show status bar when preloading
-        if self.preload:
-
-            # Print loading message
-            Logger.log("Started loading the data set with possibly " + str(possible_target_count) +
-                       " samples", type="INFO", in_cli=True)
+        # Print loading message
+        Logger.log("Started loading the data set with possibly " + str(possible_target_count) + " samples " +
+                   "(preloading " + ("active" if preload else "inactive") + ")", type="INFO", in_cli=True)
 
         # Initiate the sample attribute
         self.samples = []
@@ -88,14 +73,28 @@ class CTDataset(Dataset):
         # Create a counter variable
         counter = 0
 
+        # Log the start of creating the instance
+        Logger.log("Attempt to generate a dataset instance", in_cli=True)
+
         # Save all the samples
         for i, element in enumerate(os.scandir(self.root)):
 
             # Check if the element is a directory (wanted structure for a labeled entry)
             if element.is_dir():
 
+                # Create a new instance of a labeled sample
+                new_sample = LabeledSample(
+                    path=element.path,
+                    labels_folder_path=label_folder_name
+                )
+
                 # Append a labeled sample object
-                self.samples.append(LabeledSample(path=element.path, preload=self.preload, labels_folder_path=label_folder_name))
+                self.samples.append(new_sample)
+
+                # Iterate through the samples labels and remember them globally
+                for label in new_sample.labels:
+                    if label.name not in CTDataset.label_structure:
+                        CTDataset.label_structure.append(label.name)
 
                 # Increment the counter
                 counter += 1
@@ -105,43 +104,37 @@ class CTDataset(Dataset):
                 # Log warning
                 Logger.log("Unexpected file was found in data directory (" + str(element) + ")", type="WARNING", in_cli=True)
 
-            # Only show status bar when preloading
-            if self.preload:
+            # Print the changing import status line
+            done = (i / possible_target_count) * 100
+            # Finish the status bar
+            Logger.print_status_bar(done=done, title="creating dataset")
+
+        # Show the 100% status bar
+        Logger.print_status_bar(done=100, title="creating dataset")
+        Logger.end_status_bar()
+
+        # If preloading is active, load the sample here already
+        if preload:
+
+            # Log the start of creating the instance
+            Logger.log("Start the preprocessing of the data", in_cli=True)
+            Logger.print_status_bar(done=0, title="preprocessing")
+
+            # Iterate through all samples
+            for i, sample in enumerate(self.samples):
+
+                # Load data for this sample and transform it
+                sample.load(transformer=self.get_data_transformer(), label_structure=CTDataset.label_structure)
 
                 # Print the changing import status line
-                done = (i / possible_target_count) * 100
-                # Finish the status bar
-                Logger.print_status_bar(done=done, title="importing data")
+                done = ((i + 1) / len(self.samples)) * 100
+                Logger.print_status_bar(done=done, title="preprocessing")
 
-        # Reset console for next print message
-        if self.preload:
-            # Show the 100% status bar
-            Logger.print_status_bar(done=100, title="importing data")
+            # End the status bar
             Logger.end_status_bar()
 
-        # Obtain one unified label structure FIXME: could be smarter :)
-        for s in self.samples:
-            for l in s.labels:
-                if l.name not in CTDataset.label_structure:
-                    CTDataset.label_structure.append(l.name)
-
-        # Only show status bar when preloading
-        if self.preload:
-
-            # Display details regarding data loading
-            Logger.log("Finished loading the dataset (" + str(counter) + " samples)", in_cli=True)
-
-            # Print loading message
-            Logger.log("Started applying the specified transformations to the samples", in_cli=True)
-
-            # Already preprocess the data here
-            for i, sample in enumerate(self.samples):
-                Logger.print_status_bar(done=((i + 1) / len(self.samples))*100, title="transforming data")
-                sample.preprocess(self.get_data_transformer(), CTDataset.label_structure, output_info=False)
-            Logger.end_status_bar()
-
-            # Log that preloading was successful
-            Logger.log("Loading of data completed", type="SUCCESS", in_cli=True)
+        # Log that preloading was successful
+        Logger.log("Loading of data completed", type="SUCCESS", in_cli=True)
 
     def __getitem__(self, index):
         """
@@ -154,14 +147,17 @@ class CTDataset(Dataset):
         # Get the sample with a certain index
         sample = self.samples[index]
 
-        # Preprocess the data (if that has not happened before)
-        sample.preprocess(self.get_data_transformer(), CTDataset.label_structure, output_info=True)
+        # Load the sample
+        sample.load(
+            transformer=self.get_data_transformer(),
+            label_structure=CTDataset.label_structure
+        )
 
         # Create sample data (squeeze the dummy channel in there as well)
-        sample_data = sample.transformed_sample.unsqueeze(0)
+        sample_data = sample.sample
 
         # Return the tupel (data, labels)
-        return sample_data, torch.cat(sample.transformed_labels, 0)
+        return sample_data, torch.cat(sample.labels, 0)
 
     def __len__(self):
         """
@@ -184,9 +180,20 @@ class CTDataset(Dataset):
         # Iterate through all samples
         for index, sample in enumerate(self.samples):
 
-            # Create visualization
-            sample.visualize(export_gif=True, direction=direction, high_quality=False,
-                             name="Sample " + str(sample.id), show_status_bar=True)
+            # Load the sample
+            sample.load(
+                transformer=self.get_data_transformer(),
+                label_structure=CTDataset.label_structure
+            )
+
+            # Create visualization for the sample
+            sample.visualize(
+                export_gif=True,
+                direction=direction,
+                high_quality=False,
+                name="Sample " + str(sample.id),
+                show_status_bar=True
+            )
 
     def get_dataset_path(self):
         """
@@ -216,7 +223,7 @@ class CTDataset(Dataset):
 
     def get_data_transformer(self):
         """
-        Returns a list or single transform object based on a list or single transform description as dict.
+        Returns an instance of a data transformer that contains the specified transformations
         """
         # Create a data transformer
         transform_list = []

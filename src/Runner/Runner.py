@@ -108,12 +108,10 @@ class Runner:
             base_path = Path(__file__).parent.parent.parent.resolve()
 
             # A directory that stores jobs data
-            job_data_dir = os.path.join(base_path, 'logs', job['name'])
+            job_data_dir = os.path.join(base_path, 'jobs', job['name'])
 
             # Save this path to the runner object for now to be able to store stuff in there
             self.path = job_data_dir
-
-            # TODO: should also save the underlying json file in log folder (and compare and ggf. reload everthing if json changed)
 
             # Check if log dir exists, if not create
             Path(job_data_dir).mkdir(parents=True, exist_ok=True)
@@ -128,11 +126,31 @@ class Runner:
             # Print CLI message
             Logger.log("Started the job '" + job['name'] + "'", "HEADLINE", self.debug)
 
+            # check whether the job description has changed (if that is the case, re-run the job)
+            specification_path = os.path.join(self.path, 'specification.json')
+            if os.path.exists(specification_path):
+                existing_specification = json.load(open(specification_path))
+                if str(existing_specification) != str(job):
+
+                    # Remove the last checkpoint
+                    checkpoint_path = os.path.join(self.path, 'checkpoint.tar')
+                    if os.path.exists(checkpoint_path):
+                        os.remove(checkpoint_path)
+
+                    # Notify user regarding rerunning of job
+                    Logger.log("The json job specification has changed, deleting checkpoint", type="WARNING", in_cli=True)
+
+            # Write the specification file to the job
+            with open(specification_path, 'w') as fp:
+                json.dump(job, fp)
+
             # Create an instance of the model TODO: could be passing different models here? Via job.json?
             self.model = OrganNet25D(input_shape=job['model']['input_shape'], hdc_dilations=(1, 2, 5))
 
             # Recover the last checkpoint (if exists)
             if job['resume']:
+
+                # Load the last checkpoint
                 self.checkpoint = self._load_checkpoint()
 
                 # Check if checkpoint exists
@@ -151,7 +169,7 @@ class Runner:
             if 'training' in job and type(job['training']) is dict:
 
                 # Call train method
-                self._train(job['training'])
+                self._train(job['training'], preload=job['preload'])
 
             # Check if job contains index "training"
             if 'evaluation' in job and type(job['evaluation']) is dict:
@@ -165,7 +183,7 @@ class Runner:
                 # Print CLI message
                 Logger.log("Inference is not implemented yet", "ERROR", self.debug)
 
-    def _train(self, training_setup: dict):
+    def _train(self, training_setup: dict, preload: bool = True):
         """
         This method will train the network
 
@@ -189,8 +207,18 @@ class Runner:
             # Fallback to a default start epoch of zero
             start_epoch = 0
 
+        # Start timer to measure data set
+        self.timer.start('creating dataset')
+
         # Get dataset if not given
-        dataset = self._get_dataset(training_setup['dataset'])
+        dataset = self._get_dataset(training_setup['dataset'], preload=preload)
+
+        # Start timer to measure data set
+        creation_took = self.timer.get_time('creating dataset')
+
+        # Notify about data set creation
+        dataset_constructor_took = "{:.2f}".format(creation_took)
+        Logger.log("Generation of data set took " + dataset_constructor_took + " seconds", in_cli=True)
 
         # Get dataloader for both training and validation
         train_data, eval_data = self._get_dataloader(dataset,
@@ -200,7 +228,7 @@ class Runner:
 
         # Log dataset information
         Logger.log('Start training on ' + str(len(train_data)) + ' samples '
-                   + ('(preloading active)' if training_setup['dataset']['preload']
+                   + ('(preloading active)' if preload
                       else 'found (preloading inactive)'), type="INFO", in_cli=self.debug)
 
         # Create optimizer
@@ -385,8 +413,6 @@ class Runner:
 
         # TODO: flash warnings when specific parts of the job description are missing and defaults are used
 
-        self.id = job_data.setdefault('wand_id', wandb.util.generate_id())
-
         return job_data
 
     def _get_evaluator(self, evaluation_setup: dict):
@@ -411,7 +437,7 @@ class Runner:
         loss_class = getattr(module, loss_function_setup['name'])
         return loss_class(**loss_function_setup)
 
-    def _get_dataset(self, data: dict):
+    def _get_dataset(self, data: dict, preload: bool = True):
         """
         Method creates the data set instance and returns it based on the data (contains job description)
 
@@ -425,7 +451,7 @@ class Runner:
         dataset_path = os.path.join(base_path, data['root'])
 
         # Create an instance of the dataloader and pass location of data
-        dataset = CTDataset(dataset_path, preload=data['preload'], transforms=data['transform'])
+        dataset = CTDataset(dataset_path, preload=preload, transforms=data['transform'])
 
         return dataset
 
@@ -470,7 +496,7 @@ class Runner:
         # Return tupel of splits
         return first_split, second_split
 
-    def _load_checkpoint(self, checkpoint_name='checkpoint'):
+    def _load_checkpoint(self):
         """
         Returns the checkpoint dict found in path.
 
@@ -478,7 +504,7 @@ class Runner:
         """
 
         # Generate a variable that stores the checkpoint path
-        checkpoint_path = os.path.join(self.path, checkpoint_name + '.tar')
+        checkpoint_path = os.path.join(self.path, 'checkpoint.tar')
 
         # Check if the file exists
         if not os.path.exists(checkpoint_path):
@@ -487,10 +513,9 @@ class Runner:
         # Load the checkpoint
         return torch.load(checkpoint_path, map_location=torch.device('cpu'))
 
-    def _save_checkpoint(self, checkpoint_dict, name='checkpoint.tar'):
+    def _save_checkpoint(self, checkpoint_dict):
         """
         Saves a checkpoint dictionary in a tar object to load in case this job is repeated
         """
-        name = name + '.tar' if not name.endswith('.tar') else name
-        save_path = os.path.join('results', self.path, name)
+        save_path = os.path.join('results', self.path, 'checkpoint.tar')
         torch.save(checkpoint_dict, save_path)

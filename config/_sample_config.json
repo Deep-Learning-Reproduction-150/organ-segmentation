@@ -1,5 +1,6 @@
 {
     "name": "testing_organ_segmentation",
+    "preload": true,
     "resume": true,
     "model": {
         "reset": true
@@ -22,9 +23,13 @@
         },
         "dataset": {
             "root": "./data",
-            "preload": false,
             "remove_false_samples": true,
             "transform": [
+                {
+                    "name": "Transpose",
+                    "dim_1": 0,
+                    "dim_2": -1
+                },
                 {
                     "name": "Resize",
                     "width": 256,
