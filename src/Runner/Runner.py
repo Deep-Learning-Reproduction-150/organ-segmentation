@@ -380,7 +380,7 @@ class Runner:
             scheduler.step()
 
             # Print the current learning rate
-            lr_formatted = "{:.4f}".format(scheduler.get_lr())
+            lr_formatted = "{:.4f}".format(scheduler.get_last_lr()[0])
             Logger.log("Learning rate currently at " + str(lr_formatted), in_cli=True)
 
             # Log that the checkpoint is saved
