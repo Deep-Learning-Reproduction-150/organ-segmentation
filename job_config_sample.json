@@ -60,7 +60,7 @@
             "name": "MultiStepLR"
         },
         "dataset": {
-            "root": "./data",
+            "root": "./data/train",
             "remove_false_samples": true,
             "labels": [
                 "BrainStem",
