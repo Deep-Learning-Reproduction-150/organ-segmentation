@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torchvision.transforms import CenterCrop
 
+
 """
 Contains auxiliary functions for the model.
 """
@@ -44,7 +45,7 @@ def conv_2x2d(
             *args,
             **kwargs,
         ),
-        nn.ReLU(),  # Maybe not
+        nn.ReLU(),  # Maybe ReLU, maybe something else
     )
 
 
