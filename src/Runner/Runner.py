@@ -679,11 +679,10 @@ class Runner:
         """
 
         # Create a scheduler based on the description
-        scheduler = LinearLR(
+        scheduler = MultiStepLR(
             optimizer,
-            start_factor=scheduler_setup["start_factor"],
-            end_factor=scheduler_setup["end_factor"],
-            total_iters=scheduler_setup["total_iters"],
+            gamma=0.1,
+            milestones=[50, 100],  # Every 50 epochs, until 0.001 -> 0.00001
         )
 
         # Check if there is a checkpoint
