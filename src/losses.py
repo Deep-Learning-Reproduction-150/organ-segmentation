@@ -40,12 +40,11 @@ class CombinedLoss(nn.Module):
         gamma=2,
         alpha=DEFAULT_AC,
     ):
-        inputs = torch.sigmoid(inputs)
-
         dice = self.dice(inputs, targets)
-        focal = self.focal(inputs, targets, alpha=alpha, gamma=gamma)
 
+        focal = self.focal(inputs, targets, alpha=alpha, gamma=gamma)
         combined = focal + l * dice
+
         return combined
 
 
@@ -81,6 +80,7 @@ class FocalLoss(nn.Module):
         inputs = inputs.view(-1)
         targets = targets.view(-1)
         # first compute binary cross-entropy
+
         BCE = F.binary_cross_entropy(inputs, targets, reduction="mean")
         BCE_EXP = torch.exp(-BCE)
         focal_loss = alpha * (1 - BCE_EXP) ** gamma * BCE
