@@ -15,7 +15,7 @@ import os
 import numpy as np
 from torch.optim.lr_scheduler import MultiStepLR
 from src.utils import Logger, Timer, bcolors
-from src.losses import DiceLoss
+from src.losses import DiceCoefficient
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
 from src.Model.OrganNet25D import OrganNet25D
@@ -400,7 +400,7 @@ class Runner:
 
                 # Initiate dice loss per organ and total
                 organ_dice_losses = {}
-                dice_loss_fn = DiceLoss()
+                dice_loss_fn = DiceCoefficient()
 
                 # Perform validation on healthy images
                 for batch, batch_input in enumerate(self.eval_data):
