@@ -655,7 +655,7 @@ class Runner:
         min_vals = {}
         for i, organ in enumerate(CTDataset.label_structure):
             max_vals[organ] = model_output[:, i, :, :, :].max()
-            min_vals[organ] = model_output[:, i, :, :, :].max()
+            min_vals[organ] = model_output[:, i, :, :, :].min()
 
         self.wandb_worker.log({
             'predictions minimum value': min_vals,
