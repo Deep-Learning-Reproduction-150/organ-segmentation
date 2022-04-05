@@ -166,7 +166,7 @@ class Runner:
                 json.dump(job, fp)
 
             # Create an instance of the model TODO: could be passing different models here? Via job.json?
-            self.model = OrganNet25D(input_shape=job['model']['input_shape'], hdc_dilations=(1, 2, 5))
+            self.model = OrganNet25D(input_shape=job['model']['input_shape'], hdc_dilations=job['model']['hdc_dilations'])
 
             # Recover the last checkpoint (if exists)
             if job['resume']:
@@ -257,9 +257,9 @@ class Runner:
 
         # Get dataloader for both training and validation
         self.train_data, self.eval_data = self._get_dataloader(dataset,
-                                                     split_ratio=self.job['training']['split_ratio'],
-                                                     num_workers=self.job['training']['num_workers'],
-                                                     batch_size=self.job['training']['batch_size'])
+                                                               split_ratio=self.job['training']['split_ratio'],
+                                                               num_workers=self.job['training']['num_workers'],
+                                                               batch_size=self.job['training']['batch_size'])
 
         # Log dataset information
         Logger.log('Start training on ' + str(len(self.train_data)) + ' batches '

@@ -223,7 +223,6 @@ class OrganNet25D(nn.Module):
         uses the model to create the segmentation of organs
 
         :param x: an instance of CTData
-        :return: TODO: good question - what exactly?
 
         Input: 256,256,48
         Output: 256,256,48,10 (# organs)
@@ -329,46 +328,9 @@ class OrganNet25D(nn.Module):
 
         return out19
 
-    def train_model(self, train_data, test_data, monitor_progress: bool = False):
-        """
-        This method trains the network automatically
-
-        :param monitor_progress: if user wants detailed feedback on learning progress
-        :param train_data: a data set that contains examples for training
-        :param test_data: a data set that contains examples for testing
-        :return: if validation was successful
-
-        TODO:
-            - How to proceed with e.g. cross validation
-            - Is the paper already forcing a specific mode of operation?
-            - Write validation of the trained model
-        """
-
-        # Check if system shall monitor learning progress
-        if monitor_progress:
-
-            # TODO: write some really informative progress overview
-            a = 0
-
-        # TODO: write training algorithm
-
-        return True
-
-    def get_organ_segments(self, x):
-        """
-        This method returns the actual organ segments and not raw data of the inputted
-        CTData
-
-        :param x: an example of type CTData
-        :return: the organs detected in the image
-        """
-
-        # TODO: use forward method and stuff to output really nice segment representation
-
-        return None
-
 
 class ToyOrganNet25D(OrganNet25D):
+
     def forward(self, x, *args, **kwargs):
         out1 = self.two_d_1(x)
 
