@@ -83,14 +83,14 @@ class FocalLoss(nn.Module):
     def __init__(self, **params):
         super().__init__()
 
-    def forward(self, inputs, targets, alpha=DEFAULT_AC, gamma=2.0):
+    def forward(self, inputs, targets, alpha, gamma=2.0):
 
         # flatten label and prediction tensors
         inputs = inputs.view(-1)
         targets = targets.view(-1)
         # first compute binary cross-entropy
 
-        BCE = F.binary_cross_entropy(inputs, targets, weight=DEFAULT_AC, reduction="mean")
+        BCE = F.binary_cross_entropy(inputs, targets, weight=alpha, reduction="mean")
 
         BCE_EXP = torch.exp(-BCE)
         focal_loss = (1 - BCE_EXP) ** gamma * BCE
