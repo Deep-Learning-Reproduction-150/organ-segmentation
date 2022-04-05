@@ -450,6 +450,7 @@ class Runner:
 
                 # Log some prediction examples (with image overlays)
                 self._log_prediction_examples(inputs, labels, model_output)
+                self._log_prediction_examples_3d(inputs, labels, model_output)
 
                 # Include max and min of predictions per organ
                 self._log_prediction_max_min(model_output)
@@ -549,6 +550,109 @@ class Runner:
         module = importlib.import_module("src.eval")
         evaluater_class = getattr(module, evaluation_setup["name"])
         return evaluater_class()
+
+    def _log_prediction_examples_3d(self, inputs, labels, model_output):
+        """
+        Method logs prediction examples to wandb
+
+        :param inputs:
+        :param labels:
+        :param model_output:
+        """
+
+        # Generate a random slice as example for reconstruction
+        if model_output is not None:
+
+            # Start timer and log preperation operation
+            self.timer.start("prediction-preperation")
+            Logger.log(
+                "Preparing " + str(self.job["wandb_prediction_examples"]) + " prediction examples for wandb",
+                in_cli=True,
+            )
+
+            # Create a list of masks
+            mask_list = []
+
+            # Do 5 random slices to show what is happening
+            for perspective_idx in range(0, 3):  # Loop through the spatial dims
+
+                # Slice a random image from there
+                batch_no = random.randint(0, inputs.size()[0] - 1)
+
+                # Obtain the actual image
+                sample_image = inputs[batch_no, 0, :, :, :].mean(dim=perspective_idx)
+
+                # Create raw prediction and label masks
+                prediction_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure) + 1
+                label_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure)
+
+                # Iterate through all organs and add them to it
+                for organ_slice, organ in enumerate(CTDataset.label_structure):
+                    raw_prediction = model_output[batch_no, organ_slice, :, :, :].max(dim=perspective_idx).values
+                    raw_label = labels[batch_no, organ_slice, :, :, :].max(dim=perspective_idx).values
+
+                    prediction_mask_data = torch.where(
+                        raw_prediction > 0.5, torch.tensor(organ_slice, dtype=torch.float32), prediction_mask_data
+                    )
+                    label_mask_data = torch.where(
+                        raw_label > 0.5, torch.tensor(organ_slice, dtype=torch.float32), label_mask_data
+                    )
+
+                # Do the same for the background
+                background_prediction = (
+                    model_output[batch_no, len(CTDataset.label_structure), :, :, :].max(dim=perspective_idx).values
+                )
+                prediction_mask_data = torch.where(
+                    background_prediction > 0.5,
+                    torch.tensor(len(CTDataset.label_structure), dtype=torch.float32),
+                    prediction_mask_data,
+                )
+
+                # Prepare class labels
+                class_labels = {
+                    len(CTDataset.label_structure): "Background",
+                    len(CTDataset.label_structure) + 1: "No Prediction",
+                }
+                for i, organ in enumerate(CTDataset.label_structure):
+                    class_labels[i] = organ
+
+                # Convert to ndarray for wandb
+                input_image = sample_image.cpu().detach().numpy()
+
+                # Append this slice to the predictions
+                mask_list.append(
+                    wandb.Image(
+                        input_image,
+                        caption="Perspective " + str(perspective_idx),
+                        masks={
+                            "predictions": {
+                                "class_labels": class_labels,
+                                "mask_data": prediction_mask_data.cpu().detach().numpy(),
+                            },
+                            "ground_truth": {
+                                "class_labels": class_labels,
+                                "mask_data": label_mask_data.cpu().detach().numpy(),
+                            },
+                        },
+                    )
+                )
+
+            # Log all organ predictions
+            self.wandb_worker.log(
+                {
+                    "predictions_3d": mask_list,
+                },
+                commit=False,
+            )
+
+            # Notify about duration
+            prep_took = self.timer.get_time("prediction-preperation")
+            Logger.log("Preparing the examples took {:.2f} seconds".format(prep_took), in_cli=True)
+
+        else:
+
+            # Warn that there was no model output
+            Logger.log("No prediction examples could be logged, as there is no model output", in_cli=True)
 
     def _log_prediction_examples(self, inputs, labels, model_output):
         """
