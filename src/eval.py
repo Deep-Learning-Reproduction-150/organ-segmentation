@@ -5,8 +5,11 @@ Course: Deep Learning
 Date: 04.04.2022
 Group: 150
 """
+import torch
 
 from src.utils import Logger
+from src.losses import CombinedLoss
+from sklearn.model_selection import KFold
 
 
 class BaseEvaluator:
@@ -31,6 +34,12 @@ class ChenEvaluator(BaseEvaluator):
     This evaluator is based on the dice score
     """
 
+    # Configuration
+    k_folds = 5
+    n_epochs = 2
+    loss_function = CombinedLoss()
+    results = {}
+
     def evaluate(self, trained_model, evaluation_set, job_path):
         """
         Evaluate the model based on the dice score
@@ -39,7 +48,35 @@ class ChenEvaluator(BaseEvaluator):
 
         Logger.log("Creating some really cool metrics with the trained model <3", in_cli=True)
 
-        # TODO: do some awesome evaluations of the model
+        # Try resetting weights
+        for layer in trained_model.children():
+            if hasattr(layer, 'reset_parameters'):
+                layer.reset_parameters()
 
-        # Return something interesting
+        # Define K-fold Cross Validator
+        kfold = KFold(n_splits=self.k_folds, shuffle=True)
+
+        model = trained_model
+
+        # K-fold cross validation
+        for fold in enumerate(kfold.split(evaluation_set)):
+
+            # Evaluation for current fold
+            correct, total = 0, 0
+            with torch.no_grad():
+
+                # Iterate over validation data and generate predictions
+                for i, data in enumerate(evaluation_set, 0):
+
+                    # Get inputs and generate outputs
+                    inputs, targets = data
+                    outputs = model(inputs)
+
+                    # Set correct and total
+                    _, predicted = torch.max(outputs.data, 1)
+                    total += targets.size(0)
+                    correct += (predicted == targets).sum()#.item()
+
+                print('Accuracy for fold %d: %d %%' % (fold, 100.0 * correct / total))
+
         return 100
