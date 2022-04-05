@@ -426,13 +426,15 @@ class Runner:
                         if organ not in organ_dice_losses.keys():
                             organ_dice_losses[organ] = []
                         organ_dice_losses[organ].append(float(dice_loss_fn(sub_tensor, sub_label)))
-                    if 'Background' not in organ_dice_losses.keys():
-                        organ_dice_losses['Background'] = []
-                    organ_dice_losses['Background'].append(
-                        float(dice_loss_fn(
-                            model_output[:, len(CTDataset.label_structure), :, :, :],
-                            labels[:, len(CTDataset.label_structure), :, :, :]
-                        ))
+                    if "Background" not in organ_dice_losses.keys():
+                        organ_dice_losses["Background"] = []
+                    organ_dice_losses["Background"].append(
+                        float(
+                            dice_loss_fn(
+                                model_output[:, len(CTDataset.label_structure), :, :, :],
+                                labels[:, len(CTDataset.label_structure), :, :, :],
+                            )
+                        )
                     )
 
                     # Print epoch status bar
@@ -493,7 +495,7 @@ class Runner:
                         "learning rate": current_lr,
                         "epoch duration": epoch_time,
                         "epoch": epoch + 1,
-                        'DSC per channel': organ_dice_losses
+                        "DSC per channel": organ_dice_losses,
                     },
                     commit=False,
                 )
@@ -561,11 +563,12 @@ class Runner:
 
         # Add a default scheduler
         job_data["training"].setdefault(
-            "lr_scheduler", {"name": "LinearLR", "start_factor": 1, "end_factor": 0.01, "total_iters": 100},
+            "lr_scheduler",
+            {"name": "LinearLR", "start_factor": 1, "end_factor": 0.01, "total_iters": 100},
         )
 
         # Set labels to none by default so the data set figures out the order
-        job_data['training']['dataset'].setdefault('labels', None)
+        job_data["training"]["dataset"].setdefault("labels", None)
 
         # Set a default if predictino examples is not set
         job_data.setdefault("wandb_prediction_examples", 6)
@@ -594,6 +597,9 @@ class Runner:
         :param labels:
         :param model_output:
         """
+        inputs = inputs.detach()
+        labels = labels.detach()
+        model_output = model_output.detach()
 
         # Generate a random slice as example for reconstruction
         if model_output is not None:
@@ -699,6 +705,9 @@ class Runner:
 
         TODO: maybe there could be a smart way to actually find the most interesting slides?
         """
+        inputs = inputs.detach()
+        labels = labels.detach()
+        model_output = model_output.detach()
 
         # Generate a random slice as example for reconstruction
         if model_output is not None:
@@ -768,7 +777,9 @@ class Runner:
                     raw_label = labels[batch_no, organ_slice, slice_no, :, :]
 
                     # Create a dynamic threshold based on the median
-                    dynamic_predict_threshold = float(raw_prediction.min() + ((raw_prediction.max() - raw_prediction.min()) / 2))
+                    dynamic_predict_threshold = float(
+                        raw_prediction.min() + ((raw_prediction.max() - raw_prediction.min()) / 2)
+                    )
 
                     prediction_mask_data = torch.where(
                         raw_prediction > dynamic_predict_threshold,
@@ -929,7 +940,13 @@ class Runner:
         dataset_path = os.path.join(base_path, data["root"])
 
         # Create an instance of the dataloader and pass location of data
-        dataset = CTDataset(dataset_path, preload=preload, transforms=data["transform"], no_logging=False, label_structure=data['labels'])
+        dataset = CTDataset(
+            dataset_path,
+            preload=preload,
+            transforms=data["transform"],
+            no_logging=False,
+            label_structure=data["labels"],
+        )
 
         return dataset
 
