@@ -301,7 +301,7 @@ class Runner:
             Logger.log("Resuming training in epoch " + str(start_epoch), in_cli=True)
 
         if self.job["training"]["detect_bad_gradients"]:
-            Logger.log("Selected detect_bad_gradients - using AutoGrad", type="WARNUNG", in_cli=True)
+            Logger.log("Selected detect_bad_gradients - using AutoGrad", type="WARNING", in_cli=True)
 
         # Iterate through epochs (based on jobs setting)
         for epoch in range(start_epoch, self.job["training"]["epochs"]):
@@ -350,9 +350,9 @@ class Runner:
                     loss.backward()
 
                 # Gradient clipping
-                grad_norm = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.job["training"]["grad_norm_clip"]
-                )
+                # grad_norm = torch.nn.utils.clip_grad_norm_(
+                #     self.model.parameters(), self.job["training"]["grad_norm_clip"]
+                # )
 
                 # Perform optimization step
                 optimizer.step()
@@ -681,26 +681,35 @@ class Runner:
             batch_no = random.randint(0, inputs.size()[0] - 1)
 
             # Iterate through the model output and find good and bad slices
-            good_slices_data = {'good': [], 'bad': []}
+            good_slices_data = {"good": [], "bad": []}
             for s in range(labels.size()[-3] - 1):
                 current_max = labels[batch_no, list(range(len(CTDataset.label_structure) - 1)), s, :, :].max()
                 if current_max > 0.5:
-                    good_slices_data['good'].append(s)
+                    good_slices_data["good"].append(s)
                 else:
-                    good_slices_data['bad'].append(s)
+                    good_slices_data["bad"].append(s)
 
             # Compose the good slices in a list
-            first_good_slice = sorted(good_slices_data['good'])[0]
-            last_good_slice = sorted(good_slices_data['good'])[-1]
+            first_good_slice = sorted(good_slices_data["good"])[0]
+            last_good_slice = sorted(good_slices_data["good"])[-1]
             have_want_difference = (last_good_slice - first_good_slice + 1) - self.job["wandb_prediction_examples"]
             if have_want_difference >= 0:
-                good_slices = np.linspace(first_good_slice, last_good_slice, num=self.job["wandb_prediction_examples"], dtype=int)
+                good_slices = np.linspace(
+                    first_good_slice, last_good_slice, num=self.job["wandb_prediction_examples"], dtype=int
+                )
             else:
                 possible_slices = self.job["wandb_prediction_examples"]
                 if self.job["wandb_prediction_examples"] > inputs.size()[-3]:
-                    Logger.log("Requested " + str(self.job["wandb_prediction_examples"]) + " slices, but can only return " + str(inputs.size()[-3]), type="ERROR", in_cli=True)
+                    Logger.log(
+                        "Requested "
+                        + str(self.job["wandb_prediction_examples"])
+                        + " slices, but can only return "
+                        + str(inputs.size()[-3]),
+                        type="ERROR",
+                        in_cli=True,
+                    )
                     possible_slices = inputs.size()[-3]
-                good_slices = sorted(good_slices_data['good'])
+                good_slices = sorted(good_slices_data["good"])
                 while len(good_slices) < possible_slices:
                     random_slice = random.randint(0, inputs.size()[-3] - 1)
                     if random_slice not in good_slices:
@@ -729,7 +738,9 @@ class Runner:
                     dynamic_predict_threshold = float(raw_prediction.median())
 
                     prediction_mask_data = torch.where(
-                        raw_prediction > dynamic_predict_threshold, torch.tensor(organ_slice, dtype=torch.float32), prediction_mask_data
+                        raw_prediction > dynamic_predict_threshold,
+                        torch.tensor(organ_slice, dtype=torch.float32),
+                        prediction_mask_data,
                     )
                     label_mask_data = torch.where(
                         raw_label > 0.5, torch.tensor(organ_slice, dtype=torch.float32), label_mask_data
@@ -738,11 +749,16 @@ class Runner:
                 # Do the same for the background
                 background_prediction = model_output[batch_no, len(CTDataset.label_structure), slice_no, :, :]
                 prediction_mask_data = torch.where(
-                    background_prediction > float(background_prediction.median()), torch.tensor(len(CTDataset.label_structure), dtype=torch.float32), prediction_mask_data
+                    background_prediction > float(background_prediction.median()),
+                    torch.tensor(len(CTDataset.label_structure), dtype=torch.float32),
+                    prediction_mask_data,
                 )
 
                 # Prepare class labels
-                class_labels = {len(CTDataset.label_structure): "Background", len(CTDataset.label_structure) + 1: "No Prediction"}
+                class_labels = {
+                    len(CTDataset.label_structure): "Background",
+                    len(CTDataset.label_structure) + 1: "No Prediction",
+                }
                 for i, organ in enumerate(CTDataset.label_structure):
                     class_labels[i] = organ
 
@@ -792,10 +808,9 @@ class Runner:
             max_vals[organ] = model_output[:, i, :, :, :].max()
             min_vals[organ] = model_output[:, i, :, :, :].min()
 
-        self.wandb_worker.log({
-            'predictions minimum value': min_vals,
-            'predictions maximum value': max_vals
-        }, commit=False)
+        self.wandb_worker.log(
+            {"predictions minimum value": min_vals, "predictions maximum value": max_vals}, commit=False
+        )
 
     def _get_optimizer(self, optimizer_setup: dict, **params):
         if optimizer_setup["name"] == "Adam":
