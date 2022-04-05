@@ -408,10 +408,6 @@ class Runner:
                 # If no validation is done, we take the train loss as val loss
                 epoch_evaluation_loss = epoch_train_loss
 
-            # TODO: utilize a lr scheduler (decaying learning rate)
-
-            # TODO: perform syncing with wandb / tensorboard
-
             # Also perform a step for the learning rate scheduler
             scheduler.step()
 
@@ -425,58 +421,8 @@ class Runner:
             # Report the current loss to wandb if it's set
             if self.job['wandb_api_key']:
 
-                # Generate a random slice as example for reconstruction
-                if model_output is not None:
-
-                    # Create a list of masks
-                    mask_list = []
-
-                    # Do 5 random slices to show what is happening
-                    for i in range(5):
-
-                        # Slice a random image from there
-                        slice_no = random.randint(0, model_output.size()[-3] - 1)
-                        batch_no = random.randint(0, inputs.size()[0] - 1)
-
-                        # Obtain the actual image
-                        sample_image = inputs[batch_no, 0, slice_no, :, :]
-
-                        # Create raw prediction and label masks
-                        prediction_mask_data = torch.zeros_like(sample_image)
-                        label_mask_data = torch.zeros_like(sample_image)
-
-                        # Iterate through all organs and add them to it
-                        for organ_slice, organ in enumerate(CTDataset.label_structure):
-                            raw_prediction = model_output[batch_no, organ_slice, slice_no, :, :]
-                            raw_prediction = torch.nan_to_num(raw_prediction)
-                            raw_label = labels[batch_no, organ_slice, slice_no, :, :]
-
-                            prediction_mask_data = torch.where(raw_prediction > 0, torch.tensor(organ_slice + 1, dtype=torch.float32), prediction_mask_data)
-                            label_mask_data = torch.where(raw_label > 0, torch.tensor(organ_slice + 1, dtype=torch.float32), label_mask_data)
-
-                        class_labels = {0: 'Nothing'}
-                        for i, organ in enumerate(CTDataset.label_structure):
-                            class_labels[i + 1] = organ
-
-                        # Convert to ndarray for wandb
-                        input_image = sample_image.cpu().detach().numpy()
-
-                        # Append this slice to the predictions
-                        mask_list.append(wandb.Image(input_image, caption='Slice ' + str(slice_no), masks={
-                            "predictions": {
-                                "class_labels": class_labels,
-                                "mask_data": prediction_mask_data.cpu().detach().numpy()
-                            },
-                            "ground_truth": {
-                                "class_labels": class_labels,
-                                "mask_data": label_mask_data.cpu().detach().numpy()
-                            }
-                        }))
-
-                    # Log all organ predictions
-                    self.wandb_worker.log({
-                        'predictions': mask_list,
-                    }, commit=False)
+                # Log some prediction examples (with image overlays)
+                self._log_prediction_examples(inputs, labels, model_output)
 
                 # Log this current status
                 self.wandb_worker.log({
@@ -553,6 +499,9 @@ class Runner:
             "total_iters": 100
         })
 
+        # Set a default if predictino examples is not set
+        job_data.setdefault('wandb_prediction_examples', 6)
+
         # Append a wandb id if none exists yet
         job_data.setdefault('wandb_run_id', wandb.util.generate_id())
 
@@ -568,6 +517,86 @@ class Runner:
         module = importlib.import_module('src.eval')
         evaluater_class = getattr(module, evaluation_setup['name'])
         return evaluater_class()
+
+    def _log_prediction_examples(self, inputs, labels, model_output):
+        """
+        Method logs prediction examples to wandb
+
+        :param inputs:
+        :param labels:
+        :param model_output:
+
+        TODO: maybe there could be a smart way to actually find the most interesting slides?
+        """
+
+        # Generate a random slice as example for reconstruction
+        if model_output is not None:
+
+            # Start timer and log preperation operation
+            self.timer.start('prediction-preperation')
+            Logger.log("Preparing " + str(self.job['wandb_prediction_examples']) + " prediction examples for wandb", in_cli=True)
+
+            # Create a list of masks
+            mask_list = []
+
+            # Do 5 random slices to show what is happening
+            for i in range(self.job['wandb_prediction_examples']):
+
+                # Slice a random image from there
+                slice_no = random.randint(0, model_output.size()[-3] - 1)
+                batch_no = random.randint(0, inputs.size()[0] - 1)
+
+                # Obtain the actual image
+                sample_image = inputs[batch_no, 0, slice_no, :, :]
+
+                # Create raw prediction and label masks
+                prediction_mask_data = torch.zeros_like(sample_image)
+                label_mask_data = torch.zeros_like(sample_image)
+
+                # Iterate through all organs and add them to it
+                for organ_slice, organ in enumerate(CTDataset.label_structure):
+                    raw_prediction = model_output[batch_no, organ_slice, slice_no, :, :]
+                    raw_prediction = torch.nan_to_num(raw_prediction)
+                    raw_label = labels[batch_no, organ_slice, slice_no, :, :]
+
+                    prediction_mask_data = torch.where(raw_prediction > 0,
+                                                       torch.tensor(organ_slice + 1, dtype=torch.float32),
+                                                       prediction_mask_data)
+                    label_mask_data = torch.where(raw_label > 0, torch.tensor(organ_slice + 1, dtype=torch.float32),
+                                                  label_mask_data)
+
+                class_labels = {0: 'Nothing'}
+                for i, organ in enumerate(CTDataset.label_structure):
+                    class_labels[i + 1] = organ
+
+                # Convert to ndarray for wandb
+                input_image = sample_image.cpu().detach().numpy()
+
+                # Append this slice to the predictions
+                mask_list.append(wandb.Image(input_image, caption='Slice ' + str(slice_no), masks={
+                    "predictions": {
+                        "class_labels": class_labels,
+                        "mask_data": prediction_mask_data.cpu().detach().numpy()
+                    },
+                    "ground_truth": {
+                        "class_labels": class_labels,
+                        "mask_data": label_mask_data.cpu().detach().numpy()
+                    }
+                }))
+
+            # Log all organ predictions
+            self.wandb_worker.log({
+                'predictions': mask_list,
+            }, commit=False)
+
+            # Notify about duration
+            prep_took = self.timer.get_time('prediction-preperation')
+            Logger.log('Preparing the examples took {:.2f} seconds'.format(prep_took), in_cli=True)
+
+        else:
+
+            # Warn that there was no model output
+            Logger.log('No prediction examples could be logged, as there is no model output', in_cli=True)
 
     def _get_optimizer(self, optimizer_setup: dict, **params):
         if optimizer_setup['name'] == 'Adam':
