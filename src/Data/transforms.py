@@ -80,13 +80,16 @@ class Rescale(object):
     """
     Rescales a volume by a given factor
     """
+
     def __init__(self, depth=1, width=1, height=1):
         self.depth = depth
         self.width = width
         self.height = height
 
     def __call__(self, vol):
-        return torch.from_numpy(transform.rescale(vol, (self.depth, self.height, self.width), anti_aliasing=True, order=3))
+        return torch.from_numpy(
+            transform.rescale(vol, (self.depth, self.height, self.width), anti_aliasing=True, order=3)
+        )
 
 
 class Resize(object):
@@ -100,7 +103,9 @@ class Resize(object):
         self.height = height
 
     def __call__(self, vol):
-        return torch.from_numpy(transform.resize(vol, (self.depth, self.height, self.width), anti_aliasing=True, order=3))
+        return torch.from_numpy(
+            transform.resize(vol, (self.depth, self.height, self.width), anti_aliasing=True, order=3)
+        )
 
 
 class EasyResize(object):
@@ -114,7 +119,9 @@ class EasyResize(object):
         self.height = height
 
     def __call__(self, vol):
-        return torch.from_numpy(transform.resize(vol, (self.depth, self.height, self.width), anti_aliasing=False, order=0))
+        return torch.from_numpy(
+            transform.resize(vol, (self.depth, self.height, self.width), anti_aliasing=False, order=0)
+        )
 
 
 class Transpose(object):
@@ -131,10 +138,9 @@ class Transpose(object):
 
 
 class StandardScaleTensor(object):
-
     def __init__(self, **params):
         super().__init__()
 
     def __call__(self, tensor):
-        scaled_tensor = (tensor - tensor.min()) / (tensor.max() - tensor.min())
+        scaled_tensor = (tensor - tensor.min()) / (tensor.max() - tensor.min() + 1e-6)
         return scaled_tensor
