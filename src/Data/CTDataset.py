@@ -35,7 +35,7 @@ class CTDataset(Dataset):
     transforms = None
 
     def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, transforms: list = [],
-                 no_logging: bool = True):
+                 no_logging: bool = True, label_structure: list = None):
         """
         Constructor method of the dataloader. First parameter specifies directories that contain labels to the files
         provided. The dataloader is designed to work with nrrd files only at the moment. n-dimensional numpy arrays
@@ -50,6 +50,10 @@ class CTDataset(Dataset):
 
         # Call super class constructor
         super().__init__()
+
+        # If label structure is passed, put it static
+        if label_structure is not None:
+            CTDataset.label_structure = label_structure
 
         # Save the transform
         self.transforms = transforms
@@ -96,9 +100,10 @@ class CTDataset(Dataset):
                 self.samples.append(new_sample)
 
                 # Iterate through the samples labels and remember them globally
-                for label in new_sample.labels:
-                    if label.name not in CTDataset.label_structure:
-                        CTDataset.label_structure.append(label.name)
+                if label_structure is None:
+                    for label in new_sample.labels:
+                        if label.name not in CTDataset.label_structure:
+                            CTDataset.label_structure.append(label.name)
 
                 # Increment the counter
                 counter += 1
@@ -141,6 +146,9 @@ class CTDataset(Dataset):
             # End the status bar
             if not no_logging:
                 Logger.end_status_bar()
+
+        a = CTDataset.label_structure
+        b = 0
 
         # Log that preloading was successful
         if not no_logging:

@@ -531,8 +531,11 @@ class Runner:
 
         # Add a default scheduler
         job_data["training"].setdefault(
-            "lr_scheduler", {"name": "LinearLR", "start_factor": 1, "end_factor": 0.01, "total_iters": 100}
+            "lr_scheduler", {"name": "LinearLR", "start_factor": 1, "end_factor": 0.01, "total_iters": 100},
         )
+
+        # Set labels to none by default so the data set figures out the order
+        job_data['training']['dataset'].setdefault('labels', None)
 
         # Set a default if predictino examples is not set
         job_data.setdefault("wandb_prediction_examples", 6)
@@ -896,7 +899,7 @@ class Runner:
         dataset_path = os.path.join(base_path, data["root"])
 
         # Create an instance of the dataloader and pass location of data
-        dataset = CTDataset(dataset_path, preload=preload, transforms=data["transform"], no_logging=False)
+        dataset = CTDataset(dataset_path, preload=preload, transforms=data["transform"], no_logging=False, label_structure=data['labels'])
 
         return dataset
 

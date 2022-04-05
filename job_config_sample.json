@@ -37,6 +37,7 @@
         "dataset": {
             "root": "./data",
             "remove_false_samples": true,
+            "labels": ["Chiasm", "BrainStem", "Mandible", "OpticNerve_L", "OpticNerve_R", "Parotid_L", "Parotid_R", "Submandibular_L", "Submandibular_R"],
             "transform": [
                 {
                     "name": "Transpose",
