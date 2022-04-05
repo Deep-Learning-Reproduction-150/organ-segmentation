@@ -14,9 +14,9 @@ from tqdm import tqdm
 from matplotlib import pyplot as plt
 
 
-DEFAULT_AC = torch.Tensor(
-    [0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0]
-)  # focal loss weights per channels from the paper
+DEFAULT_AC = 1.0  # torch.Tensor(
+# [0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0]
+# )  # focal loss weights per channels from the paper
 
 
 class CombinedLoss(nn.Module):
@@ -78,12 +78,12 @@ class FocalLoss(nn.Module):
     def forward(self, inputs, targets, alpha=DEFAULT_AC, gamma=2.0):
         # flatten label and prediction tensors
         inputs = inputs.view(-1)
-        targets = (alpha * targets.view(-1, len(alpha))).view(-1)
+        targets = targets.view(-1)
 
         # first compute binary cross-entropy
         BCE = F.binary_cross_entropy(inputs, targets, reduction="mean")
         BCE_EXP = torch.exp(-BCE)
-        focal_loss = (1 - BCE_EXP) ** gamma * BCE
+        focal_loss = alpha * (1 - BCE_EXP) ** gamma * BCE
 
         return focal_loss
 
