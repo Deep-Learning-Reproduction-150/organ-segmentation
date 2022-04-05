@@ -127,7 +127,7 @@ class Runner:
             base_path = Path(__file__).parent.parent.parent.resolve()
 
             # A directory that stores jobs data
-            job_data_dir = os.path.join(base_path, 'jobs', job['name'])
+            job_data_dir = os.path.join(base_path, "jobs", job["name"])
 
             # Save this path to the runner object for now to be able to store stuff in there
             self.path = job_data_dir
@@ -139,14 +139,14 @@ class Runner:
             Logger.initialize(log_path=job_data_dir)
 
             # Reset the log file
-            if not job['resume']:
+            if not job["resume"]:
                 Logger.clear()
 
             # Print CLI message
-            Logger.log("Started the job '" + job['name'] + "'", "HEADLINE", self.debug)
+            Logger.log("Started the job '" + job["name"] + "'", "HEADLINE", self.debug)
 
             # check whether the job description has changed (if that is the case, re-run the job)
-            specification_path = os.path.join(self.path, 'specification.json')
+            specification_path = os.path.join(self.path, "specification.json")
 
             # if os.path.exists(specification_path):
             #     existing_specification = json.load(open(specification_path))
@@ -162,14 +162,16 @@ class Runner:
             #         in_cli=True)
 
             # Write the specification file to the job
-            with open(specification_path, 'w') as fp:
+            with open(specification_path, "w") as fp:
                 json.dump(job, fp)
 
             # Create an instance of the model TODO: could be passing different models here? Via job.json?
-            self.model = OrganNet25D(input_shape=job['model']['input_shape'], hdc_dilations=job['model']['hdc_dilations'])
+            self.model = OrganNet25D(
+                input_shape=job["model"]["input_shape"], hdc_dilations=job["model"]["hdc_dilations"]
+            )
 
             # Recover the last checkpoint (if exists)
-            if job['resume']:
+            if job["resume"]:
 
                 # Load the last checkpoint
                 self.checkpoint = self._load_checkpoint()
@@ -178,7 +180,7 @@ class Runner:
                 if self.checkpoint is not None:
 
                     # Recover model from last
-                    self.model.load_state_dict(self.checkpoint['model'])
+                    self.model.load_state_dict(self.checkpoint["model"])
 
                     # Log a status message about recovery of model
                     Logger.log("Recovered model from the last checkpoint", type="WARNING", in_cli=True)
@@ -187,19 +189,19 @@ class Runner:
                 self.checkpoint = None
 
             # Check if job contains index "training"
-            if 'training' in job and type(job['training']) is dict:
+            if "training" in job and type(job["training"]) is dict:
 
                 # Call train method
                 self._train()
 
             # Check if job contains index "training"
-            if 'evaluation' in job and type(job['evaluation']) is dict:
+            if "evaluation" in job and type(job["evaluation"]) is dict:
 
                 # Call evaluation method
-                self._evaluate(job['evaluation'])
+                self._evaluate(job["evaluation"])
 
             # Check if job contains index "training"
-            if 'inference' in job and type(job['inference']) is dict:
+            if "inference" in job and type(job["inference"]) is dict:
 
                 # Print CLI message
                 Logger.log("Inference is not implemented yet", "ERROR", self.debug)
@@ -215,14 +217,14 @@ class Runner:
         if self.checkpoint is not None:
 
             # Check if training is already done
-            if self.checkpoint['training_done']:
+            if self.checkpoint["training_done"]:
                 # Log that training has already been done
                 Logger.log("Model is already fully trained, skipping training", type="SUCCESS", in_cli=True)
                 return True
 
             # Extract epoch to continue training
-            start_epoch = self.checkpoint['epoch'] + 1
-            wandb_id = self.checkpoint['wandb_run_id']
+            start_epoch = self.checkpoint["epoch"] + 1
+            wandb_id = self.checkpoint["wandb_run_id"]
 
         else:
 
@@ -231,52 +233,59 @@ class Runner:
             wandb_id = None
 
         # Check if wandb shall be used
-        if self.job['wandb_api_key']:
+        if self.job["wandb_api_key"]:
 
             # Flash notification
-            Logger.log("Loading wand and creating run for project " + self.job['wandb_project_name'])
+            Logger.log("Loading wand and creating run for project " + self.job["wandb_project_name"])
 
             # Load wandb
-            wandb_run_id = wandb_id if not None else self.job['wandb_run_id']
+            wandb_run_id = wandb_id if not None else self.job["wandb_run_id"]
             os.environ["WANDB_SILENT"] = "true"
-            wandb.login(key=self.job['wandb_api_key'])
-            wandb.init(project=self.job['wandb_project_name'], resume=start_epoch > 0, id=wandb_run_id)
+            wandb.login(key=self.job["wandb_api_key"])
+            wandb.init(project=self.job["wandb_project_name"], resume=start_epoch > 0, id=wandb_run_id)
 
         # Start timer to measure data set
-        self.timer.start('creating dataset')
+        self.timer.start("creating dataset")
 
         # Get dataset if not given
-        dataset = self._get_dataset(self.job['training']['dataset'], preload=self.job['preload'])
+        dataset = self._get_dataset(self.job["training"]["dataset"], preload=self.job["preload"])
 
         # Start timer to measure data set
-        creation_took = self.timer.get_time('creating dataset')
+        creation_took = self.timer.get_time("creating dataset")
 
         # Notify about data set creation
         dataset_constructor_took = "{:.2f}".format(creation_took)
         Logger.log("Generation of data set took " + dataset_constructor_took + " seconds", in_cli=True)
 
         # Get dataloader for both training and validation
-        self.train_data, self.eval_data = self._get_dataloader(dataset,
-                                                               split_ratio=self.job['training']['split_ratio'],
-                                                               num_workers=self.job['training']['num_workers'],
-                                                               batch_size=self.job['training']['batch_size'])
+        self.train_data, self.eval_data = self._get_dataloader(
+            dataset,
+            split_ratio=self.job["training"]["split_ratio"],
+            num_workers=self.job["training"]["num_workers"],
+            batch_size=self.job["training"]["batch_size"],
+        )
 
         # Log dataset information
-        Logger.log('Start training on ' + str(len(self.train_data)) + ' batches '
-                   + ('(preloading active)' if self.job['preload']
-                      else 'found (preloading inactive)'), type="INFO", in_cli=self.debug)
+        Logger.log(
+            "Start training on "
+            + str(len(self.train_data))
+            + " batches "
+            + ("(preloading active)" if self.job["preload"] else "found (preloading inactive)"),
+            type="INFO",
+            in_cli=self.debug,
+        )
 
         # Create optimizer
-        optimizer = self._get_optimizer(self.job['training']['optimizer'])
+        optimizer = self._get_optimizer(self.job["training"]["optimizer"])
 
         # Create scheduler
-        scheduler = self._get_lr_scheduler(optimizer, self.job['training']['lr_scheduler'])
+        scheduler = self._get_lr_scheduler(optimizer, self.job["training"]["lr_scheduler"])
 
         # Create loss function
-        loss_function = self._get_loss_function(self.job['training']['loss'])
+        loss_function = self._get_loss_function(self.job["training"]["loss"])
 
         # Enable wandb logging
-        if self.job['wandb_api_key']:
+        if self.job["wandb_api_key"]:
             wandb.watch(self.model, log="gradients", log_freq=1)
 
         # Check if start epoch is not zero and notify
@@ -286,16 +295,16 @@ class Runner:
             Logger.log("Resuming training in epoch " + str(start_epoch), in_cli=True)
 
         # Iterate through epochs (based on jobs setting)
-        for epoch in range(start_epoch, self.job['training']['epochs']):
+        for epoch in range(start_epoch, self.job["training"]["epochs"]):
 
             # Start epoch timer and log the start of this epoch
-            Logger.log('Starting to run Epoch {}/{}'.format(epoch + 1, self.job['training']['epochs']), in_cli=False)
+            Logger.log("Starting to run Epoch {}/{}".format(epoch + 1, self.job["training"]["epochs"]), in_cli=False)
 
             # Print epoch status bar
-            Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(self.job['training']['epochs']))
+            Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(self.job["training"]["epochs"]))
 
             # Start the epoch timer
-            self.timer.start('epoch')
+            self.timer.start("epoch")
 
             # Set model to train mode
             self.model.train()
@@ -314,12 +323,23 @@ class Runner:
 
                 # Get output
                 model_output = self.model(inputs)
-
                 # Calculate loss
                 loss = loss_function(model_output, labels)
 
-                # Backpropagation
-                loss.backward()
+                if self.job["training"]["detect_bad_gradients"]:
+                    print("DEBUG::Using AutoGrad")
+                    from torch import autograd
+
+                    with autograd.detect_anomaly():
+                        loss.backward()
+                else:
+                    # Backpropagation
+                    loss.backward()
+
+                # Gradient clipping
+                grad_norm = torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.job["training"]["grad_norm_clip"]
+                )
 
                 # Perform optimization step
                 optimizer.step()
@@ -333,27 +353,34 @@ class Runner:
                 # Print epoch status bar
                 Logger.print_status_bar(
                     done=((batch + 1) / len(self.train_data)) * 100,
-                    title="epoch " + str(epoch + 1) + "/" + str(self.job['training']['epochs']) + ", loss: " + "{:.2f}".format(current_loss)
+                    title="epoch "
+                    + str(epoch + 1)
+                    + "/"
+                    + str(self.job["training"]["epochs"])
+                    + ", loss: "
+                    + "{:.2f}".format(current_loss),
                 )
 
             # Finish the status bar
             Logger.end_status_bar()
 
             # Stop timer to measure epoch length
-            epoch_time = self.timer.get_time('epoch')
+            epoch_time = self.timer.get_time("epoch")
 
             # Calculate epoch los
             epoch_train_loss = running_loss / len(self.train_data)
 
             # Log the epoch success
             avg_loss = "{:.2f}".format(epoch_train_loss)
-            Logger.log('Epoch took ' + str(epoch_time) + ' seconds. The average loss is ' + avg_loss, in_cli=self.debug)
+            Logger.log("Epoch took " + str(epoch_time) + " seconds. The average loss is " + avg_loss, in_cli=self.debug)
 
             # Perform validation
             if self.eval_data is not None:
 
                 # Notify the user regarding validation
-                Logger.log('Validating the model on ' + str(len(self.eval_data)) + " validation batches ...", in_cli=self.debug)
+                Logger.log(
+                    "Validating the model on " + str(len(self.eval_data)) + " validation batches ...", in_cli=self.debug
+                )
 
                 # Set model to evaluation mode
                 self.model.eval()
@@ -371,7 +398,6 @@ class Runner:
 
                     # Calculate output
                     model_output = self.model(inputs)
-
                     # Determine loss
                     eval_loss = loss_function(model_output, labels)
 
@@ -379,10 +405,7 @@ class Runner:
                     eval_running_loss += eval_loss.detach().cpu().numpy()
 
                     # Print epoch status bar
-                    Logger.print_status_bar(
-                        done=((batch + 1) / len(self.eval_data)) * 100,
-                        title="validating model"
-                    )
+                    Logger.print_status_bar(done=((batch + 1) / len(self.eval_data)) * 100, title="validating model")
 
                 # End status bar
                 Logger.end_status_bar()
@@ -392,7 +415,7 @@ class Runner:
 
                 # Notify the user regarding validation
                 avg_loss = "{:.2f}".format(epoch_evaluation_loss)
-                Logger.log('Valuation done with an average epoch loss of ' + str(avg_loss), in_cli=self.debug)
+                Logger.log("Valuation done with an average epoch loss of " + str(avg_loss), in_cli=self.debug)
 
                 # TODO: here, we could do an early stopping if the model is extremely overfitting or so
 
@@ -415,28 +438,32 @@ class Runner:
             Logger.log("Learning rate currently at " + str(lr_formatted), in_cli=True)
 
             # Report the current loss to wandb if it's set
-            if self.job['wandb_api_key']:
-                wandb.log({
-                    "training loss": epoch_train_loss,
-                    "evaluation loss": epoch_evaluation_loss,
-                    "learning rate": current_lr,
-                    "epoch": epoch + 1,
-                })
+            if self.job["wandb_api_key"]:
+                wandb.log(
+                    {
+                        "training loss": epoch_train_loss,
+                        "evaluation loss": epoch_evaluation_loss,
+                        "learning rate": current_lr,
+                        "epoch": epoch + 1,
+                    }
+                )
 
             # Log that the checkpoint is saved
             Logger.log("Saving checkpoint for epoch " + str(epoch + 1), in_cli=True)
 
             # Save a checkpoint for this job after each epoch (to be able to resume)
-            self._save_checkpoint({
-                'epoch': epoch,
-                'model': self.model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'lr_scheduler': scheduler.state_dict(),
-                'train_loss': epoch_train_loss,
-                'eval_loss': epoch_evaluation_loss,
-                'training_done': epoch == (self.job['training']['epochs'] - 1),
-                'wandb_run_id': self.job['wandb_run_id']
-            })
+            self._save_checkpoint(
+                {
+                    "epoch": epoch,
+                    "model": self.model.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "lr_scheduler": scheduler.state_dict(),
+                    "train_loss": epoch_train_loss,
+                    "eval_loss": epoch_evaluation_loss,
+                    "training_done": epoch == (self.job["training"]["epochs"] - 1),
+                    "wandb_run_id": self.job["wandb_run_id"],
+                }
+            )
 
             # Write log message that the training has been completed
             Logger.log("Checkpoint updated (data has been saved)", in_cli=True)
@@ -445,7 +472,7 @@ class Runner:
         Logger.log("Training of the model completed", type="SUCCESS", in_cli=True)
 
         # Check if wandb shall be used
-        if self.job['wandb_api_key']:
+        if self.job["wandb_api_key"]:
             wandb.finish()
 
     def _evaluate(self, evaluation_setup: dict):
@@ -456,7 +483,7 @@ class Runner:
         """
 
         # Log dataset information
-        Logger.log('Start evaluation of the model', type="INFO", in_cli=self.debug)
+        Logger.log("Start evaluation of the model", type="INFO", in_cli=self.debug)
 
         # Get the evaluation instance
         evaluator = self._get_evaluator(evaluation_setup)
@@ -480,13 +507,10 @@ class Runner:
         # TODO: flash warnings when specific parts of the job description are missing and defaults are used
 
         # Add a default scheduler
-        job_data['training'].setdefault('lr_scheduler', {
-            "name": "LinearLR",
-            "start_factor": 1,
-            "end_factor": 0.01,
-            "total_iters": 100
-        })
-        job_data.setdefault('wandb_run_id', wandb.util.generate_id())
+        job_data["training"].setdefault(
+            "lr_scheduler", {"name": "LinearLR", "start_factor": 1, "end_factor": 0.01, "total_iters": 100}
+        )
+        job_data.setdefault("wandb_run_id", wandb.util.generate_id())
 
         return job_data
 
@@ -497,22 +521,30 @@ class Runner:
         :param evaluation_setup:
         :return: evaluator instance
         """
-        module = importlib.import_module('src.eval')
-        evaluater_class = getattr(module, evaluation_setup['name'])
+        module = importlib.import_module("src.eval")
+        evaluater_class = getattr(module, evaluation_setup["name"])
         return evaluater_class()
 
     def _get_optimizer(self, optimizer_setup: dict, **params):
-        if optimizer_setup['name'] == 'Adam':
-            optimizer = torch.optim.Adam(self.model.parameters(), lr=optimizer_setup['learning_rate'], betas=optimizer_setup['betas'], **params)
+        if optimizer_setup["name"] == "Adam":
+            optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=optimizer_setup["learning_rate"], betas=optimizer_setup["betas"], **params
+            )
             if self.checkpoint is not None:
                 Logger.log("Recovering optimizer from the last checkpoint", type="WARNING", in_cli=True)
                 try:
-                    optimizer.load_state_dict(self.checkpoint['optimizer'])
+                    optimizer.load_state_dict(self.checkpoint["optimizer"])
                 except Exception:
                     Logger.log("Could not recover optimizer checkpoint state", type="ERROR", in_cli=True)
             return optimizer
         else:
-            raise ValueError(bcolors.FAIL + "ERROR: Optimizer " + optimizer_setup['name'] + " not recognized, aborting" + bcolors.ENDC)
+            raise ValueError(
+                bcolors.FAIL
+                + "ERROR: Optimizer "
+                + optimizer_setup["name"]
+                + " not recognized, aborting"
+                + bcolors.ENDC
+            )
 
     def _get_lr_scheduler(self, optimizer, scheduler_setup: dict):
         """
@@ -528,9 +560,9 @@ class Runner:
         # Create a scheduler based on the description
         scheduler = LinearLR(
             optimizer,
-            start_factor=scheduler_setup['start_factor'],
-            end_factor=scheduler_setup['end_factor'],
-            total_iters=scheduler_setup['total_iters'],
+            start_factor=scheduler_setup["start_factor"],
+            end_factor=scheduler_setup["end_factor"],
+            total_iters=scheduler_setup["total_iters"],
         )
 
         # Check if there is a checkpoint
@@ -539,7 +571,7 @@ class Runner:
 
             # Load the state dict
             try:
-                scheduler.load_state_dict(self.checkpoint['lr_scheduler'])
+                scheduler.load_state_dict(self.checkpoint["lr_scheduler"])
             except Exception:
                 Logger.log("Could not recover scheduler checkpoint state", type="ERROR", in_cli=True)
 
@@ -547,8 +579,8 @@ class Runner:
         return scheduler
 
     def _get_loss_function(self, loss_function_setup):
-        module = importlib.import_module('src.losses')
-        loss_class = getattr(module, loss_function_setup['name'])
+        module = importlib.import_module("src.losses")
+        loss_class = getattr(module, loss_function_setup["name"])
         return loss_class(**loss_function_setup)
 
     def _get_dataset(self, data: dict, preload: bool = True):
@@ -562,7 +594,11 @@ class Runner:
         if self.dataset is not None:
 
             # Warn user about overwriting the dataset
-            Logger.log("Dataset has been passed to runner. This overwrites the specification in the job config.", type="WARNING", in_cli=True)
+            Logger.log(
+                "Dataset has been passed to runner. This overwrites the specification in the job config.",
+                type="WARNING",
+                in_cli=True,
+            )
 
             # Return the overwrite data set
             return self.dataset
@@ -571,15 +607,22 @@ class Runner:
         base_path = Path(__file__).parent.parent.parent.resolve()
 
         # Generate the path where the data set is located at
-        dataset_path = os.path.join(base_path, data['root'])
+        dataset_path = os.path.join(base_path, data["root"])
 
         # Create an instance of the dataloader and pass location of data
-        dataset = CTDataset(dataset_path, preload=preload, transforms=data['transform'])
+        dataset = CTDataset(dataset_path, preload=preload, transforms=data["transform"])
 
         return dataset
 
-    def _get_dataloader(self, dataset, shuffle: bool = True, split_ratio: float = 0.5, num_workers: int = 0,
-                        batch_size: int = 64, pin_memory: bool = False):
+    def _get_dataloader(
+        self,
+        dataset,
+        shuffle: bool = True,
+        split_ratio: float = 0.5,
+        num_workers: int = 0,
+        batch_size: int = 64,
+        pin_memory: bool = False,
+    ):
         """
         The method returns data loader instances (if split) or just one dataloader based on the passed dataset
 
@@ -600,21 +643,24 @@ class Runner:
 
             # Determine split threshold and perform random split of the passed data set
             split_value = int(split_ratio * len(dataset))
-            first_split, second_split = random_split(dataset,
-                                                     [split_value, len(dataset) - split_value],
-                                                     generator=torch.Generator().manual_seed(10))
+            first_split, second_split = random_split(
+                dataset, [split_value, len(dataset) - split_value], generator=torch.Generator().manual_seed(10)
+            )
 
             # Initialize data loaders for both parts of the split data set
-            first_split = DataLoader(first_split, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
-                                     pin_memory=pin_memory)
-            second_split = DataLoader(second_split, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
-                                      pin_memory=pin_memory)
+            first_split = DataLoader(
+                first_split, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory
+            )
+            second_split = DataLoader(
+                second_split, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory
+            )
 
         else:
 
             # Just return one data loader then
-            first_split = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
-                                     pin_memory=pin_memory)
+            first_split = DataLoader(
+                dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory
+            )
 
         # Return tupel of splits
         return first_split, second_split
@@ -627,19 +673,19 @@ class Runner:
         """
 
         # Generate a variable that stores the checkpoint path
-        checkpoint_path = os.path.join(self.path, 'checkpoint.tar')
+        checkpoint_path = os.path.join(self.path, "checkpoint.tar")
 
         # Check if the file exists
         if not os.path.exists(checkpoint_path):
             return None
 
         # Load the checkpoint
-        return torch.load(checkpoint_path, map_location=torch.device('cpu'))
+        return torch.load(checkpoint_path, map_location=torch.device("cpu"))
 
     def _save_checkpoint(self, checkpoint_dict):
         """
         Saves a checkpoint dictionary in a tar object to load in case this job is repeated
         """
-        save_path = os.path.join('results', self.path, 'checkpoint.tar')
+        save_path = os.path.join("results", self.path, "checkpoint.tar")
         torch.save(checkpoint_dict, save_path)
         wandb.save(save_path)
