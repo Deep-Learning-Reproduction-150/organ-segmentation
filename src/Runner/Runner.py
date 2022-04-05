@@ -12,7 +12,7 @@ import random
 import json
 import wandb
 import os
-from torch.optim.lr_scheduler import LinearLR
+from torch.optim.lr_scheduler import MultiStepLR
 from src.utils import Logger, Timer, bcolors
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
