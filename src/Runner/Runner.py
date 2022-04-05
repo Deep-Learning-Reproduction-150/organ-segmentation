@@ -586,7 +586,7 @@ class Runner:
 
                 # Create raw prediction and label masks
                 prediction_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure) + 1
-                label_mask_data = torch.zeros_like(sample_image)
+                label_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure)
 
                 # Iterate through all organs and add them to it
                 for organ_slice, organ in enumerate(CTDataset.label_structure):
