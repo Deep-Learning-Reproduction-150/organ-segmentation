@@ -34,7 +34,8 @@ class CTDataset(Dataset):
     # Stores the transforms to be applied to the data set
     transforms = None
 
-    def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, transforms: list = []):
+    def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, transforms: list = [],
+                 no_logging: bool = True):
         """
         Constructor method of the dataloader. First parameter specifies directories that contain labels to the files
         provided. The dataloader is designed to work with nrrd files only at the moment. n-dimensional numpy arrays
@@ -43,6 +44,7 @@ class CTDataset(Dataset):
         :param root: where the data is stored (directory containing directories)
         :param label_folder_name: folder that contains labels
         :param preload: when true, system will load data directly when instantiating an object
+        :param no_logging: in case you create a CTDataset in CLI or so, you don't want logging - turn off this way
         :param transforms: a transformer (can be composed from many before passing it to constructor)
         """
 
@@ -64,8 +66,9 @@ class CTDataset(Dataset):
         possible_target_count = len(os.listdir(self.root))
 
         # Print loading message
-        Logger.log("Started loading the data set with possibly " + str(possible_target_count) + " samples " +
-                   "(preloading " + ("active" if preload else "inactive") + ")", type="INFO", in_cli=True)
+        if not no_logging:
+            Logger.log("Started loading the data set with possibly " + str(possible_target_count) + " samples " +
+                       "(preloading " + ("active" if preload else "inactive") + ")", type="INFO", in_cli=True)
 
         # Initiate the sample attribute
         self.samples = []
@@ -74,7 +77,8 @@ class CTDataset(Dataset):
         counter = 0
 
         # Log the start of creating the instance
-        Logger.log("Attempt to generate a dataset instance", in_cli=True)
+        if not no_logging:
+            Logger.log("Attempt to generate a dataset instance", in_cli=True)
 
         # Save all the samples
         for i, element in enumerate(os.scandir(self.root)):
@@ -100,25 +104,28 @@ class CTDataset(Dataset):
                 counter += 1
 
             # Print error of unexpected file in the passed directory
-            if element.is_file():
+            if element.is_file() and not no_logging:
                 # Log warning
                 Logger.log("Unexpected file was found in data directory (" + str(element) + ")", type="WARNING", in_cli=True)
 
-            # Print the changing import status line
-            done = (i / possible_target_count) * 100
-            # Finish the status bar
-            Logger.print_status_bar(done=done, title="creating dataset")
+            if not no_logging:
+                # Print the changing import status line
+                done = (i / possible_target_count) * 100
+                # Finish the status bar
+                Logger.print_status_bar(done=done, title="creating dataset")
 
         # Show the 100% status bar
-        Logger.print_status_bar(done=100, title="creating dataset")
-        Logger.end_status_bar()
+        if not no_logging:
+            Logger.print_status_bar(done=100, title="creating dataset")
+            Logger.end_status_bar()
 
         # If preloading is active, load the sample here already
         if preload:
 
             # Log the start of creating the instance
-            Logger.log("Start the preprocessing of the data", in_cli=True)
-            Logger.print_status_bar(done=0, title="preprocessing")
+            if not no_logging:
+                Logger.log("Start the preprocessing of the data", in_cli=True)
+                Logger.print_status_bar(done=0, title="preprocessing")
 
             # Iterate through all samples
             for i, sample in enumerate(self.samples):
@@ -127,14 +134,17 @@ class CTDataset(Dataset):
                 sample.load(transformer=self.get_data_transformer(), label_structure=CTDataset.label_structure)
 
                 # Print the changing import status line
-                done = ((i + 1) / len(self.samples)) * 100
-                Logger.print_status_bar(done=done, title="preprocessing")
+                if not no_logging:
+                    done = ((i + 1) / len(self.samples)) * 100
+                    Logger.print_status_bar(done=done, title="preprocessing")
 
             # End the status bar
-            Logger.end_status_bar()
+            if not no_logging:
+                Logger.end_status_bar()
 
         # Log that preloading was successful
-        Logger.log("Loading of data completed", type="SUCCESS", in_cli=True)
+        if not no_logging:
+            Logger.log("Loading of data completed", type="SUCCESS", in_cli=True)
 
     def __getitem__(self, index):
         """

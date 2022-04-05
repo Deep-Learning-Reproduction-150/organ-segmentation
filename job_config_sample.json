@@ -3,6 +3,7 @@
     "resume": true,
     "preload": false,
     "wandb_project_name": "organ segmentation",
+    "wandb_prediction_examples": 6,
     "wandb_api_key": "<your wandb api key>",
     "tensorboard": null,
     "model": {
