@@ -671,7 +671,7 @@ class Runner:
         dataset_path = os.path.join(base_path, data['root'])
 
         # Create an instance of the dataloader and pass location of data
-        dataset = CTDataset(dataset_path, preload=preload, transforms=data['transform'])
+        dataset = CTDataset(dataset_path, preload=preload, transforms=data['transform'], no_logging=False)
 
         return dataset
 
