@@ -180,33 +180,43 @@ class OrganNet25D(nn.Module):
 
         # 1x1x1 convs
 
-        self.one_d_1 = nn.Conv3d(
-            in_channels=256,
-            out_channels=128,
-            groups=1,
-            kernel_size=(1, 1, 1),
-            padding=0,  # TODO: Check on the padding, this is for the toy model
-            *args,
-            **kwargs,
+        self.one_d_1 = nn.Sequential(
+            nn.Conv3d(
+                in_channels=256,
+                out_channels=128,
+                groups=1,
+                kernel_size=(1, 1, 1),
+                padding=0,  # TODO: Check on the padding, this is for the toy model
+                *args,
+                **kwargs,
+            ),
+            nn.ReLU(),
         )
-        self.one_d_2 = nn.Conv3d(
-            in_channels=128,
-            out_channels=64,
-            groups=1,
-            kernel_size=(1, 1, 1),
-            padding=0,  # TODO: Check on the padding, this is for the toy model
-            *args,
-            **kwargs,
+        self.one_d_2 = nn.Sequential(
+            nn.Conv3d(
+                in_channels=128,
+                out_channels=64,
+                groups=1,
+                kernel_size=(1, 1, 1),
+                padding=0,  # TODO: Check on the padding, this is for the toy model
+                *args,
+                **kwargs,
+            ),
+            nn.ReLU(),
         )
-        self.one_d_3 = nn.Conv3d(  # The final layer in the network
-            in_channels=32,
-            out_channels=10,
-            groups=1,
-            kernel_size=(1, 1, 1),
-            padding=(0, 4, 4),  # TODO: Check on the padding, this is for the toy model
-            *args,
-            **kwargs,
+        self.one_d_3 = nn.Sequential(
+            nn.Conv3d(  # The final layer in the network
+                in_channels=32,
+                out_channels=10,
+                groups=1,
+                kernel_size=(1, 1, 1),
+                padding=(0, 4, 4),  # TODO: Check on the padding, this is for the toy model
+                *args,
+                **kwargs,
+            ),
+            nn.Sigmoid(),
         )
+
         # Downsampling maxpool
         self.downsample1 = nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2), padding=0, dilation=1)
         self.downsample2 = nn.MaxPool3d(kernel_size=(2, 2, 2), stride=(2, 2, 2), padding=0, dilation=1)
@@ -217,7 +227,7 @@ class OrganNet25D(nn.Module):
 
         return
 
-    def forward(self, x: torch.Tensor, verbose=None, mock=True):
+    def forward(self, x: torch.Tensor, verbose=None):
         """
         This method takes an image of type CTData and
         uses the model to create the segmentation of organs
@@ -330,7 +340,6 @@ class OrganNet25D(nn.Module):
 
 
 class ToyOrganNet25D(OrganNet25D):
-
     def forward(self, x, *args, **kwargs):
         out1 = self.two_d_1(x)
 
