@@ -40,7 +40,7 @@ class CombinedLoss(nn.Module):
         gamma=2,
         alpha=DEFAULT_AC,
     ):
-        inputs = F.sigmoid(inputs)
+        inputs = torch.sigmoid(inputs)
 
         dice = self.dice(inputs, targets)
         focal = self.focal(inputs, targets, alpha=alpha, gamma=gamma)
