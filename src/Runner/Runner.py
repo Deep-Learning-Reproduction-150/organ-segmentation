@@ -582,23 +582,29 @@ class Runner:
                 sample_image = inputs[batch_no, 0, slice_no, :, :]
 
                 # Create raw prediction and label masks
-                prediction_mask_data = torch.zeros_like(sample_image)
+                prediction_mask_data = torch.ones_like(sample_image) * 10
                 label_mask_data = torch.zeros_like(sample_image)
 
                 # Iterate through all organs and add them to it
                 for organ_slice, organ in enumerate(CTDataset.label_structure):
                     raw_prediction = model_output[batch_no, organ_slice, slice_no, :, :]
-                    raw_prediction = torch.nan_to_num(raw_prediction)
                     raw_label = labels[batch_no, organ_slice, slice_no, :, :]
 
                     prediction_mask_data = torch.where(
-                        raw_prediction > 0, torch.tensor(organ_slice + 1, dtype=torch.float32), prediction_mask_data
+                        raw_prediction > 0.5, torch.tensor(organ_slice + 1, dtype=torch.float32), prediction_mask_data
                     )
                     label_mask_data = torch.where(
                         raw_label > 0, torch.tensor(organ_slice + 1, dtype=torch.float32), label_mask_data
                     )
 
-                class_labels = {0: "Nothing"}
+                # Do the same for the background
+                background_prediction = model_output[batch_no, len(CTDataset.label_structure), slice_no, :, :]
+                prediction_mask_data = torch.where(
+                    background_prediction > 0.5, torch.tensor(0, dtype=torch.float32), prediction_mask_data
+                )
+
+                # Prepare class labels
+                class_labels = {0: "Background", len(CTDataset.label_structure) + 1: "No Prediction"}
                 for i, organ in enumerate(CTDataset.label_structure):
                     class_labels[i + 1] = organ
 
