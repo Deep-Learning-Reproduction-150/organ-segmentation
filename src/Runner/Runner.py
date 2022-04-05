@@ -735,7 +735,7 @@ class Runner:
                     raw_label = labels[batch_no, organ_slice, slice_no, :, :]
 
                     # Create a dynamic threshold based on the median
-                    dynamic_predict_threshold = float(raw_prediction.median())
+                    dynamic_predict_threshold = float(raw_prediction.min() + ((raw_prediction.max() - raw_prediction.min()) / 2))
 
                     prediction_mask_data = torch.where(
                         raw_prediction > dynamic_predict_threshold,
