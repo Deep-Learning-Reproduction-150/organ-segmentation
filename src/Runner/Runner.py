@@ -451,6 +451,9 @@ class Runner:
                 # Log some prediction examples (with image overlays)
                 self._log_prediction_examples(inputs, labels, model_output)
 
+                # Include max and min of predictions per organ
+                self._log_prediction_max_min(model_output)
+
                 # Log this current status
                 self.wandb_worker.log(
                     {
@@ -582,7 +585,7 @@ class Runner:
                 sample_image = inputs[batch_no, 0, slice_no, :, :]
 
                 # Create raw prediction and label masks
-                prediction_mask_data = torch.ones_like(sample_image) * 10
+                prediction_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure) + 1
                 label_mask_data = torch.zeros_like(sample_image)
 
                 # Iterate through all organs and add them to it
@@ -591,22 +594,22 @@ class Runner:
                     raw_label = labels[batch_no, organ_slice, slice_no, :, :]
 
                     prediction_mask_data = torch.where(
-                        raw_prediction > 0.5, torch.tensor(organ_slice + 1, dtype=torch.float32), prediction_mask_data
+                        raw_prediction > 0.5, torch.tensor(organ_slice, dtype=torch.float32), prediction_mask_data
                     )
                     label_mask_data = torch.where(
-                        raw_label > 0, torch.tensor(organ_slice + 1, dtype=torch.float32), label_mask_data
+                        raw_label > 0.5, torch.tensor(organ_slice, dtype=torch.float32), label_mask_data
                     )
 
                 # Do the same for the background
                 background_prediction = model_output[batch_no, len(CTDataset.label_structure), slice_no, :, :]
                 prediction_mask_data = torch.where(
-                    background_prediction > 0.5, torch.tensor(0, dtype=torch.float32), prediction_mask_data
+                    background_prediction > 0.5, torch.tensor(len(CTDataset.label_structure), dtype=torch.float32), prediction_mask_data
                 )
 
                 # Prepare class labels
-                class_labels = {0: "Background", len(CTDataset.label_structure) + 1: "No Prediction"}
+                class_labels = {len(CTDataset.label_structure): "Background", len(CTDataset.label_structure) + 1: "No Prediction"}
                 for i, organ in enumerate(CTDataset.label_structure):
-                    class_labels[i + 1] = organ
+                    class_labels[i] = organ
 
                 # Convert to ndarray for wandb
                 input_image = sample_image.cpu().detach().numpy()
@@ -645,6 +648,19 @@ class Runner:
 
             # Warn that there was no model output
             Logger.log("No prediction examples could be logged, as there is no model output", in_cli=True)
+
+    def _log_prediction_max_min(self, model_output):
+
+        max_vals = {}
+        min_vals = {}
+        for i, organ in enumerate(CTDataset.label_structure):
+            max_vals[organ] = model_output[:, i, :, :, :].max()
+            min_vals[organ] = model_output[:, i, :, :, :].max()
+
+        self.wandb_worker.log({
+            'predictions minimum value': min_vals,
+            'predictions maximum value': max_vals
+        }, commit=False)
 
     def _get_optimizer(self, optimizer_setup: dict, **params):
         if optimizer_setup["name"] == "Adam":
