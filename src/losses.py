@@ -25,7 +25,7 @@ DEFAULT_AC = torch.Tensor(
 
 
 class CombinedLoss(nn.Module):
-    def __init__(self, weight=None, size_average=True, alpha=DEFAULT_AC, input_dim=None, *args, **kwargs):
+    def __init__(self, alpha, input_dim, weight=None, size_average=True, *args, **kwargs):
         """
         TODO: Implement weights["focal"] as
         0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, and 3.0
@@ -37,12 +37,9 @@ class CombinedLoss(nn.Module):
         self.dice = DiceLoss()
         self.focal = FocalLoss()
 
-        if input_dim is not None and alpha is not None:
-            self.alpha = self.make_ac(alpha, input_dim)
+        self.alpha = self.make_ac(alpha, input_dim)
 
-    def forward(self, inputs, targets, l=1.0, gamma=2, alpha=DEFAULT_AC):
-        if self.alpha is None:
-            self.alpha = self.make_ac(alpha, inputs.shape)
+    def forward(self, inputs, targets, l=1.0, gamma=2):
 
         dice = self.dice(inputs, targets)
 
