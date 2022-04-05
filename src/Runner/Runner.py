@@ -597,9 +597,6 @@ class Runner:
         :param labels:
         :param model_output:
         """
-        inputs = inputs.detach()
-        labels = labels.detach()
-        model_output = model_output.detach()
 
         # Generate a random slice as example for reconstruction
         if model_output is not None:
@@ -705,9 +702,6 @@ class Runner:
 
         TODO: maybe there could be a smart way to actually find the most interesting slides?
         """
-        inputs = inputs.detach()
-        labels = labels.detach()
-        model_output = model_output.detach()
 
         # Generate a random slice as example for reconstruction
         if model_output is not None:
