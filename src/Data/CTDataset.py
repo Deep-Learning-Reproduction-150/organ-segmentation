@@ -147,9 +147,6 @@ class CTDataset(Dataset):
             if not no_logging:
                 Logger.end_status_bar()
 
-        a = CTDataset.label_structure
-        b = 0
-
         # Log that preloading was successful
         if not no_logging:
             Logger.log("Loading of data completed", type="SUCCESS", in_cli=True)

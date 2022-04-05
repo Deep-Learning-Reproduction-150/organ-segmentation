@@ -15,6 +15,7 @@ import os
 import numpy as np
 from torch.optim.lr_scheduler import MultiStepLR
 from src.utils import Logger, Timer, bcolors
+from src.losses import DiceLoss
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
 from src.Model.OrganNet25D import OrganNet25D
@@ -259,6 +260,9 @@ class Runner:
         # Start timer to measure data set
         creation_took = self.timer.get_time("creating dataset")
 
+        # This variable eventually contains dice scores that are created in evaluation
+        organ_dice_losses = {}
+
         # Notify about data set creation
         dataset_constructor_took = "{:.2f}".format(creation_took)
         Logger.log("Generation of data set took " + dataset_constructor_took + " seconds", in_cli=True)
@@ -394,6 +398,10 @@ class Runner:
                 # Initialize a running loss of 99999
                 eval_running_loss = 0
 
+                # Initiate dice loss per organ and total
+                organ_dice_losses = {}
+                dice_loss_fn = DiceLoss()
+
                 # Perform validation on healthy images
                 for batch, batch_input in enumerate(self.eval_data):
 
@@ -404,14 +412,35 @@ class Runner:
 
                     # Calculate output
                     model_output = self.model(inputs)
+
                     # Determine loss
                     eval_loss = loss_function(model_output, labels)
 
                     # Add to running validation loss
                     eval_running_loss += eval_loss.detach().cpu().numpy()
 
+                    # Iterate through channels and compute dice losses for metric logging
+                    for i, organ in enumerate(CTDataset.label_structure):
+                        sub_tensor = model_output[:, i, :, :, :]
+                        sub_label = labels[:, i, :, :, :]
+                        if organ not in organ_dice_losses.keys():
+                            organ_dice_losses[organ] = []
+                        organ_dice_losses[organ].append(float(dice_loss_fn(sub_tensor, sub_label)))
+                    if 'Background' not in organ_dice_losses.keys():
+                        organ_dice_losses['Background'] = []
+                    organ_dice_losses['Background'].append(
+                        float(dice_loss_fn(
+                            model_output[:, len(CTDataset.label_structure), :, :, :],
+                            labels[:, len(CTDataset.label_structure), :, :, :]
+                        ))
+                    )
+
                     # Print epoch status bar
                     Logger.print_status_bar(done=((batch + 1) / len(self.eval_data)) * 100, title="validating model")
+
+                # Mean over the dice losses
+                for key, val in organ_dice_losses.items():
+                    organ_dice_losses[key] = sum(organ_dice_losses[key]) / len(organ_dice_losses[key])
 
                 # End status bar
                 Logger.end_status_bar()
@@ -464,6 +493,7 @@ class Runner:
                         "learning rate": current_lr,
                         "epoch duration": epoch_time,
                         "epoch": epoch + 1,
+                        'DSC per channel': organ_dice_losses
                     },
                     commit=False,
                 )
