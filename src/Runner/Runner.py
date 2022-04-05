@@ -299,6 +299,9 @@ class Runner:
             # Print notification
             Logger.log("Resuming training in epoch " + str(start_epoch), in_cli=True)
 
+        if self.job["training"]["detect_bad_gradients"]:
+            Logger.log("Selected detect_bad_gradients - using AutoGrad", type="WARNUNG", in_cli=True)
+
         # Iterate through epochs (based on jobs setting)
         for epoch in range(start_epoch, self.job["training"]["epochs"]):
 
@@ -337,7 +340,6 @@ class Runner:
                 loss = loss_function(model_output, labels)
 
                 if self.job["training"]["detect_bad_gradients"]:
-                    print("DEBUG::Using AutoGrad")
                     from torch import autograd
 
                     with autograd.detect_anomaly():

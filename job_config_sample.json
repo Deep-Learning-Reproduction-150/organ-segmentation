@@ -13,6 +13,7 @@
     },
     "training": {
         "epochs": 200,
+        "detect_bad_gradients": true,
         "loss": {
             "name": "CombinedLoss"
         },
