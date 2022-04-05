@@ -12,7 +12,7 @@
     "training": {
         "epochs": 200,
         "loss": {
-            "name": "DiceLoss"
+            "name": "CombinedLoss"
         },
         "split_ratio": 0.9,
         "wandb_id": null,
