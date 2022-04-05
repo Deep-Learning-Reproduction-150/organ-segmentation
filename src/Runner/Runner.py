@@ -12,6 +12,7 @@ import random
 import json
 import wandb
 import os
+import numpy as np
 from torch.optim.lr_scheduler import MultiStepLR
 from src.utils import Logger, Timer, bcolors
 from pathlib import Path
@@ -376,15 +377,8 @@ class Runner:
             # Finish the status bar
             Logger.end_status_bar()
 
-            # Stop timer to measure epoch length
-            epoch_time = self.timer.get_time("epoch")
-
             # Calculate epoch los
             epoch_train_loss = running_loss / len(self.train_data)
-
-            # Log the epoch success
-            avg_loss = "{:.2f}".format(epoch_train_loss)
-            Logger.log("Epoch took " + str(epoch_time) + " seconds. The average loss is " + avg_loss, in_cli=self.debug)
 
             # Perform validation
             if self.eval_data is not None:
@@ -445,6 +439,13 @@ class Runner:
             lr_formatted = "{:.6f}".format(current_lr)
             Logger.log("Learning rate currently at " + str(lr_formatted), in_cli=True)
 
+            # Stop timer to measure epoch length
+            epoch_time = self.timer.get_time("epoch")
+
+            # Log the epoch success TODO: more here soon
+            avg_loss = "{:.2f}".format(epoch_train_loss)
+            Logger.log("Epoch took " + str(epoch_time) + " seconds. The average loss is " + avg_loss, in_cli=self.debug)
+
             # Report the current loss to wandb if it's set
             if self.job["wandb_api_key"]:
 
@@ -461,6 +462,7 @@ class Runner:
                         "training loss": epoch_train_loss,
                         "evaluation loss": epoch_evaluation_loss,
                         "learning rate": current_lr,
+                        "epoch duration": epoch_time,
                         "epoch": epoch + 1,
                     },
                     commit=False,
@@ -675,15 +677,41 @@ class Runner:
                 in_cli=True,
             )
 
+            # Select a random sample from the batch
+            batch_no = random.randint(0, inputs.size()[0] - 1)
+
+            # Iterate through the model output and find good and bad slices
+            good_slices_data = {'good': [], 'bad': []}
+            for s in range(labels.size()[-3] - 1):
+                current_max = labels[batch_no, list(range(len(CTDataset.label_structure) - 1)), s, :, :].max()
+                if current_max > 0.5:
+                    good_slices_data['good'].append(s)
+                else:
+                    good_slices_data['bad'].append(s)
+
+            # Compose the good slices in a list
+            first_good_slice = sorted(good_slices_data['good'])[0]
+            last_good_slice = sorted(good_slices_data['good'])[-1]
+            have_want_difference = (last_good_slice - first_good_slice + 1) - self.job["wandb_prediction_examples"]
+            if have_want_difference >= 0:
+                good_slices = np.linspace(first_good_slice, last_good_slice, num=self.job["wandb_prediction_examples"], dtype=int)
+            else:
+                possible_slices = self.job["wandb_prediction_examples"]
+                if self.job["wandb_prediction_examples"] > inputs.size()[-3]:
+                    Logger.log("Requested " + str(self.job["wandb_prediction_examples"]) + " slices, but can only return " + str(inputs.size()[-3]), type="ERROR", in_cli=True)
+                    possible_slices = inputs.size()[-3]
+                good_slices = sorted(good_slices_data['good'])
+                while len(good_slices) < possible_slices:
+                    random_slice = random.randint(0, inputs.size()[-3] - 1)
+                    if random_slice not in good_slices:
+                        good_slices.append(random_slice)
+                good_slices = sorted(good_slices)
+
             # Create a list of masks
             mask_list = []
 
             # Do 5 random slices to show what is happening
-            for i in range(self.job["wandb_prediction_examples"]):
-
-                # Slice a random image from there
-                slice_no = random.randint(0, model_output.size()[-3] - 1)
-                batch_no = random.randint(0, inputs.size()[0] - 1)
+            for slice_no in good_slices:
 
                 # Obtain the actual image
                 sample_image = inputs[batch_no, 0, slice_no, :, :]
@@ -697,8 +725,11 @@ class Runner:
                     raw_prediction = model_output[batch_no, organ_slice, slice_no, :, :]
                     raw_label = labels[batch_no, organ_slice, slice_no, :, :]
 
+                    # Create a dynamic threshold based on the median
+                    dynamic_predict_threshold = float(raw_prediction.median())
+
                     prediction_mask_data = torch.where(
-                        raw_prediction > 0.5, torch.tensor(organ_slice, dtype=torch.float32), prediction_mask_data
+                        raw_prediction > dynamic_predict_threshold, torch.tensor(organ_slice, dtype=torch.float32), prediction_mask_data
                     )
                     label_mask_data = torch.where(
                         raw_label > 0.5, torch.tensor(organ_slice, dtype=torch.float32), label_mask_data
@@ -707,7 +738,7 @@ class Runner:
                 # Do the same for the background
                 background_prediction = model_output[batch_no, len(CTDataset.label_structure), slice_no, :, :]
                 prediction_mask_data = torch.where(
-                    background_prediction > 0.5, torch.tensor(len(CTDataset.label_structure), dtype=torch.float32), prediction_mask_data
+                    background_prediction > float(background_prediction.median()), torch.tensor(len(CTDataset.label_structure), dtype=torch.float32), prediction_mask_data
                 )
 
                 # Prepare class labels
