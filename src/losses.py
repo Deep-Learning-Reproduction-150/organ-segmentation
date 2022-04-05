@@ -16,7 +16,7 @@ from matplotlib import pyplot as plt
 
 DEFAULT_AC = 1.0  # torch.Tensor(
 # [0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0]
-# )  # focal loss weights per channels from the paper
+# )  # TODO: focal loss weights per channels from the paper
 
 
 class CombinedLoss(nn.Module):
@@ -40,6 +40,7 @@ class CombinedLoss(nn.Module):
         gamma=2,
         alpha=DEFAULT_AC,
     ):
+        inputs = F.sigmoid(inputs)
 
         dice = self.dice(inputs, targets)
         focal = self.focal(inputs, targets, alpha=alpha, gamma=gamma)
@@ -79,7 +80,6 @@ class FocalLoss(nn.Module):
         # flatten label and prediction tensors
         inputs = inputs.view(-1)
         targets = targets.view(-1)
-
         # first compute binary cross-entropy
         BCE = F.binary_cross_entropy(inputs, targets, reduction="mean")
         BCE_EXP = torch.exp(-BCE)
