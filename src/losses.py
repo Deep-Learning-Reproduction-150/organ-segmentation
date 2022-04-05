@@ -50,8 +50,9 @@ class CombinedLoss(nn.Module):
 
     @staticmethod
     def make_ac(alpha_values, input_dims):
+        alpha_tensor = torch.Tensor(alpha_values)
         placeholder = torch.ones(input_dims)
-        alpha = (placeholder.transpose(1, -1) * alpha_values).transpose(1, -1).view(-1)
+        alpha = (placeholder.transpose(1, -1) * alpha_tensor).transpose(1, -1).view(-1)
         return alpha
 
 
