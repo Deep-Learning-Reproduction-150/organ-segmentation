@@ -420,7 +420,7 @@ class Runner:
                     "training loss": epoch_train_loss,
                     "evaluation loss": epoch_evaluation_loss,
                     "learning rate": current_lr,
-                    "epoch rate": epoch + 1,
+                    "epoch": epoch + 1,
                 })
 
             # Log that the checkpoint is saved
