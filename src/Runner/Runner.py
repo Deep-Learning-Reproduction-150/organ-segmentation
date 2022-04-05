@@ -8,6 +8,7 @@ Group: 150
 
 import torch
 import importlib
+import random
 import json
 import wandb
 import os
@@ -238,9 +239,11 @@ class Runner:
 
             # Load wandb
             wandb_run_id = wandb_id if not None else self.job['wandb_run_id']
+
+            # Disable wandb console output
             os.environ["WANDB_SILENT"] = "true"
             wandb.login(key=self.job['wandb_api_key'])
-            wandb.init(project=self.job['wandb_project_name'], resume=start_epoch > 0, id=wandb_run_id)
+            self.wandb_worker = wandb.init(project=self.job['wandb_project_name'], resume=start_epoch > 0, id=wandb_run_id)
 
         # Start timer to measure data set
         self.timer.start('creating dataset')
@@ -277,7 +280,7 @@ class Runner:
 
         # Enable wandb logging
         if self.job['wandb_api_key']:
-            wandb.watch(self.model, log="gradients", log_freq=1)
+            self.wandb_worker.watch(self.model, log="gradients", log_freq=1)
 
         # Check if start epoch is not zero and notify
         if start_epoch > 0:
@@ -293,6 +296,11 @@ class Runner:
 
             # Print epoch status bar
             Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(self.job['training']['epochs']))
+
+            # Initiate a model output, input and labels variable with none
+            model_output = None
+            labels = None
+            inputs = None
 
             # Start the epoch timer
             self.timer.start('epoch')
@@ -416,12 +424,70 @@ class Runner:
 
             # Report the current loss to wandb if it's set
             if self.job['wandb_api_key']:
-                wandb.log({
+
+                # Generate a random slice as example for reconstruction
+                if model_output is not None:
+
+                    # Create a list of masks
+                    mask_list = []
+
+                    # Do 5 random slices to show what is happening
+                    for i in range(5):
+
+                        # Slice a random image from there
+                        slice_no = random.randint(0, model_output.size()[-3] - 1)
+                        batch_no = random.randint(0, inputs.size()[0] - 1)
+
+                        # Obtain the actual image
+                        sample_image = inputs[batch_no, 0, slice_no, :, :]
+
+                        # Create raw prediction and label masks
+                        prediction_mask_data = torch.zeros_like(sample_image)
+                        label_mask_data = torch.zeros_like(sample_image)
+
+                        # Iterate through all organs and add them to it
+                        for organ_slice, organ in enumerate(CTDataset.label_structure):
+                            raw_prediction = model_output[batch_no, organ_slice, slice_no, :, :]
+                            raw_prediction = torch.nan_to_num(raw_prediction)
+                            raw_label = labels[batch_no, organ_slice, slice_no, :, :]
+
+                            prediction_mask_data = torch.where(raw_prediction > 0, torch.tensor(organ_slice + 1, dtype=torch.float32), prediction_mask_data)
+                            label_mask_data = torch.where(raw_label > 0, torch.tensor(organ_slice + 1, dtype=torch.float32), label_mask_data)
+
+                        class_labels = {0: 'Nothing'}
+                        for i, organ in enumerate(CTDataset.label_structure):
+                            class_labels[i + 1] = organ
+
+                        # Convert to ndarray for wandb
+                        input_image = sample_image.cpu().detach().numpy()
+
+                        # Append this slice to the predictions
+                        mask_list.append(wandb.Image(input_image, caption='Slice ' + str(slice_no), masks={
+                            "predictions": {
+                                "class_labels": class_labels,
+                                "mask_data": prediction_mask_data.cpu().detach().numpy()
+                            },
+                            "ground_truth": {
+                                "class_labels": class_labels,
+                                "mask_data": label_mask_data.cpu().detach().numpy()
+                            }
+                        }))
+
+                    # Log all organ predictions
+                    self.wandb_worker.log({
+                        'predictions': mask_list,
+                    }, commit=False)
+
+                # Log this current status
+                self.wandb_worker.log({
                     "training loss": epoch_train_loss,
                     "evaluation loss": epoch_evaluation_loss,
                     "learning rate": current_lr,
-                    "epoch": epoch + 1,
-                })
+                    "epoch": epoch + 1
+                }, commit=False)
+
+                # Log all to wandb
+                self.wandb_worker.log({})
 
             # Log that the checkpoint is saved
             Logger.log("Saving checkpoint for epoch " + str(epoch + 1), in_cli=True)
@@ -432,7 +498,7 @@ class Runner:
                 'model': self.model.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'lr_scheduler': scheduler.state_dict(),
-                'train_loss': epoch_train_loss,
+                'train-loss': epoch_train_loss,
                 'eval_loss': epoch_evaluation_loss,
                 'training_done': epoch == (self.job['training']['epochs'] - 1),
                 'wandb_run_id': self.job['wandb_run_id']
@@ -446,7 +512,7 @@ class Runner:
 
         # Check if wandb shall be used
         if self.job['wandb_api_key']:
-            wandb.finish()
+            self.wandb_worker.finish()
 
     def _evaluate(self, evaluation_setup: dict):
         """
@@ -486,6 +552,8 @@ class Runner:
             "end_factor": 0.01,
             "total_iters": 100
         })
+
+        # Append a wandb id if none exists yet
         job_data.setdefault('wandb_run_id', wandb.util.generate_id())
 
         return job_data
@@ -642,4 +710,7 @@ class Runner:
         """
         save_path = os.path.join('results', self.path, 'checkpoint.tar')
         torch.save(checkpoint_dict, save_path)
-        wandb.save(save_path)
+
+        # Check if wandb shall be used
+        if self.job['wandb_api_key']:
+            wandb.save(save_path)
