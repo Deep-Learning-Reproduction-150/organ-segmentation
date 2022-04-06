@@ -1,6 +1,7 @@
 import skimage.transform as transform
 from torchvision.transforms import CenterCrop
 import numpy as np
+from scipy import ndimage
 from sklearn.preprocessing import MinMaxScaler
 import torch
 
@@ -145,3 +146,71 @@ class StandardScaleTensor(object):
     def __call__(self, tensor):
         scaled_tensor = ((tensor - tensor.min()) / (tensor.max() - tensor.min() + 1e-6)).to(tensor.dtype)
         return scaled_tensor
+
+
+class CropAroundBrainStem(object):
+
+    def __init__(self, depth=1, width=1, height=1):
+        self.depth = depth
+        self.width = width
+        self.height = height
+
+    def __call__(self, vol):
+        # Pass here, because this special transformation requires the brain stem data (later given)
+        return vol
+
+    def perform_transformation(self, vol, transformer, brain_stem):
+
+        # Get the tensors dimensions for further computation
+        dims = list(vol[0, :, :, :].size())
+        wanted_dims = [self.depth, self.width, self.height]
+
+        # Check the desired dimensions
+        if len(dims) != len(wanted_dims):
+            raise ValueError("Dimensions mismatch in CropAroundBrainStem transformation")
+
+        # Check if the dimensions are all possible
+        for i in range(len(dims)):
+            if wanted_dims[i] > dims[i]:
+                raise ValueError("Can not increase the size of the image")
+
+        # Obtain the brain stem tensor
+        bs = brain_stem.get_tensor(transformer=transformer)
+        if bs.count_nonzero():
+
+            # Compute the center of gravity
+            center_of_gravity = ndimage.center_of_mass(np.array(bs[0, :, :, :]))
+
+            # Iterate through the dimensions of gravity center
+            for i, center in enumerate(center_of_gravity):
+
+                # Compute the max and min crop bound
+                crop_max = int(center + wanted_dims[i] / 2)
+                crop_min = crop_max - wanted_dims[i]
+
+                if crop_max > dims[i]:
+                    # Correct downwards
+                    diff = crop_max - dims[i]
+                    crop_max -= diff
+                    crop_min -= diff
+
+                if crop_min < 0:
+                    # Correct upwards
+                    diff = -crop_min
+                    crop_max += diff
+                    crop_min += diff
+
+                # Depending on the dimension, cut tensor
+                if i == 0:
+                    vol = vol[:, crop_min:crop_max, :, :]
+                if i == 1:
+                    vol = vol[:, :, crop_min:crop_max, :]
+                if i == 2:
+                    vol = vol[:, :, :, crop_min:crop_max]
+
+            return vol
+
+        else:
+
+            # Flash error that does not contain data
+            raise ValueError("Brain stem tensor does not contain any data")

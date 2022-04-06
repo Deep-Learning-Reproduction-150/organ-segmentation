@@ -13,6 +13,7 @@ import os
 import glob
 import torch
 from torch import from_numpy
+from src.Data.transforms import CropAroundBrainStem
 from src.utils import bcolors, Logger
 from src.Data.CTData import CTData
 from src.Data.utils import DataTransformer
@@ -132,8 +133,16 @@ class LabeledSample:
         :return tensor: which contains the data points
         """
 
+        # Get the tensor with the transformers
+        tensor = self.sample.get_tensor(transformer=transformer)
+
+        # Look for special brain stem transformation
+        for trans in transformer.transforms:
+            if type(trans) is CropAroundBrainStem:
+                tensor = trans.perform_transformation(tensor, transformer, self._get_brain_stem_data())
+
         # Return the sample (which is a tensor)
-        return self.sample.get_tensor(transformer=transformer)
+        return tensor
 
     def get_labels(self, label_structure: list, transformer: DataTransformer = DataTransformer([])):
         """
@@ -183,8 +192,16 @@ class LabeledSample:
                 label_mask = torch.where(label > torch.tensor(0, dtype=torch.int8), torch.tensor(0, dtype=torch.int8), label_mask)
             tensors.append(label_mask)
 
+            # Compose a big tensor of this
+            tensors = torch.cat(tensors, 0)
+
+            # Look for special brain stem transformation
+            for trans in transformer.transforms:
+                if type(trans) is CropAroundBrainStem:
+                    tensors = trans.perform_transformation(tensors, transformer, self._get_brain_stem_data())
+
             # Return the list of label tensors
-            return torch.cat(tensors, 0)
+            return tensors
         else:
 
             # Warn about no tensors
@@ -216,3 +233,10 @@ class LabeledSample:
         TODO: implement
         """
         a = 0
+
+    def _get_brain_stem_data(self):
+        for label in self.labels:
+            if label.name == 'BrainStem':
+                return label
+        Logger.log("Brain stem not contained in data sample " + str(self.id), type="ERROR", in_cli=True)
+        return None

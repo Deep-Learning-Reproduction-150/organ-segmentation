@@ -465,10 +465,6 @@ class Runner:
             # Obtain the current learning rate
             current_lr = scheduler.get_last_lr()[0]
 
-            # Print the current learning rate
-            lr_formatted = "{:.6f}".format(current_lr)
-            Logger.log("Learning rate currently at " + str(lr_formatted), in_cli=True)
-
             # Stop timer to measure epoch length
             epoch_time = self.timer.get_time("epoch")
 
@@ -516,11 +512,11 @@ class Runner:
                 }
             )
 
-            # Write log message that the training has been completed
-            Logger.log("Checkpoint updated for epoch " + str(epoch + 1), in_cli=True)
+            # Obtain the current learning rate
+            lr_formatted = "{:.6f}".format(current_lr)
 
             # Print epoch status
-            Logger.log("Training loss is " + avg_loss + ", validation loss is " + avg_val_loss, in_cli=True)
+            Logger.log("Train loss: " + avg_loss + ". Eval loss: " + avg_val_loss + ". LR: " + lr_formatted, in_cli=True)
             Logger.log("Epoch took " + str(epoch_time) + " seconds.", in_cli=self.debug)
 
         # Write log message that the training has been completed

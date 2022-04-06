@@ -81,7 +81,7 @@
                     "dim_2": -1
                 },
                 {
-                    "name": "EasyResize",
+                    "name": "CropAroundBrainStem",
                     "width": 256,
                     "height": 256,
                     "depth": 48
@@ -94,7 +94,7 @@
                     "dim_2": -1
                 },
                 {
-                    "name": "EasyResize",
+                    "name": "CropAroundBrainStem",
                     "width": 256,
                     "height": 256,
                     "depth": 48
