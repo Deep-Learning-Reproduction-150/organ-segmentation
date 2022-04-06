@@ -82,7 +82,7 @@ class HDC(nn.Module):
             kernel_size=(1, 1, 1),
             stride=1,
             padding=padding,
-            dilation=(dilation, dilation, dilation),
+            dilation=1,
         )
 
     def forward(self, x):
@@ -351,7 +351,7 @@ class OrganNet25D(nn.Module):
                 **kwargs,
             ),
             nn.Sigmoid(),
-            nn.Softmax(),
+            nn.Softmax(dim=(1)),
         )
 
         # Downsampling maxpool
