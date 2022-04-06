@@ -155,14 +155,10 @@ class CropAroundBrainStem(object):
         self.width = width
         self.height = height
 
-    def __call__(self, vol):
-        # Pass here, because this special transformation requires the brain stem data (later given)
-        return vol
-
-    def perform_transformation(self, vol, transformer, brain_stem):
+    def __call__(self, vol, center):
 
         # Get the tensors dimensions for further computation
-        dims = list(vol[0, :, :, :].size())
+        dims = list(vol[:, :, :].size())
         wanted_dims = [self.depth, self.width, self.height]
 
         # Check the desired dimensions
@@ -174,43 +170,31 @@ class CropAroundBrainStem(object):
             if wanted_dims[i] > dims[i]:
                 raise ValueError("Can not increase the size of the image")
 
-        # Obtain the brain stem tensor
-        bs = brain_stem.get_tensor(transformer=transformer)
-        if bs.count_nonzero():
+        # Iterate through the dimensions of gravity center
+        for i, center in enumerate(center):
 
-            # Compute the center of gravity
-            center_of_gravity = ndimage.center_of_mass(np.array(bs[0, :, :, :]))
+            # Compute the max and min crop bound
+            crop_max = int(center + wanted_dims[i] / 2)
+            crop_min = crop_max - wanted_dims[i]
 
-            # Iterate through the dimensions of gravity center
-            for i, center in enumerate(center_of_gravity):
+            if crop_max > dims[i]:
+                # Correct downwards
+                diff = crop_max - dims[i]
+                crop_max -= diff
+                crop_min -= diff
 
-                # Compute the max and min crop bound
-                crop_max = int(center + wanted_dims[i] / 2)
-                crop_min = crop_max - wanted_dims[i]
+            if crop_min < 0:
+                # Correct upwards
+                diff = -crop_min
+                crop_max += diff
+                crop_min += diff
 
-                if crop_max > dims[i]:
-                    # Correct downwards
-                    diff = crop_max - dims[i]
-                    crop_max -= diff
-                    crop_min -= diff
+            # Depending on the dimension, cut tensor
+            if i == 0:
+                vol = vol[crop_min:crop_max, :, :]
+            if i == 1:
+                vol = vol[:, crop_min:crop_max, :]
+            if i == 2:
+                vol = vol[:, :, crop_min:crop_max]
 
-                if crop_min < 0:
-                    # Correct upwards
-                    diff = -crop_min
-                    crop_max += diff
-                    crop_min += diff
-
-                # Depending on the dimension, cut tensor
-                if i == 0:
-                    vol = vol[:, crop_min:crop_max, :, :]
-                if i == 1:
-                    vol = vol[:, :, crop_min:crop_max, :]
-                if i == 2:
-                    vol = vol[:, :, :, crop_min:crop_max]
-
-            return vol
-
-        else:
-
-            # Flash error that does not contain data
-            raise ValueError("Brain stem tensor does not contain any data")
+        return vol

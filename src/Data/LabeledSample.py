@@ -8,14 +8,14 @@ Date: 25.03.2022
 Group: 150
 """
 
-from copy import deepcopy
 import os
 import glob
 import torch
-from torch import from_numpy
 from src.Data.transforms import CropAroundBrainStem
 from src.utils import bcolors, Logger
 from src.Data.CTData import CTData
+import numpy as np
+from scipy import ndimage
 from src.Data.utils import DataTransformer
 
 
@@ -43,6 +43,9 @@ class LabeledSample:
     # Stores whether the sample has been processed already
     loaded = None
 
+    # Attribute storing the brain stem center
+    brain_stem_center = None
+
     def __init__(self, path, labels_folder_path: str = "structures"):
         """
         Constructor of the LabeledSample object. Expected by default is a folder that contains one nrrd file which
@@ -59,6 +62,9 @@ class LabeledSample:
 
         # Initiate loaded with false
         self.loaded = False
+
+        # Initialize the brain stem center with none
+        self.brain_stem_center = None
 
         # Save the path to this sample
         self.path = path
@@ -133,13 +139,11 @@ class LabeledSample:
         :return tensor: which contains the data points
         """
 
+        # Inject the center position
+        transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+
         # Get the tensor with the transformers
         tensor = self.sample.get_tensor(transformer=transformer)
-
-        # Look for special brain stem transformation
-        for trans in transformer.transforms:
-            if type(trans) is CropAroundBrainStem:
-                tensor = trans.perform_transformation(tensor, transformer, self._get_brain_stem_data())
 
         # Return the sample (which is a tensor)
         return tensor
@@ -150,6 +154,9 @@ class LabeledSample:
 
         :return labels: list of tensors that are the labels
         """
+
+        # Inject the center position
+        transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
 
         # Check whether the passed label order is there
         if len(label_structure) == 0:
@@ -192,16 +199,8 @@ class LabeledSample:
                 label_mask = torch.where(label > torch.tensor(0, dtype=torch.int8), torch.tensor(0, dtype=torch.int8), label_mask)
             tensors.append(label_mask)
 
-            # Compose a big tensor of this
-            tensors = torch.cat(tensors, 0)
-
-            # Look for special brain stem transformation
-            for trans in transformer.transforms:
-                if type(trans) is CropAroundBrainStem:
-                    tensors = trans.perform_transformation(tensors, transformer, self._get_brain_stem_data())
-
             # Return the list of label tensors
-            return tensors
+            return torch.cat(tensors, 0)
         else:
 
             # Warn about no tensors
@@ -217,6 +216,9 @@ class LabeledSample:
         """
         # Preprocess only if that did not happen yet
         if not self.loaded:
+
+            # Inject the center position
+            transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
 
             # Load sample
             self.sample.load(transformer=transformer)
@@ -234,9 +236,20 @@ class LabeledSample:
         """
         a = 0
 
-    def _get_brain_stem_data(self):
-        for label in self.labels:
-            if label.name == 'BrainStem':
-                return label
-        Logger.log("Brain stem not contained in data sample " + str(self.id), type="ERROR", in_cli=True)
-        return None
+    def _get_brain_stem_center(self):
+        """
+        This function computes the brain stem center for this sample and saves and returns it
+
+        :return: 3D center of brain stem
+        """
+        if self.brain_stem_center is None:
+            for label in self.labels:
+                if label.name == 'BrainStem':
+                    bs = label.get_tensor()
+                    center_of_gravity = ndimage.center_of_mass(np.array((bs.transpose(1, -1))[0, :, :, :]))
+                    self.brain_stem_center = center_of_gravity
+                    return self.brain_stem_center
+            Logger.log("Brain stem not contained in data sample " + str(self.id), type="ERROR", in_cli=True)
+            return None
+        else:
+            return self.brain_stem_center
