@@ -13,6 +13,7 @@ from src.Runner.Runner import Runner
 jobs = [
     'config/testing.json',
     'config/paper_reproduction.json',
+    'job_config_sample.json'
 ]
 
 # Create a trainer object and call him robert

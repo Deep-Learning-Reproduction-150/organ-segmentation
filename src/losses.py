@@ -13,14 +13,19 @@ from tqdm import tqdm
 
 from matplotlib import pyplot as plt
 
+# Default AC values
+# background, brain stem, optic chiasma, mandible, optic nerve left, optic nerve right, parotid gland left, parotid gland right, submandibular left, submandibular right
+# 0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0
+# ORDERED!!!
 
-DEFAULT_AC = 1.0  # torch.Tensor(
-# [0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0]
-# )  # TODO: focal loss weights per channels from the paper
+
+DEFAULT_AC = torch.Tensor(
+    [0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0]
+)  # TODO: focal loss weights per channels from the paper
 
 
 class CombinedLoss(nn.Module):
-    def __init__(self, weight=None, size_average=True, *args, **kwargs):
+    def __init__(self, alpha, input_dim, weight=None, size_average=True, *args, **kwargs):
         """
         TODO: Implement weights["focal"] as
         0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, and 3.0
@@ -32,20 +37,23 @@ class CombinedLoss(nn.Module):
         self.dice = DiceLoss()
         self.focal = FocalLoss()
 
-    def forward(
-        self,
-        inputs,
-        targets,
-        l=1.0,
-        gamma=2,
-        alpha=DEFAULT_AC,
-    ):
+        self.alpha = self.make_ac(alpha, input_dim)
+
+    def forward(self, inputs, targets, l=1.0, gamma=2):
+
         dice = self.dice(inputs, targets)
 
-        focal = self.focal(inputs, targets, alpha=alpha, gamma=gamma)
+        focal = self.focal(inputs, targets, alpha=self.alpha, gamma=gamma)
         combined = focal + l * dice
 
         return combined
+
+    @staticmethod
+    def make_ac(alpha_values, input_dims):
+        alpha_tensor = torch.Tensor(alpha_values)
+        placeholder = torch.ones(input_dims)
+        alpha = (placeholder.transpose(1, -1) * alpha_tensor).transpose(1, -1).view(-1)
+        return alpha
 
 
 class DiceCoefficient(nn.Module):
@@ -54,8 +62,8 @@ class DiceCoefficient(nn.Module):
 
     def forward(self, inputs, targets):
         # # flatten label and prediction tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
+        inputs = inputs.contiguous().view(-1)
+        targets = targets.contiguous().view(-1)
 
         intersection = (inputs * targets).sum()
         dice = (2.0 * intersection) / (inputs.sum() + targets.sum())
@@ -75,16 +83,17 @@ class FocalLoss(nn.Module):
     def __init__(self, **params):
         super().__init__()
 
-    def forward(self, inputs, targets, alpha=DEFAULT_AC, gamma=2.0):
+    def forward(self, inputs, targets, alpha, gamma=2.0):
+
         # flatten label and prediction tensors
         inputs = inputs.view(-1)
         targets = targets.view(-1)
         # first compute binary cross-entropy
 
-        BCE = F.binary_cross_entropy(inputs, targets, reduction="mean")
-        BCE_EXP = torch.exp(-BCE)
-        focal_loss = alpha * (1 - BCE_EXP) ** gamma * BCE
+        BCE = F.binary_cross_entropy(inputs, targets, weight=alpha[: inputs.shape[0]], reduction="mean")
 
+        BCE_EXP = torch.exp(-BCE)
+        focal_loss = (1 - BCE_EXP) ** gamma * BCE
         return focal_loss
 
 

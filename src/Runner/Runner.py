@@ -12,8 +12,9 @@ import random
 import json
 import wandb
 import os
-from torch.optim.lr_scheduler import MultiStepLR
+import numpy as np
 from src.utils import Logger, Timer, bcolors
+from src.losses import DiceCoefficient
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
 from src.Model.OrganNet25D import OrganNet25D
@@ -258,6 +259,9 @@ class Runner:
         # Start timer to measure data set
         creation_took = self.timer.get_time("creating dataset")
 
+        # This variable eventually contains dice scores that are created in evaluation
+        organ_dice_losses = {}
+
         # Notify about data set creation
         dataset_constructor_took = "{:.2f}".format(creation_took)
         Logger.log("Generation of data set took " + dataset_constructor_took + " seconds", in_cli=True)
@@ -300,7 +304,7 @@ class Runner:
             Logger.log("Resuming training in epoch " + str(start_epoch), in_cli=True)
 
         if self.job["training"]["detect_bad_gradients"]:
-            Logger.log("Selected detect_bad_gradients - using AutoGrad", type="WARNUNG", in_cli=True)
+            Logger.log("Selected detect_bad_gradients - using AutoGrad", type="WARNING", in_cli=True)
 
         # Iterate through epochs (based on jobs setting)
         for epoch in range(start_epoch, self.job["training"]["epochs"]):
@@ -349,9 +353,9 @@ class Runner:
                     loss.backward()
 
                 # Gradient clipping
-                grad_norm = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.job["training"]["grad_norm_clip"]
-                )
+                # grad_norm = torch.nn.utils.clip_grad_norm_(
+                #     self.model.parameters(), self.job["training"]["grad_norm_clip"]
+                # )
 
                 # Perform optimization step
                 optimizer.step()
@@ -376,15 +380,8 @@ class Runner:
             # Finish the status bar
             Logger.end_status_bar()
 
-            # Stop timer to measure epoch length
-            epoch_time = self.timer.get_time("epoch")
-
             # Calculate epoch los
             epoch_train_loss = running_loss / len(self.train_data)
-
-            # Log the epoch success
-            avg_loss = "{:.2f}".format(epoch_train_loss)
-            Logger.log("Epoch took " + str(epoch_time) + " seconds. The average loss is " + avg_loss, in_cli=self.debug)
 
             # Perform validation
             if self.eval_data is not None:
@@ -400,6 +397,10 @@ class Runner:
                 # Initialize a running loss of 99999
                 eval_running_loss = 0
 
+                # Initiate dice loss per organ and total
+                organ_dice_losses = {}
+                dice_loss_fn = DiceCoefficient()
+
                 # Perform validation on healthy images
                 for batch, batch_input in enumerate(self.eval_data):
 
@@ -410,14 +411,37 @@ class Runner:
 
                     # Calculate output
                     model_output = self.model(inputs)
+
                     # Determine loss
                     eval_loss = loss_function(model_output, labels)
 
                     # Add to running validation loss
                     eval_running_loss += eval_loss.detach().cpu().numpy()
 
+                    # Iterate through channels and compute dice losses for metric logging
+                    for i, organ in enumerate(CTDataset.label_structure):
+                        sub_tensor = model_output[:, i, :, :, :]
+                        sub_label = labels[:, i, :, :, :]
+                        if organ not in organ_dice_losses.keys():
+                            organ_dice_losses[organ] = []
+                        organ_dice_losses[organ].append(float(dice_loss_fn(sub_tensor, sub_label)))
+                    if "Background" not in organ_dice_losses.keys():
+                        organ_dice_losses["Background"] = []
+                    organ_dice_losses["Background"].append(
+                        float(
+                            dice_loss_fn(
+                                model_output[:, len(CTDataset.label_structure), :, :, :],
+                                labels[:, len(CTDataset.label_structure), :, :, :],
+                            )
+                        )
+                    )
+
                     # Print epoch status bar
                     Logger.print_status_bar(done=((batch + 1) / len(self.eval_data)) * 100, title="validating model")
+
+                # Mean over the dice losses
+                for key, val in organ_dice_losses.items():
+                    organ_dice_losses[key] = sum(organ_dice_losses[key]) / len(organ_dice_losses[key])
 
                 # End status bar
                 Logger.end_status_bar()
@@ -445,11 +469,19 @@ class Runner:
             lr_formatted = "{:.6f}".format(current_lr)
             Logger.log("Learning rate currently at " + str(lr_formatted), in_cli=True)
 
+            # Stop timer to measure epoch length
+            epoch_time = self.timer.get_time("epoch")
+
+            # Log the epoch success TODO: more here soon
+            avg_loss = "{:.2f}".format(epoch_train_loss)
+            Logger.log("Epoch took " + str(epoch_time) + " seconds. The average loss is " + avg_loss, in_cli=self.debug)
+
             # Report the current loss to wandb if it's set
             if self.job["wandb_api_key"]:
 
                 # Log some prediction examples (with image overlays)
                 self._log_prediction_examples(inputs, labels, model_output)
+                self._log_prediction_examples_3d(inputs, labels, model_output)
 
                 # Include max and min of predictions per organ
                 self._log_prediction_max_min(model_output)
@@ -460,7 +492,9 @@ class Runner:
                         "training loss": epoch_train_loss,
                         "evaluation loss": epoch_evaluation_loss,
                         "learning rate": current_lr,
+                        "epoch duration": epoch_time,
                         "epoch": epoch + 1,
+                        "DSC per channel": organ_dice_losses,
                     },
                     commit=False,
                 )
@@ -528,8 +562,12 @@ class Runner:
 
         # Add a default scheduler
         job_data["training"].setdefault(
-            "lr_scheduler", {"name": "LinearLR", "start_factor": 1, "end_factor": 0.01, "total_iters": 100}
+            "lr_scheduler",
+            {"name": "LinearLR", "start_factor": 1, "end_factor": 0.01, "total_iters": 100},
         )
+
+        # Set labels to none by default so the data set figures out the order
+        job_data["training"]["dataset"].setdefault("labels", None)
 
         # Set a default if predictino examples is not set
         job_data.setdefault("wandb_prediction_examples", 6)
@@ -549,6 +587,98 @@ class Runner:
         module = importlib.import_module("src.eval")
         evaluater_class = getattr(module, evaluation_setup["name"])
         return evaluater_class()
+
+    def _log_prediction_examples_3d(self, inputs, labels, model_output):
+        """
+        Method logs prediction examples to wandb
+
+        :param inputs:
+        :param labels:
+        :param model_output:
+        """
+
+        # Generate a random slice as example for reconstruction
+        if model_output is not None:
+
+            # Create a list of masks
+            mask_list = []
+
+            # Do 5 random slices to show what is happening
+            for perspective_idx in range(0, 3):  # Loop through the spatial dims
+
+                # Slice a random image from there
+                batch_no = random.randint(0, inputs.size()[0] - 1)
+
+                # Obtain the actual image
+                sample_image = inputs[batch_no, 0, :, :, :].mean(dim=perspective_idx)
+
+                # Create raw prediction and label masks
+                prediction_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure) + 1
+                label_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure)
+
+                # Iterate through all organs and add them to it
+                for organ_slice, organ in enumerate(CTDataset.label_structure):
+                    raw_prediction = model_output[batch_no, organ_slice, :, :, :].max(dim=perspective_idx).values
+                    raw_label = labels[batch_no, organ_slice, :, :, :].max(dim=perspective_idx).values
+
+                    prediction_mask_data = torch.where(
+                        raw_prediction > 0.5, torch.tensor(organ_slice, dtype=torch.float32), prediction_mask_data
+                    )
+                    label_mask_data = torch.where(
+                        raw_label > 0.5, torch.tensor(organ_slice, dtype=torch.float32), label_mask_data
+                    )
+
+                # Do the same for the background
+                background_prediction = (
+                    model_output[batch_no, len(CTDataset.label_structure), :, :, :].max(dim=perspective_idx).values
+                )
+                prediction_mask_data = torch.where(
+                    background_prediction > 0.5,
+                    torch.tensor(len(CTDataset.label_structure), dtype=torch.float32),
+                    prediction_mask_data,
+                )
+
+                # Prepare class labels
+                class_labels = {
+                    len(CTDataset.label_structure): "Background",
+                    len(CTDataset.label_structure) + 1: "No Prediction",
+                }
+                for i, organ in enumerate(CTDataset.label_structure):
+                    class_labels[i] = organ
+
+                # Convert to ndarray for wandb
+                input_image = sample_image.cpu().detach().numpy()
+
+                # Append this slice to the predictions
+                mask_list.append(
+                    wandb.Image(
+                        input_image,
+                        caption="Perspective " + str(perspective_idx),
+                        masks={
+                            "predictions": {
+                                "class_labels": class_labels,
+                                "mask_data": prediction_mask_data.cpu().detach().numpy(),
+                            },
+                            "ground_truth": {
+                                "class_labels": class_labels,
+                                "mask_data": label_mask_data.cpu().detach().numpy(),
+                            },
+                        },
+                    )
+                )
+
+            # Log all organ predictions
+            self.wandb_worker.log(
+                {
+                    "predictions_3d": mask_list,
+                },
+                commit=False,
+            )
+
+        else:
+
+            # Warn that there was no model output
+            Logger.log("No prediction examples could be logged, as there is no model output", in_cli=True)
 
     def _log_prediction_examples(self, inputs, labels, model_output):
         """
@@ -571,15 +701,50 @@ class Runner:
                 in_cli=True,
             )
 
+            # Select a random sample from the batch
+            batch_no = random.randint(0, inputs.size()[0] - 1)
+
+            # Iterate through the model output and find good and bad slices
+            good_slices_data = {"good": [], "bad": []}
+            for s in range(labels.size()[-3] - 1):
+                current_max = labels[batch_no, list(range(len(CTDataset.label_structure) - 1)), s, :, :].max()
+                if current_max > 0.5:
+                    good_slices_data["good"].append(s)
+                else:
+                    good_slices_data["bad"].append(s)
+
+            # Compose the good slices in a list
+            first_good_slice = sorted(good_slices_data["good"])[0]
+            last_good_slice = sorted(good_slices_data["good"])[-1]
+            have_want_difference = (last_good_slice - first_good_slice + 1) - self.job["wandb_prediction_examples"]
+            if have_want_difference >= 0:
+                good_slices = np.linspace(
+                    first_good_slice, last_good_slice, num=self.job["wandb_prediction_examples"], dtype=int
+                )
+            else:
+                possible_slices = self.job["wandb_prediction_examples"]
+                if self.job["wandb_prediction_examples"] > inputs.size()[-3]:
+                    Logger.log(
+                        "Requested "
+                        + str(self.job["wandb_prediction_examples"])
+                        + " slices, but can only return "
+                        + str(inputs.size()[-3]),
+                        type="ERROR",
+                        in_cli=True,
+                    )
+                    possible_slices = inputs.size()[-3]
+                good_slices = sorted(good_slices_data["good"])
+                while len(good_slices) < possible_slices:
+                    random_slice = random.randint(0, inputs.size()[-3] - 1)
+                    if random_slice not in good_slices:
+                        good_slices.append(random_slice)
+                good_slices = sorted(good_slices)
+
             # Create a list of masks
             mask_list = []
 
             # Do 5 random slices to show what is happening
-            for i in range(self.job["wandb_prediction_examples"]):
-
-                # Slice a random image from there
-                slice_no = random.randint(0, model_output.size()[-3] - 1)
-                batch_no = random.randint(0, inputs.size()[0] - 1)
+            for slice_no in good_slices:
 
                 # Obtain the actual image
                 sample_image = inputs[batch_no, 0, slice_no, :, :]
@@ -593,8 +758,15 @@ class Runner:
                     raw_prediction = model_output[batch_no, organ_slice, slice_no, :, :]
                     raw_label = labels[batch_no, organ_slice, slice_no, :, :]
 
+                    # Create a dynamic threshold based on the median
+                    dynamic_predict_threshold = float(
+                        raw_prediction.min() + ((raw_prediction.max() - raw_prediction.min()) / 2)
+                    )
+
                     prediction_mask_data = torch.where(
-                        raw_prediction > 0.5, torch.tensor(organ_slice, dtype=torch.float32), prediction_mask_data
+                        raw_prediction > dynamic_predict_threshold,
+                        torch.tensor(organ_slice, dtype=torch.float32),
+                        prediction_mask_data,
                     )
                     label_mask_data = torch.where(
                         raw_label > 0.5, torch.tensor(organ_slice, dtype=torch.float32), label_mask_data
@@ -603,11 +775,16 @@ class Runner:
                 # Do the same for the background
                 background_prediction = model_output[batch_no, len(CTDataset.label_structure), slice_no, :, :]
                 prediction_mask_data = torch.where(
-                    background_prediction > 0.5, torch.tensor(len(CTDataset.label_structure), dtype=torch.float32), prediction_mask_data
+                    background_prediction > float(background_prediction.median()),
+                    torch.tensor(len(CTDataset.label_structure), dtype=torch.float32),
+                    prediction_mask_data,
                 )
 
                 # Prepare class labels
-                class_labels = {len(CTDataset.label_structure): "Background", len(CTDataset.label_structure) + 1: "No Prediction"}
+                class_labels = {
+                    len(CTDataset.label_structure): "Background",
+                    len(CTDataset.label_structure) + 1: "No Prediction",
+                }
                 for i, organ in enumerate(CTDataset.label_structure):
                     class_labels[i] = organ
 
@@ -657,10 +834,9 @@ class Runner:
             max_vals[organ] = model_output[:, i, :, :, :].max()
             min_vals[organ] = model_output[:, i, :, :, :].min()
 
-        self.wandb_worker.log({
-            'predictions minimum value': min_vals,
-            'predictions maximum value': max_vals
-        }, commit=False)
+        self.wandb_worker.log(
+            {"predictions minimum value": min_vals, "predictions maximum value": max_vals}, commit=False
+        )
 
     def _get_optimizer(self, optimizer_setup: dict, **params):
         if optimizer_setup["name"] == "Adam":
@@ -694,12 +870,12 @@ class Runner:
         TODO: make this dynamic
         """
 
-        # Create a scheduler based on the description
-        scheduler = MultiStepLR(
-            optimizer,
-            gamma=0.1,
-            milestones=[50, 100],  # Every 50 epochs, until 0.001 -> 0.00001
-        )
+        # Every scheduler will need the optimizer
+        scheduler_setup['optimizer'] = optimizer
+        scheduler_name = scheduler_setup.pop('name')
+        module = importlib.import_module("torch.optim.lr_scheduler")
+        lr_scheduler_class = getattr(module, scheduler_name)
+        scheduler = lr_scheduler_class(**scheduler_setup)
 
         # Check if there is a checkpoint
         if self.checkpoint is not None:
@@ -746,7 +922,13 @@ class Runner:
         dataset_path = os.path.join(base_path, data["root"])
 
         # Create an instance of the dataloader and pass location of data
-        dataset = CTDataset(dataset_path, preload=preload, transforms=data["transform"], no_logging=False)
+        dataset = CTDataset(
+            dataset_path,
+            preload=preload,
+            transforms=data["transform"],
+            no_logging=False,
+            label_structure=data["labels"],
+        )
 
         return dataset
 
