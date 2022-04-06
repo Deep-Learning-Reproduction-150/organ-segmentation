@@ -13,6 +13,7 @@ TODO:
 import torch
 from torch import nn
 
+
 try:
     from .utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
 except ImportError:
@@ -23,7 +24,6 @@ except ImportError:
 class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
     def __init__(
         self,
-        global_pooling_size,
         activation=nn.Sigmoid(),
         in_channels=16,
         out_channels=32,
@@ -37,7 +37,7 @@ class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
             in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding
         )
         self.resse = nn.Sequential(
-            nn.AvgPool3d(global_pooling_size),
+            nn.AdaptiveAvgPool3d(output_size=(1, 1, 1)),
             nn.Flatten(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
             nn.ReLU(),
@@ -56,43 +56,55 @@ class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
 
 
 class HDC(nn.Module):
-    def __init__(self, in_channels=64, out_channels=128, dilations=(1, 2, 5), kernel_size=(3, 3, 3), padding="same"):
+    def __init__(self, in_channels=64, out_channels=128, dilations=(1, 2, 5), kernel_size=(3, 3, 3), padding="valid"):
         """
         Creates a HDC layer.
         """
         super().__init__()
-        self.layers = []
+
+        self.main_path = []
+        prev_layer_out_channels = in_channels
         for dilation in dilations:
             layer = nn.Conv3d(
-                in_channels=in_channels,
+                in_channels=prev_layer_out_channels,
                 out_channels=out_channels,
                 kernel_size=kernel_size,
                 stride=1,
                 padding=padding,
-                dilation=dilation,
+                dilation=(dilation, dilation, dilation),
             )
-            self.layers.append(layer)
+            prev_layer_out_channels = out_channels
+            self.main_path.append(layer)
+
+        self.shortcut_model = nn.Conv3d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=(1, 1, 1),
+            stride=1,
+            padding=padding,
+            dilation=(dilation, dilation, dilation),
+        )
 
     def forward(self, x):
-        outputs = []
-        for layer in self.layers:
-            layer_output = layer(x)
-            outputs.append(layer_output)
-
-        output = torch.stack(outputs).sum(dim=0)
+        output = x
+        shortcut = self.shortcut_model(x)
+        for layer in self.main_path:
+            layer_output = layer(output)
+            output = layer_output + crop3d(
+                shortcut, layer_output.shape[2:]
+            )  # + crop3d(x, layer_output.shape[2:]) TODO: Try this
+            shortcut = layer_output
         return output
 
 
 class HDCResSE(nn.Module):  # See figure 2. from the paper
     def __init__(
         self,
-        global_pooling_size,
-        dilations=(1, 2, 3),
+        dilations=(1, 2, 5),
         in_channels=16,
         out_channels=32,
         kernel_size=(3, 3, 3),
         activation=nn.Sigmoid(),
-        stride=1,
         padding=0,
     ) -> None:
 
@@ -105,7 +117,7 @@ class HDCResSE(nn.Module):  # See figure 2. from the paper
             padding=padding,
         )
         self.resse = nn.Sequential(
-            nn.AvgPool3d(global_pooling_size),
+            nn.AdaptiveAvgPool3d(output_size=(1, 1, 1)),
             nn.Flatten(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
             nn.ReLU(),
@@ -141,7 +153,6 @@ class OrganNet25D(nn.Module):
             "2d": "relu",
             "one_d_1": "none",
             "one_d_2": "none",
-            "one_d_3": "sigmoid",
         },
         padding="no",
         *args,
@@ -230,16 +241,9 @@ class OrganNet25D(nn.Module):
 
         # Coarse 3D layers
 
-        d_here = d  # 44 -> two 2x2x2 convolutions
-        h_here = int((h - 4) / 2)  # 122, two 1x2x2 convolutions -> downsample -> two 2x2x2 convolutions
-
         # First part of 2 x Conv + ResSE
 
-        if padding["coarse_3d_1"] == "valid":
-            d_here -= 4
-            h_here -= 4
         self.coarse_3d_1 = DoubleConvResSE(
-            (d_here, h_here, h_here),
             in_channels=16,
             out_channels=32,
             kernel_size=(3, 3, 3),
@@ -248,17 +252,9 @@ class OrganNet25D(nn.Module):
             padding=padding["coarse_3d_1"],
         )
 
-        d_here = int(d_here / 2)  # - 4  # 18 # downsample + two 3x3x3 conv
-        h_here = int(h_here / 2)  # - 4  # 57  # downsample + two 3x3x3 conv
-
         # Check if no padding -> reduce both dims, else check if tuple, then reduce the dimensions accordingly
 
-        if padding["coarse_3d_2"] == "valid":
-            d_here -= 4
-            h_here -= 4
-
         self.coarse_3d_2 = DoubleConvResSE(
-            (d_here, h_here, h_here),
             in_channels=32,
             out_channels=64,
             kernel_size=(3, 3, 3),
@@ -270,7 +266,6 @@ class OrganNet25D(nn.Module):
         # Fine 3D block
 
         self.fine_3d_1 = HDCResSE(
-            (d_here, h_here, h_here),
             in_channels=64,
             out_channels=128,
             padding=padding["hdc_1"],
@@ -278,7 +273,6 @@ class OrganNet25D(nn.Module):
             dilations=hdc_dilations,
         )
         self.fine_3d_2 = HDCResSE(
-            (d_here, h_here, h_here),
             in_channels=128,
             out_channels=256,
             padding=padding["hdc_2"],
@@ -286,7 +280,6 @@ class OrganNet25D(nn.Module):
             dilations=hdc_dilations,
         )
         self.fine_3d_3 = HDCResSE(
-            (d_here, h_here, h_here),
             in_channels=256,
             out_channels=128,
             padding=padding["hdc_3"],
@@ -295,15 +288,8 @@ class OrganNet25D(nn.Module):
         )
 
         # Last two coarse 3d
-        d_here = d_here  # - 4  # 14  -> two 3x3x3 conv
-        h_here = h_here  # - 4  # 53  -> two 3x3x3 conv
-
-        if padding["coarse_3d_3"] == "valid":
-            d_here -= 4
-            h_here -= 4
 
         self.coarse_3d_3 = DoubleConvResSE(
-            (d_here, h_here, h_here),
             in_channels=128,
             out_channels=64,
             kernel_size=(3, 3, 3),
@@ -311,14 +297,8 @@ class OrganNet25D(nn.Module):
             activation=activations["coarse_resse"],
             padding=padding["coarse_3d_3"],
         )
-        d_here = d_here * 2  # - 4  # 14  -> upsample + two 3x3x3 conv
-        h_here = h_here * 2  # - 4  # 53  -> upsample + two 3x3x3 conv
 
-        if padding["coarse_3d_4"] == "valid":
-            d_here -= 4
-            h_here -= 4
         self.coarse_3d_4 = DoubleConvResSE(
-            (d_here, h_here, h_here),
             in_channels=64,
             out_channels=32,
             kernel_size=(3, 3, 3),
@@ -360,7 +340,7 @@ class OrganNet25D(nn.Module):
             temp.append(temp_layer)
         self.one_d_2 = nn.Sequential(*temp)
 
-        temp = [
+        self.one_d_3 = nn.Sequential(
             nn.Conv3d(  # The final layer in the network
                 in_channels=32,
                 out_channels=out_channels,
@@ -370,16 +350,13 @@ class OrganNet25D(nn.Module):
                 *args,
                 **kwargs,
             ),
-        ]
-        if temp_layer := activations.get("one_d_3"):
-            print(f"appending a {temp_layer} to the final layer")
-            temp.append(temp_layer)
-
-        self.one_d_3 = nn.Sequential(*temp)
+            nn.Sigmoid(),
+            nn.Softmax(),
+        )
 
         # Downsampling maxpool
-        self.downsample1 = nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2), padding=0, dilation=1)
-        self.downsample2 = nn.MaxPool3d(kernel_size=(2, 2, 2), stride=(2, 2, 2), padding=0, dilation=1)
+        self.downsample1 = nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2), padding=0)
+        self.downsample2 = nn.MaxPool3d(kernel_size=(2, 2, 2), stride=(2, 2, 2), padding=0)
 
         # Upsampling layer
         self.upsample1 = nn.ConvTranspose3d(in_channels=64, out_channels=32, stride=(2, 2, 2), kernel_size=(2, 2, 2))
@@ -441,10 +418,11 @@ class OrganNet25D(nn.Module):
             print(f"\tOutput 7 shape:\t\t{out7.shape}")
         # Output 7 to "Conv 1x1x1" layer 1 -> Output 8 (2,128,18,57,57)
         out8 = self.one_d_1(out7)
+        out6_xyzcropped = crop3d(out6, target_shape=out8.shape[-3:])
         if verbose:
             print(f"\tOutput 8 shape:\t\t{out8.shape}")
         # Concatenate Output 6 and Output 8 -> Output 9 (2,256,18,57,57)
-        out9 = torch.cat([out6, out8], dim=1)
+        out9 = torch.cat([out6_xyzcropped, out8], dim=1)
         if verbose:
             print(f"\tOutput 9 shape:\t\t{out9.shape}")
         # Output 9 to Fine 3D Layer 3 -> Output 10 (2,128,18,57,57)
@@ -457,7 +435,8 @@ class OrganNet25D(nn.Module):
         if verbose:
             print(f"\tOutput 11 shape:\t\t{out11.shape}")
         # Concatenate Output 11 and Output 5 -> Output 12
-        out12 = torch.cat([out5, out11], dim=1)
+        out5_xyzcropped = crop3d(out5, target_shape=out11.shape[-3:])
+        out12 = torch.cat([out5_xyzcropped, out11], dim=1)
         if verbose:
             print(f"\tOutput 12 shape:\t\t{out12.shape}")
         # Output 12 to Fine 3d layer 3 -> Output 13
@@ -530,7 +509,7 @@ def main():
     expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
-    model = OrganNet25D(input_shape=input_shape[-3::], hdc_dilations=(1, 2, 3), padding="no")
+    model = OrganNet25D(input_shape=input_shape[-3::], hdc_dilations=(1, 2, 5), padding="no")
     # model = ToyOrganNet25D()
 
     output = model(input, verbose=True)
