@@ -62,8 +62,8 @@ class DiceCoefficient(nn.Module):
 
     def forward(self, inputs, targets):
         # # flatten label and prediction tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
+        inputs = inputs.contiguous().view(-1)
+        targets = targets.contiguous().view(-1)
 
         intersection = (inputs * targets).sum()
         dice = (2.0 * intersection) / (inputs.sum() + targets.sum())
