@@ -13,7 +13,6 @@ import json
 import wandb
 import os
 import numpy as np
-from torch.optim.lr_scheduler import MultiStepLR
 from src.utils import Logger, Timer, bcolors
 from src.losses import DiceCoefficient
 from pathlib import Path
@@ -871,12 +870,12 @@ class Runner:
         TODO: make this dynamic
         """
 
-        # Create a scheduler based on the description
-        scheduler = MultiStepLR(
-            optimizer,
-            gamma=0.1,
-            milestones=[50, 100],  # Every 50 epochs, until 0.001 -> 0.00001
-        )
+        # Every scheduler will need the optimizer
+        scheduler_setup['optimizer'] = optimizer
+        scheduler_name = scheduler_setup.pop('name')
+        module = importlib.import_module("torch.optim.lr_scheduler")
+        lr_scheduler_class = getattr(module, scheduler_name)
+        scheduler = lr_scheduler_class(**scheduler_setup)
 
         # Check if there is a checkpoint
         if self.checkpoint is not None:
