@@ -13,8 +13,10 @@ TODO:
 import torch
 from torch import nn
 
-from .utils import conv_2x3d_coarse, HDC, conv_2x2d, crop3d
-
+try:
+    from .utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
+except ImportError:
+    from utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
 # from src.Dataloader.CTData import CTData
 
 
@@ -31,7 +33,6 @@ class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
     ) -> None:
 
         super().__init__()
-
         self.conv = conv_2x3d_coarse(
             in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding
         )
@@ -39,30 +40,58 @@ class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
             nn.AvgPool3d(global_pooling_size),
             nn.Flatten(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
+            nn.ReLU(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
             activation,
             nn.Unflatten(1, (out_channels, 1, 1, 1)),
         )
 
     def forward(self, x):
-
         conv_out = self.conv(x)
         resse_out = self.resse(conv_out)
-
         multi = conv_out * resse_out
         y = multi + conv_out
 
         return y
 
 
+class HDC(nn.Module):
+    def __init__(self, in_channels=64, out_channels=128, dilations=(1, 2, 5), kernel_size=(3, 3, 3), padding="same"):
+        """
+        Creates a HDC layer.
+        """
+        super().__init__()
+        self.layers = []
+        for dilation in dilations:
+            layer = nn.Conv3d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=1,
+                padding=padding,
+                dilation=dilation,
+            )
+            self.layers.append(layer)
+
+    def forward(self, x):
+        outputs = []
+        for layer in self.layers:
+            layer_output = layer(x)
+            outputs.append(layer_output)
+
+        output = torch.stack(outputs).sum(dim=0)
+        return output
+
+
 class HDCResSE(nn.Module):  # See figure 2. from the paper
     def __init__(
         self,
         global_pooling_size,
-        dilations=(1, 2, 5),
+        dilations=(1, 2, 3),
         in_channels=16,
         out_channels=32,
         kernel_size=(3, 3, 3),
+        activation=nn.Sigmoid(),
         stride=1,
         padding=0,
     ) -> None:
@@ -73,13 +102,15 @@ class HDCResSE(nn.Module):  # See figure 2. from the paper
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
+            padding=padding,
         )
         self.resse = nn.Sequential(
             nn.AvgPool3d(global_pooling_size),
             nn.Flatten(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
+            nn.ReLU(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
-            nn.Sigmoid(),
+            activation,
             nn.Unflatten(1, (out_channels, 1, 1, 1)),
         )
 
@@ -100,122 +131,251 @@ class OrganNet25D(nn.Module):
     """
 
     def __init__(
-        self, hdc_dilations=(1, 2, 5), input_shape=(48, 256, 256), resse_activation=nn.Sigmoid(), *args, **kwargs
+        self,
+        hdc_dilations=(1, 2, 3),
+        input_shape=(48, 256, 256),
+        out_channels=10,
+        activations={
+            "coarse_resse": "sigmoid",
+            "fine_resse": "sigmoid",
+            "2d": "relu",
+            "one_d_1": "none",
+            "one_d_2": "none",
+            "one_d_3": "sigmoid",
+        },
+        padding="no",
+        *args,
+        **kwargs,
     ):
         """
-        Constructor method of the OrganNet
+        Constructor method of the OrganNet.
+        Arguments:
+        - hdc_dilations: Default (1, 2, 5)
+        - input_shape: Default (48, 256, 256)
+        - activations: The activation functions of different layers. None to omit (linear activation). Keys: 'coarse_resse', 'fine_resse', 'one_d_1','one_d_3'
+        - padding: 'yes' to do default padding, 'no' to not pad (instead pad at the output), or custom dict with keys:
+            'two_d_1'
+            'two_d_2'
+            'coarse_3d_1'
+            'coarse_3d_2'
+            'coarse_3d_3'
+            'coarse_3d_4'
+            'hdc_1'
+            'hdc_2'
+            'hdc_3'
+            'one_d_1'
+            'one_d_2'
+            'one_d_3'
         """
 
         # Call torch superclass constructor
         super().__init__()
+        activations = {k: activation_mapper(v) for k, v in activations.items()}
+        allowed_padding_values = ["yes", "no"]
+        if type(padding) is not dict and padding not in allowed_padding_values:
+            raise ValueError(f"padding {padding} not a dict and not in {allowed_padding_values}")
+
+        # Preset default options
+        if padding == "yes":
+            padding = {}
+            padding["two_d_1"] = "valid"
+            padding["two_d_2"] = "valid"
+            padding["coarse_3d_1"] = "same"
+            padding["coarse_3d_2"] = "same"
+            padding["coarse_3d_3"] = "same"
+            padding["coarse_3d_4"] = "same"
+            padding["hdc_1"] = "same"
+            padding["hdc_2"] = "same"
+            padding["hdc_3"] = "same"
+            padding["one_d_1"] = 0
+            padding["one_d_2"] = 0
+            padding["one_d_3"] = (0, 4, 4)
+        elif padding == "no":
+            padding = {}
+            padding["two_d_1"] = "valid"
+            padding["two_d_2"] = "valid"
+            padding["coarse_3d_1"] = "valid"  # (4, 0, 0)  # "valid" # (4, 0, 0)
+            padding["coarse_3d_2"] = "valid"  # (4, 0, 0)  # "valid"
+            padding["coarse_3d_3"] = "valid"
+            padding["coarse_3d_4"] = "valid"
+            padding["hdc_1"] = "same"
+            padding["hdc_2"] = "same"
+            padding["hdc_3"] = "same"
+            padding["one_d_1"] = "valid"
+            padding["one_d_2"] = "valid"
+            padding["one_d_3"] = (12, 28, 28)
 
         d, h, w = input_shape
 
         # First 2D layers
         self.two_d_1 = conv_2x2d(
-            in_channels=1, out_channels=16, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid"
+            in_channels=1,
+            out_channels=16,
+            groups=1,
+            kernel_size=(1, 3, 3),
+            stride=1,
+            activation=activations["2d"],
+            padding=padding["two_d_1"],
         )
 
         self.two_d_2 = conv_2x2d(
-            in_channels=32, out_channels=32, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid"
+            in_channels=32,
+            out_channels=32,
+            groups=1,
+            kernel_size=(1, 3, 3),
+            stride=1,
+            activation=activations["2d"],
+            padding=padding["two_d_2"],
         )  # TODO: Remove the padding
 
         # Coarse 3D layers
 
-        d_here = d - 4  # 44 -> two 2x2x2 convolutions
-        h_here = int((h - 4) / 2) - 4  # 122, two 1x2x2 convolutions -> downsample -> two 2x2x2 convolutions
+        d_here = d  # 44 -> two 2x2x2 convolutions
+        h_here = int((h - 4) / 2)  # 122, two 1x2x2 convolutions -> downsample -> two 2x2x2 convolutions
+
         # First part of 2 x Conv + ResSE
+
+        if padding["coarse_3d_1"] == "valid":
+            d_here -= 4
+            h_here -= 4
         self.coarse_3d_1 = DoubleConvResSE(
             (d_here, h_here, h_here),
-            activation=resse_activation,
             in_channels=16,
             out_channels=32,
             kernel_size=(3, 3, 3),
             stride=1,
-            padding="same",
+            activation=activations["coarse_resse"],
+            padding=padding["coarse_3d_1"],
         )
 
         d_here = int(d_here / 2)  # - 4  # 18 # downsample + two 3x3x3 conv
         h_here = int(h_here / 2)  # - 4  # 57  # downsample + two 3x3x3 conv
 
+        # Check if no padding -> reduce both dims, else check if tuple, then reduce the dimensions accordingly
+
+        if padding["coarse_3d_2"] == "valid":
+            d_here -= 4
+            h_here -= 4
+
         self.coarse_3d_2 = DoubleConvResSE(
             (d_here, h_here, h_here),
-            activation=resse_activation,
             in_channels=32,
             out_channels=64,
             kernel_size=(3, 3, 3),
             stride=1,
-            padding="same",
+            activation=activations["coarse_resse"],
+            padding=padding["coarse_3d_2"],
         )
 
         # Fine 3D block
 
-        self.fine_3d_1 = HDCResSE((d_here, h_here, h_here), in_channels=64, out_channels=128, dilations=hdc_dilations)
-        self.fine_3d_2 = HDCResSE((d_here, h_here, h_here), in_channels=128, out_channels=256, dilations=hdc_dilations)
-        self.fine_3d_3 = HDCResSE((d_here, h_here, h_here), in_channels=256, out_channels=128, dilations=hdc_dilations)
+        self.fine_3d_1 = HDCResSE(
+            (d_here, h_here, h_here),
+            in_channels=64,
+            out_channels=128,
+            padding=padding["hdc_1"],
+            activation=activations["fine_resse"],
+            dilations=hdc_dilations,
+        )
+        self.fine_3d_2 = HDCResSE(
+            (d_here, h_here, h_here),
+            in_channels=128,
+            out_channels=256,
+            padding=padding["hdc_2"],
+            activation=activations["fine_resse"],
+            dilations=hdc_dilations,
+        )
+        self.fine_3d_3 = HDCResSE(
+            (d_here, h_here, h_here),
+            in_channels=256,
+            out_channels=128,
+            padding=padding["hdc_3"],
+            activation=activations["fine_resse"],
+            dilations=hdc_dilations,
+        )
 
         # Last two coarse 3d
         d_here = d_here  # - 4  # 14  -> two 3x3x3 conv
         h_here = h_here  # - 4  # 53  -> two 3x3x3 conv
+
+        if padding["coarse_3d_3"] == "valid":
+            d_here -= 4
+            h_here -= 4
+
         self.coarse_3d_3 = DoubleConvResSE(
             (d_here, h_here, h_here),
-            activation=resse_activation,
             in_channels=128,
             out_channels=64,
             kernel_size=(3, 3, 3),
             stride=1,
-            padding="same",
+            activation=activations["coarse_resse"],
+            padding=padding["coarse_3d_3"],
         )
         d_here = d_here * 2  # - 4  # 14  -> upsample + two 3x3x3 conv
         h_here = h_here * 2  # - 4  # 53  -> upsample + two 3x3x3 conv
+
+        if padding["coarse_3d_4"] == "valid":
+            d_here -= 4
+            h_here -= 4
         self.coarse_3d_4 = DoubleConvResSE(
             (d_here, h_here, h_here),
-            activation=resse_activation,
             in_channels=64,
             out_channels=32,
             kernel_size=(3, 3, 3),
             stride=1,
-            padding="same",
+            activation=activations["coarse_resse"],
+            padding=padding["coarse_3d_4"],
         )
 
         # 1x1x1 convs
 
-        self.one_d_1 = nn.Sequential(
+        temp = [
             nn.Conv3d(
                 in_channels=256,
                 out_channels=128,
                 groups=1,
                 kernel_size=(1, 1, 1),
-                padding=0,  # TODO: Check on the padding, this is for the toy model
+                padding=padding["one_d_1"],
                 *args,
                 **kwargs,
-            ),
-            nn.ReLU(),
-        )
-        self.one_d_2 = nn.Sequential(
+            )
+        ]
+        if temp_layer := activations.get("one_d_1"):
+            temp.append(temp_layer)
+
+        self.one_d_1 = nn.Sequential(*temp)
+
+        temp = [
             nn.Conv3d(
                 in_channels=128,
                 out_channels=64,
                 groups=1,
                 kernel_size=(1, 1, 1),
-                padding=0,  # TODO: Check on the padding, this is for the toy model
+                padding=padding["one_d_2"],
                 *args,
                 **kwargs,
             ),
-            nn.ReLU(),
-        )
-        self.one_d_3 = nn.Sequential(
+        ]
+        if temp_layer := activations.get("one_d_2"):
+            temp.append(temp_layer)
+        self.one_d_2 = nn.Sequential(*temp)
+
+        temp = [
             nn.Conv3d(  # The final layer in the network
                 in_channels=32,
-                out_channels=10,
+                out_channels=out_channels,
                 groups=1,
                 kernel_size=(1, 1, 1),
-                padding=(0, 4, 4),  # TODO: Check on the padding, this is for the toy model
+                padding=padding["one_d_3"],
                 *args,
                 **kwargs,
             ),
-            nn.Sigmoid(),
-        )
+        ]
+        if temp_layer := activations.get("one_d_3"):
+            print(f"appending a {temp_layer} to the final layer")
+            temp.append(temp_layer)
+
+        self.one_d_3 = nn.Sequential(*temp)
 
         # Downsampling maxpool
         self.downsample1 = nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2), padding=0, dilation=1)
@@ -370,7 +530,7 @@ def main():
     expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
-    model = OrganNet25D(input_shape=input_shape[-3::], hdc_dilations=(1, 5, 9))
+    model = OrganNet25D(input_shape=input_shape[-3::], hdc_dilations=(1, 2, 3), padding="no")
     # model = ToyOrganNet25D()
 
     output = model(input, verbose=True)
@@ -381,6 +541,10 @@ def main():
     Output shape correct: {output.shape == expected_output_shape} (expected: {expected_output_shape}).
     """
     print(msg)
+
+    from torchsummary import summary
+
+    summary(model, input_size=input_shape[1:], batch_size=2)
 
 
 if __name__ == "__main__":
