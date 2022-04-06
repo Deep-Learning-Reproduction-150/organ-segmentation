@@ -138,9 +138,10 @@ class Transpose(object):
 
 
 class StandardScaleTensor(object):
+
     def __init__(self, **params):
         super().__init__()
 
     def __call__(self, tensor):
-        scaled_tensor = (tensor - tensor.min()) / (tensor.max() - tensor.min() + 1e-6)
+        scaled_tensor = ((tensor - tensor.min()) / (tensor.max() - tensor.min() + 1e-6)).to(tensor.dtype)
         return scaled_tensor

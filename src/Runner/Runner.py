@@ -45,8 +45,10 @@ class Runner:
     # A data set that will overwrite the data set specified in the job
     dataset = None
 
-    # The current eval and train data used by the runner
+    # The current train data set that is used by the runner
     train_data = None
+
+    # The current evaluation data set that is used by the runner
     eval_data = None
 
     # When true, trainer will output much more details about jobs progress
@@ -237,18 +239,17 @@ class Runner:
         # Check if wandb shall be used
         if self.job["wandb_api_key"]:
 
-            # Flash notification
-            Logger.log("Loading wand and creating run for project " + self.job["wandb_project_name"])
-
-            # Load wandb
-            wandb_run_id = wandb_id if not None else self.job["wandb_run_id"]
-
             # Disable wandb console output
             os.environ["WANDB_SILENT"] = "true"
             wandb.login(key=self.job["wandb_api_key"])
-            self.wandb_worker = wandb.init(
-                project=self.job["wandb_project_name"], resume=start_epoch > 0, id=wandb_run_id
-            )
+            if start_epoch > 0 and wandb_id is not None:
+                # Flash notification
+                Logger.log("Loading wand and attempting to resume run " + str(wandb_id))
+                self.wandb_worker = wandb.init(id=wandb_id, project=self.job["wandb_project_name"], resume='allow')
+            else:
+                # Flash notification
+                Logger.log("Loading wand for project " + self.job["wandb_project_name"])
+                self.wandb_worker = wandb.init(project=self.job["wandb_project_name"])
 
         # Start timer to measure data set
         self.timer.start("creating dataset")
@@ -270,7 +271,7 @@ class Runner:
         self.train_data, self.eval_data = self._get_dataloader(
             dataset,
             split_ratio=self.job["training"]["split_ratio"],
-            num_workers=self.job["training"]["num_workers"],
+            num_workers=self.job["training"]['dataset']["num_workers"],
             batch_size=self.job["training"]["batch_size"],
         )
 
@@ -283,6 +284,9 @@ class Runner:
             type="INFO",
             in_cli=self.debug,
         )
+
+        # Notify the user regarding validation
+        Logger.log("Validation is done on " + str(len(self.eval_data)) + " batches ...")
 
         # Create optimizer
         optimizer = self._get_optimizer(self.job["training"]["optimizer"])
@@ -310,10 +314,10 @@ class Runner:
         for epoch in range(start_epoch, self.job["training"]["epochs"]):
 
             # Start epoch timer and log the start of this epoch
-            Logger.log("Starting to run Epoch {}/{}".format(epoch + 1, self.job["training"]["epochs"]), in_cli=False)
+            Logger.log("Starting to run Epoch {}/{}".format(epoch + 1, self.job["training"]["epochs"]), in_cli=True, new_line=True)
 
             # Print epoch status bar
-            Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(self.job["training"]["epochs"]))
+            Logger.print_status_bar(done=0, title="training loss: -")
 
             # Initiate a model output, input and labels variable with none
             model_output = None
@@ -340,8 +344,9 @@ class Runner:
 
                 # Get output
                 model_output = self.model(inputs)
-                # Calculate loss
-                loss = loss_function(model_output, labels)
+
+                # Calculate loss TODO: the labels are int8 to save storage
+                loss = loss_function(model_output, labels.to(torch.float32))
 
                 if self.job["training"]["detect_bad_gradients"]:
                     from torch import autograd
@@ -369,12 +374,7 @@ class Runner:
                 # Print epoch status bar
                 Logger.print_status_bar(
                     done=((batch + 1) / len(self.train_data)) * 100,
-                    title="epoch "
-                    + str(epoch + 1)
-                    + "/"
-                    + str(self.job["training"]["epochs"])
-                    + ", loss: "
-                    + "{:.2f}".format(current_loss),
+                    title="training loss: " + "{:.2f}".format(current_loss),
                 )
 
             # Finish the status bar
@@ -386,10 +386,8 @@ class Runner:
             # Perform validation
             if self.eval_data is not None:
 
-                # Notify the user regarding validation
-                Logger.log(
-                    "Validating the model on " + str(len(self.eval_data)) + " validation batches ...", in_cli=self.debug
-                )
+                # Print epoch status bar
+                Logger.print_status_bar(done=0, title="evaluation loss: -")
 
                 # Set model to evaluation mode
                 self.model.eval()
@@ -412,14 +410,14 @@ class Runner:
                     # Calculate output
                     model_output = self.model(inputs)
 
-                    # Determine loss
-                    eval_loss = loss_function(model_output, labels)
+                    # Determine loss TODO: the labels are int8 to save storage
+                    eval_loss = loss_function(model_output, labels.to(torch.float32))
 
                     # Add to running validation loss
                     eval_running_loss += eval_loss.detach().cpu().numpy()
 
                     # Iterate through channels and compute dice losses for metric logging
-                    for i, organ in enumerate(CTDataset.label_structure):
+                    for i, organ in enumerate(self.job['training']['dataset']['labels']):
                         sub_tensor = model_output[:, i, :, :, :]
                         sub_label = labels[:, i, :, :, :]
                         if organ not in organ_dice_losses.keys():
@@ -430,14 +428,20 @@ class Runner:
                     organ_dice_losses["Background"].append(
                         float(
                             dice_loss_fn(
-                                model_output[:, len(CTDataset.label_structure), :, :, :],
-                                labels[:, len(CTDataset.label_structure), :, :, :],
+                                model_output[:, len(self.job['training']['dataset']['labels']), :, :, :],
+                                labels[:, len(self.job['training']['dataset']['labels']), :, :, :],
                             )
                         )
                     )
 
+                    # Get the current running los
+                    current_loss = eval_running_loss / batch if batch > 0 else eval_running_loss
+
                     # Print epoch status bar
-                    Logger.print_status_bar(done=((batch + 1) / len(self.eval_data)) * 100, title="validating model")
+                    Logger.print_status_bar(
+                        done=((batch + 1) / len(self.eval_data)) * 100,
+                        title="evaluation loss: " + "{:.2f}".format(current_loss)
+                    )
 
                 # Mean over the dice losses
                 for key, val in organ_dice_losses.items():
@@ -448,10 +452,6 @@ class Runner:
 
                 # Calculate epoch train val loss
                 epoch_evaluation_loss = eval_running_loss / len(self.eval_data)
-
-                # Notify the user regarding validation
-                avg_loss = "{:.2f}".format(epoch_evaluation_loss)
-                Logger.log("Valuation done with an average epoch loss of " + str(avg_loss), in_cli=self.debug)
 
                 # TODO: here, we could do an early stopping if the model is extremely overfitting or so
 
@@ -472,9 +472,9 @@ class Runner:
             # Stop timer to measure epoch length
             epoch_time = self.timer.get_time("epoch")
 
-            # Log the epoch success TODO: more here soon
-            avg_loss = "{:.2f}".format(epoch_train_loss)
-            Logger.log("Epoch took " + str(epoch_time) + " seconds. The average loss is " + avg_loss, in_cli=self.debug)
+            # Log the epoch success
+            avg_loss = "{:.4f}".format(epoch_train_loss)
+            avg_val_loss = "{:.4f}".format(epoch_evaluation_loss)
 
             # Report the current loss to wandb if it's set
             if self.job["wandb_api_key"]:
@@ -502,9 +502,6 @@ class Runner:
                 # Log all to wandb
                 self.wandb_worker.log({})
 
-            # Log that the checkpoint is saved
-            Logger.log("Saving checkpoint for epoch " + str(epoch + 1), in_cli=True)
-
             # Save a checkpoint for this job after each epoch (to be able to resume)
             self._save_checkpoint(
                 {
@@ -520,7 +517,11 @@ class Runner:
             )
 
             # Write log message that the training has been completed
-            Logger.log("Checkpoint updated (data has been saved)", in_cli=True)
+            Logger.log("Checkpoint updated for epoch " + str(epoch + 1), in_cli=True)
+
+            # Print epoch status
+            Logger.log("Training loss is " + avg_loss + ", validation loss is " + avg_val_loss, in_cli=True)
+            Logger.log("Epoch took " + str(epoch_time) + " seconds.", in_cli=self.debug)
 
         # Write log message that the training has been completed
         Logger.log("Training of the model completed", type="SUCCESS", in_cli=True)
@@ -613,11 +614,11 @@ class Runner:
                 sample_image = inputs[batch_no, 0, :, :, :].mean(dim=perspective_idx)
 
                 # Create raw prediction and label masks
-                prediction_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure) + 1
-                label_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure)
+                prediction_mask_data = torch.ones_like(sample_image) * len(self.job['training']['dataset']['labels']) + 1
+                label_mask_data = torch.ones_like(sample_image) * len(self.job['training']['dataset']['labels'])
 
                 # Iterate through all organs and add them to it
-                for organ_slice, organ in enumerate(CTDataset.label_structure):
+                for organ_slice, organ in enumerate(self.job['training']['dataset']['labels']):
                     raw_prediction = model_output[batch_no, organ_slice, :, :, :].max(dim=perspective_idx).values
                     raw_label = labels[batch_no, organ_slice, :, :, :].max(dim=perspective_idx).values
 
@@ -630,20 +631,20 @@ class Runner:
 
                 # Do the same for the background
                 background_prediction = (
-                    model_output[batch_no, len(CTDataset.label_structure), :, :, :].max(dim=perspective_idx).values
+                    model_output[batch_no, len(self.job['training']['dataset']['labels']), :, :, :].max(dim=perspective_idx).values
                 )
                 prediction_mask_data = torch.where(
                     background_prediction > 0.5,
-                    torch.tensor(len(CTDataset.label_structure), dtype=torch.float32),
+                    torch.tensor(len(self.job['training']['dataset']['labels']), dtype=torch.float32),
                     prediction_mask_data,
                 )
 
                 # Prepare class labels
                 class_labels = {
-                    len(CTDataset.label_structure): "Background",
-                    len(CTDataset.label_structure) + 1: "No Prediction",
+                    len(self.job['training']['dataset']['labels']): "Background",
+                    len(self.job['training']['dataset']['labels']) + 1: "No Prediction",
                 }
-                for i, organ in enumerate(CTDataset.label_structure):
+                for i, organ in enumerate(self.job['training']['dataset']['labels']):
                     class_labels[i] = organ
 
                 # Convert to ndarray for wandb
@@ -696,10 +697,6 @@ class Runner:
 
             # Start timer and log preperation operation
             self.timer.start("prediction-preperation")
-            Logger.log(
-                "Preparing " + str(self.job["wandb_prediction_examples"]) + " prediction examples for wandb",
-                in_cli=True,
-            )
 
             # Select a random sample from the batch
             batch_no = random.randint(0, inputs.size()[0] - 1)
@@ -707,38 +704,43 @@ class Runner:
             # Iterate through the model output and find good and bad slices
             good_slices_data = {"good": [], "bad": []}
             for s in range(labels.size()[-3] - 1):
-                current_max = labels[batch_no, list(range(len(CTDataset.label_structure) - 1)), s, :, :].max()
+                current_max = labels[batch_no, list(range(len(self.job['training']['dataset']['labels']) - 1)), s, :, :].max()
                 if current_max > 0.5:
                     good_slices_data["good"].append(s)
                 else:
                     good_slices_data["bad"].append(s)
 
             # Compose the good slices in a list
-            first_good_slice = sorted(good_slices_data["good"])[0]
-            last_good_slice = sorted(good_slices_data["good"])[-1]
-            have_want_difference = (last_good_slice - first_good_slice + 1) - self.job["wandb_prediction_examples"]
-            if have_want_difference >= 0:
-                good_slices = np.linspace(
-                    first_good_slice, last_good_slice, num=self.job["wandb_prediction_examples"], dtype=int
-                )
-            else:
-                possible_slices = self.job["wandb_prediction_examples"]
-                if self.job["wandb_prediction_examples"] > inputs.size()[-3]:
-                    Logger.log(
-                        "Requested "
-                        + str(self.job["wandb_prediction_examples"])
-                        + " slices, but can only return "
-                        + str(inputs.size()[-3]),
-                        type="ERROR",
-                        in_cli=True,
+            if len(good_slices_data["good"]) > 0:
+                first_good_slice = sorted(good_slices_data["good"])[0]
+                last_good_slice = sorted(good_slices_data["good"])[-1]
+                have_want_difference = (last_good_slice - first_good_slice + 1) - self.job["wandb_prediction_examples"]
+                if have_want_difference >= 0:
+                    good_slices = np.linspace(
+                        first_good_slice, last_good_slice, num=self.job["wandb_prediction_examples"], dtype=int
                     )
-                    possible_slices = inputs.size()[-3]
-                good_slices = sorted(good_slices_data["good"])
-                while len(good_slices) < possible_slices:
-                    random_slice = random.randint(0, inputs.size()[-3] - 1)
-                    if random_slice not in good_slices:
-                        good_slices.append(random_slice)
-                good_slices = sorted(good_slices)
+                else:
+                    possible_slices = self.job["wandb_prediction_examples"]
+                    if self.job["wandb_prediction_examples"] > inputs.size()[-3]:
+                        Logger.log(
+                            "Requested "
+                            + str(self.job["wandb_prediction_examples"])
+                            + " slices, but can only return "
+                            + str(inputs.size()[-3]),
+                            type="ERROR",
+                            in_cli=True,
+                        )
+                        possible_slices = inputs.size()[-3]
+                    good_slices = sorted(good_slices_data["good"])
+                    while len(good_slices) < possible_slices:
+                        random_slice = random.randint(0, inputs.size()[-3] - 1)
+                        if random_slice not in good_slices:
+                            good_slices.append(random_slice)
+                    good_slices = sorted(good_slices)
+            else:
+                good_slices = []
+                for i in range(self.job["wandb_prediction_examples"]):
+                    good_slices.append(random.randint(0, inputs.size()[-3] - 1))
 
             # Create a list of masks
             mask_list = []
@@ -750,11 +752,11 @@ class Runner:
                 sample_image = inputs[batch_no, 0, slice_no, :, :]
 
                 # Create raw prediction and label masks
-                prediction_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure) + 1
-                label_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure)
+                prediction_mask_data = torch.ones_like(sample_image) * len(self.job['training']['dataset']['labels']) + 1
+                label_mask_data = torch.ones_like(sample_image) * len(self.job['training']['dataset']['labels'])
 
                 # Iterate through all organs and add them to it
-                for organ_slice, organ in enumerate(CTDataset.label_structure):
+                for organ_slice, organ in enumerate(self.job['training']['dataset']['labels']):
                     raw_prediction = model_output[batch_no, organ_slice, slice_no, :, :]
                     raw_label = labels[batch_no, organ_slice, slice_no, :, :]
 
@@ -773,19 +775,19 @@ class Runner:
                     )
 
                 # Do the same for the background
-                background_prediction = model_output[batch_no, len(CTDataset.label_structure), slice_no, :, :]
+                background_prediction = model_output[batch_no, len(self.job['training']['dataset']['labels']), slice_no, :, :]
                 prediction_mask_data = torch.where(
                     background_prediction > float(background_prediction.median()),
-                    torch.tensor(len(CTDataset.label_structure), dtype=torch.float32),
+                    torch.tensor(len(self.job['training']['dataset']['labels']), dtype=torch.float32),
                     prediction_mask_data,
                 )
 
                 # Prepare class labels
                 class_labels = {
-                    len(CTDataset.label_structure): "Background",
-                    len(CTDataset.label_structure) + 1: "No Prediction",
+                    len(self.job['training']['dataset']['labels']): "Background",
+                    len(self.job['training']['dataset']['labels']) + 1: "No Prediction",
                 }
-                for i, organ in enumerate(CTDataset.label_structure):
+                for i, organ in enumerate(self.job['training']['dataset']['labels']):
                     class_labels[i] = organ
 
                 # Convert to ndarray for wandb
@@ -830,7 +832,7 @@ class Runner:
 
         max_vals = {}
         min_vals = {}
-        for i, organ in enumerate(CTDataset.label_structure):
+        for i, organ in enumerate(self.job['training']['dataset']['labels']):
             max_vals[organ] = model_output[:, i, :, :, :].max()
             min_vals[organ] = model_output[:, i, :, :, :].min()
 
@@ -921,13 +923,19 @@ class Runner:
         # Generate the path where the data set is located at
         dataset_path = os.path.join(base_path, data["root"])
 
+        # Save a global version of the label order
+        if data["labels"] is None:
+            # Abort as the label structure is missing
+            raise ValueError("You have to add the desired label structure to your job configuration (add a list at training/dataset/labels")
+
         # Create an instance of the dataloader and pass location of data
         dataset = CTDataset(
             dataset_path,
             preload=preload,
-            transforms=data["transform"],
-            no_logging=False,
+            label_transforms=data["label_transforms"],
+            sample_transforms=data["sample_transforms"],
             label_structure=data["labels"],
+            no_logging=False,
         )
 
         return dataset
