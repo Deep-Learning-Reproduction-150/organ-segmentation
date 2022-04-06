@@ -100,7 +100,7 @@ class HDC(nn.Module):
 class HDCResSE(nn.Module):  # See figure 2. from the paper
     def __init__(
         self,
-        dilations=(1, 2, 5),
+        dilation=1,
         in_channels=16,
         out_channels=32,
         kernel_size=(3, 3, 3),
@@ -109,12 +109,19 @@ class HDCResSE(nn.Module):  # See figure 2. from the paper
     ) -> None:
 
         super().__init__()
-        self.hdc = HDC(
-            dilations=dilations,
+        # self.hdc = HDC(
+        #     dilations=dilations,
+        #     in_channels=in_channels,
+        #     out_channels=out_channels,
+        #     kernel_size=kernel_size,
+        #     padding=padding,
+        # )
+        self.hdc = nn.Conv3d(
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
             padding=padding,
+            dilation=dilation,
         )
         self.resse = nn.Sequential(
             nn.AdaptiveAvgPool3d(output_size=(1, 1, 1)),
@@ -145,7 +152,6 @@ class OrganNet25D(nn.Module):
     def __init__(
         self,
         hdc_dilations=(1, 2, 3),
-        input_shape=(48, 256, 256),
         out_channels=10,
         activations={
             "coarse_resse": "sigmoid",
@@ -178,6 +184,7 @@ class OrganNet25D(nn.Module):
             'one_d_2'
             'one_d_3'
         """
+        print(f"Initialising organNet with {hdc_dilations}")
 
         # Call torch superclass constructor
         super().__init__()
@@ -209,14 +216,12 @@ class OrganNet25D(nn.Module):
             padding["coarse_3d_2"] = "valid"  # (4, 0, 0)  # "valid"
             padding["coarse_3d_3"] = "valid"
             padding["coarse_3d_4"] = "valid"
-            padding["hdc_1"] = "same"
-            padding["hdc_2"] = "same"
+            padding["hdc_1"] = "valid"
+            padding["hdc_2"] = "valid"
             padding["hdc_3"] = "same"
             padding["one_d_1"] = "valid"
             padding["one_d_2"] = "valid"
             padding["one_d_3"] = (12, 28, 28)
-
-        d, h, w = input_shape
 
         # First 2D layers
         self.two_d_1 = conv_2x2d(
@@ -270,21 +275,21 @@ class OrganNet25D(nn.Module):
             out_channels=128,
             padding=padding["hdc_1"],
             activation=activations["fine_resse"],
-            dilations=hdc_dilations,
+            dilation=hdc_dilations[0],
         )
         self.fine_3d_2 = HDCResSE(
             in_channels=128,
             out_channels=256,
             padding=padding["hdc_2"],
             activation=activations["fine_resse"],
-            dilations=hdc_dilations,
+            dilation=hdc_dilations[1],
         )
         self.fine_3d_3 = HDCResSE(
             in_channels=256,
             out_channels=128,
             padding=padding["hdc_3"],
             activation=activations["fine_resse"],
-            dilations=hdc_dilations,
+            dilation=hdc_dilations[2],
         )
 
         # Last two coarse 3d
@@ -351,7 +356,6 @@ class OrganNet25D(nn.Module):
                 **kwargs,
             ),
             nn.Sigmoid(),
-            nn.Softmax(dim=(1)),
         )
 
         # Downsampling maxpool
@@ -361,6 +365,9 @@ class OrganNet25D(nn.Module):
         # Upsampling layer
         self.upsample1 = nn.ConvTranspose3d(in_channels=64, out_channels=32, stride=(2, 2, 2), kernel_size=(2, 2, 2))
         self.upsample2 = nn.ConvTranspose3d(in_channels=32, out_channels=16, stride=(1, 2, 2), kernel_size=(1, 2, 2))
+
+        # Final softmax
+        self.softm = nn.Softmax(dim=1)
 
         return
 
@@ -475,7 +482,9 @@ class OrganNet25D(nn.Module):
         if verbose:
             print(f"\tOutput 19 (final) shape:\t\t{out19.shape}")
 
-        return out19
+        output = self.softm(out19)
+
+        return output
 
 
 class ToyOrganNet25D(OrganNet25D):
@@ -489,7 +498,9 @@ class ToyOrganNet25D(OrganNet25D):
         out18 = self.two_d_2(out17)
         out19 = self.one_d_3(out18)
 
-        return out19
+        output = self.softm(out19)
+
+        return output
 
 
 def main():
@@ -509,7 +520,7 @@ def main():
     expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
-    model = OrganNet25D(input_shape=input_shape[-3::], hdc_dilations=(1, 2, 5), padding="no")
+    model = OrganNet25D(hdc_dilations=(1, 2, 5), padding="no")
     # model = ToyOrganNet25D()
 
     output = model(input, verbose=True)
