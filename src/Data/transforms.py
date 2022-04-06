@@ -139,17 +139,21 @@ class Transpose(object):
 
 
 class StandardScaleTensor(object):
-
     def __init__(self, **params):
         super().__init__()
 
     def __call__(self, tensor):
-        scaled_tensor = ((tensor - tensor.min()) / (tensor.max() - tensor.min() + 1e-6)).to(tensor.dtype)
+        # scaled_tensor = ((tensor - tensor.min()) / (tensor.max() - tensor.min() + 1e-6)).to(tensor.dtype)
+
+        mu = tensor.mean()
+        std = tensor.std()
+
+        scaled_tensor = (tensor - mu) / std
+
         return scaled_tensor
 
 
 class CropAroundBrainStem(object):
-
     def __init__(self, depth=1, width=1, height=1):
         self.depth = depth
         self.width = width
@@ -198,3 +202,12 @@ class CropAroundBrainStem(object):
                 vol = vol[:, :, crop_min:crop_max]
 
         return vol
+
+
+class MakeEverythingBrainStem(object):
+    def __call__(self, tensor):
+        from copy import deepcopy
+
+        # Remove all other channels than 0
+        tensor[:, :] = deepcopy(tensor[:, 0])
+        return tensor
