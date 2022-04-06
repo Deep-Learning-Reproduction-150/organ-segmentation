@@ -601,13 +601,6 @@ class Runner:
         # Generate a random slice as example for reconstruction
         if model_output is not None:
 
-            # Start timer and log preperation operation
-            self.timer.start("prediction-preperation")
-            Logger.log(
-                "Preparing " + str(self.job["wandb_prediction_examples"]) + " prediction examples for wandb",
-                in_cli=True,
-            )
-
             # Create a list of masks
             mask_list = []
 
@@ -682,10 +675,6 @@ class Runner:
                 },
                 commit=False,
             )
-
-            # Notify about duration
-            prep_took = self.timer.get_time("prediction-preperation")
-            Logger.log("Preparing the examples took {:.2f} seconds".format(prep_took), in_cli=True)
 
         else:
 
