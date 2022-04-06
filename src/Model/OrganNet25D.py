@@ -122,6 +122,7 @@ class HDCResSE(nn.Module):  # See figure 2. from the paper
             kernel_size=kernel_size,
             padding=padding,
             dilation=dilation,
+            padding_mode="reflect",
         )
         self.resse = nn.Sequential(
             nn.AdaptiveAvgPool3d(output_size=(1, 1, 1)),
@@ -216,12 +217,12 @@ class OrganNet25D(nn.Module):
             padding["coarse_3d_2"] = "valid"  # (4, 0, 0)  # "valid"
             padding["coarse_3d_3"] = "valid"
             padding["coarse_3d_4"] = "valid"
-            padding["hdc_1"] = "valid"
+            padding["hdc_1"] = "same"
             padding["hdc_2"] = "same"
             padding["hdc_3"] = "same"
             padding["one_d_1"] = "valid"
             padding["one_d_2"] = "valid"
-            padding["one_d_3"] = (14, 32, 32)
+            padding["one_d_3"] = (12, 28, 28)
 
         # First 2D layers
         self.two_d_1 = conv_2x2d(
@@ -349,11 +350,9 @@ class OrganNet25D(nn.Module):
             nn.Conv3d(  # The final layer in the network
                 in_channels=32,
                 out_channels=out_channels,
-                groups=1,
                 kernel_size=(1, 1, 1),
                 padding=padding["one_d_3"],
-                *args,
-                **kwargs,
+                padding_mode="reflect"
             ),
             nn.Sigmoid(),
         )
