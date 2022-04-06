@@ -7,7 +7,6 @@ Group: 150
 """
 
 import os
-import torch
 import importlib
 import torch.nn as nn
 from torch.utils.data import Dataset
@@ -23,7 +22,7 @@ class CTDataset(Dataset):
     """
 
     # Attribute stores a global label structure to apply for every sample
-    label_structure = []
+    label_structure = None
 
     # Stores the location of the raw data set
     root = None
@@ -52,13 +51,12 @@ class CTDataset(Dataset):
         # Call super class constructor
         super().__init__()
 
-        # If label structure is passed, put it static
-        if label_structure is not None:
-            CTDataset.label_structure = label_structure
-
         # Save the transform
         self.label_transforms = label_transforms
         self.sample_transforms = sample_transforms
+
+        # Save the label structure
+        self.label_structure = label_structure
 
         # Check if given path leads to a directory
         if not os.path.isdir(root):
@@ -100,12 +98,6 @@ class CTDataset(Dataset):
 
                 # Append a labeled sample object
                 self.samples.append(new_sample)
-
-                # Iterate through the samples labels and remember them globally
-                if label_structure is None:
-                    for label in new_sample.labels:
-                        if label.name not in CTDataset.label_structure:
-                            CTDataset.label_structure.append(label.name)
 
                 # Increment the counter
                 counter += 1
@@ -166,7 +158,7 @@ class CTDataset(Dataset):
 
         # Create sample data (squeeze the dummy channel in there as well)
         sample = sample_instance.get_tensor(self.get_data_transformer('sample'))
-        labels = sample_instance.get_labels(CTDataset.label_structure, self.get_data_transformer('label'))
+        labels = sample_instance.get_labels(self.label_structure, self.get_data_transformer('label'))
 
         # Return (data tensor, label tensor)
         return sample, labels

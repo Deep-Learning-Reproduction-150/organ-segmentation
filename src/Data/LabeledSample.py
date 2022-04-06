@@ -135,18 +135,24 @@ class LabeledSample:
         # Return the sample (which is a tensor)
         return self.sample.get_tensor(transformer=transformer)
 
-    def get_labels(self, label_order: list, transformer: DataTransformer = DataTransformer([])):
+    def get_labels(self, label_structure: list, transformer: DataTransformer = DataTransformer([])):
         """
         This method returns the list of labels associated with this sample
 
         :return labels: list of tensors that are the labels
         """
 
+        # Check whether the passed label order is there
+        if len(label_structure) == 0:
+
+            # Stop the process as the order of labels is unknown
+            raise ValueError("Labeled data object received an empty label order list, stopping")
+
         # Initialize a list of labels
         tensors = []
 
         # Iterate through the labels and create
-        for wanted_label in label_order:
+        for wanted_label in label_structure:
 
             # Iterate through the labels and find it
             data = None
@@ -169,13 +175,20 @@ class LabeledSample:
             tensors.append(data)
 
         # Compute a "background label" and append it to the labels
-        label_mask = torch.ones_like(tensors[0], dtype=torch.int8)
-        for i, label in enumerate(tensors):
-            label_mask = torch.where(label > torch.tensor(0, dtype=torch.int8), torch.tensor(0, dtype=torch.int8), label_mask)
-        tensors.append(label_mask)
+        if len(tensors) > 0:
 
-        # Return the list of label tensors
-        return torch.cat(tensors, 0)
+            # Create background slice
+            label_mask = torch.ones_like(tensors[0], dtype=torch.int8)
+            for i, label in enumerate(tensors):
+                label_mask = torch.where(label > torch.tensor(0, dtype=torch.int8), torch.tensor(0, dtype=torch.int8), label_mask)
+            tensors.append(label_mask)
+
+            # Return the list of label tensors
+            return torch.cat(tensors, 0)
+        else:
+
+            # Warn about no tensors
+            raise ValueError("Labeled data object does not contain any labels, stopping")
 
     def load(self, transformer: DataTransformer):
         """

@@ -62,7 +62,7 @@
         },
         "dataset": {
             "root": "./data/train",
-            "num_workers": 0,
+            "num_workers": 2,
             "labels": [
                 "BrainStem",
                 "Chiasm",
