@@ -374,7 +374,7 @@ class Runner:
                 # Print epoch status bar
                 Logger.print_status_bar(
                     done=((batch + 1) / len(self.train_data)) * 100,
-                    title="training loss: " + "{:.2f}".format(current_loss),
+                    title="training loss: " + "{:.5f}".format(current_loss),
                 )
 
             # Finish the status bar
@@ -440,7 +440,7 @@ class Runner:
                     # Print epoch status bar
                     Logger.print_status_bar(
                         done=((batch + 1) / len(self.eval_data)) * 100,
-                        title="evaluation loss: " + "{:.2f}".format(current_loss)
+                        title="evaluation loss: " + "{:.5f}".format(current_loss)
                     )
 
                 # Mean over the dice losses
