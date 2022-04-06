@@ -78,5 +78,6 @@ class ChenEvaluator(BaseEvaluator):
                     correct += (predicted == targets).sum()#.item()
 
                 print('Accuracy for fold %d: %d %%' % (fold, 100.0 * correct / total))
+                Logger.log("Accuracy for fold" + fold + ": " + 100.0 * correct / total)
 
         return 100
