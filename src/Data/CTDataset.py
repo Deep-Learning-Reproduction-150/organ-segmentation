@@ -7,7 +7,6 @@ Group: 150
 """
 
 import os
-import torch
 import importlib
 import torch.nn as nn
 from torch.utils.data import Dataset
@@ -23,7 +22,7 @@ class CTDataset(Dataset):
     """
 
     # Attribute stores a global label structure to apply for every sample
-    label_structure = []
+    label_structure = None
 
     # Stores the location of the raw data set
     root = None
@@ -32,10 +31,11 @@ class CTDataset(Dataset):
     samples = None
 
     # Stores the transforms to be applied to the data set
-    transforms = None
+    label_transforms = None
+    sample_transforms = None
 
-    def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, transforms: list = [],
-                 no_logging: bool = True, label_structure: list = None):
+    def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, label_transforms: list = [],
+                 sample_transforms: list = [], no_logging: bool = True, label_structure: list = None):
         """
         Constructor method of the dataloader. First parameter specifies directories that contain labels to the files
         provided. The dataloader is designed to work with nrrd files only at the moment. n-dimensional numpy arrays
@@ -51,12 +51,12 @@ class CTDataset(Dataset):
         # Call super class constructor
         super().__init__()
 
-        # If label structure is passed, put it static
-        if label_structure is not None:
-            CTDataset.label_structure = label_structure
-
         # Save the transform
-        self.transforms = transforms
+        self.label_transforms = label_transforms
+        self.sample_transforms = sample_transforms
+
+        # Save the label structure
+        self.label_structure = label_structure
 
         # Check if given path leads to a directory
         if not os.path.isdir(root):
@@ -99,12 +99,6 @@ class CTDataset(Dataset):
                 # Append a labeled sample object
                 self.samples.append(new_sample)
 
-                # Iterate through the samples labels and remember them globally
-                if label_structure is None:
-                    for label in new_sample.labels:
-                        if label.name not in CTDataset.label_structure:
-                            CTDataset.label_structure.append(label.name)
-
                 # Increment the counter
                 counter += 1
 
@@ -136,7 +130,7 @@ class CTDataset(Dataset):
             for i, sample in enumerate(self.samples):
 
                 # Load data for this sample and transform it
-                sample.load(transformer=self.get_data_transformer(), label_structure=CTDataset.label_structure)
+                sample.load(transformer=self.get_data_transformer('sample'))
 
                 # Print the changing import status line
                 if not no_logging:
@@ -156,23 +150,18 @@ class CTDataset(Dataset):
         This method returns a random example of the data set
 
         :param index: the index of the data sample
-        :return: a random example from the data set
+        :return: the labeled example at a specific index
         """
 
         # Get the sample with a certain index
-        sample = self.samples[index]
-
-        # Load the sample
-        sample.load(
-            transformer=self.get_data_transformer(),
-            label_structure=CTDataset.label_structure
-        )
+        sample_instance = self.samples[index]
 
         # Create sample data (squeeze the dummy channel in there as well)
-        sample_data = sample.sample
+        sample = sample_instance.get_tensor(self.get_data_transformer('sample'))
+        labels = sample_instance.get_labels(self.label_structure, self.get_data_transformer('label'))
 
-        # Return the tupel (data, labels)
-        return sample_data, torch.cat(sample.labels, 0)
+        # Return (data tensor, label tensor)
+        return sample, labels
 
     def __len__(self):
         """
@@ -190,16 +179,15 @@ class CTDataset(Dataset):
 
         :param direction: either vertical or horizontal
         :return: writes a GIF for every sample in the data set
+
+        TODO: also visualize the labels in here as well
         """
 
         # Iterate through all samples
         for index, sample in enumerate(self.samples):
 
-            # Load the sample
-            sample.load(
-                transformer=self.get_data_transformer(),
-                label_structure=CTDataset.label_structure
-            )
+            # Load the sample TODO: pass transformer rather to visualize functino (for inplace)
+            sample.load(transformer=self.get_data_transformer('sample'))
 
             # Create visualization for the sample
             sample.visualize(
@@ -220,7 +208,27 @@ class CTDataset(Dataset):
         # Return the root path
         return self.root
 
-    def get_transform(self, name=None, **params):
+    def get_data_transformer(self, destination: str = 'sample'):
+        """
+        Returns an instance of a data transformer that contains the specified transformations
+        """
+        # Create transform set
+        if destination == 'sample':
+            transforms = self.sample_transforms
+        else:
+            transforms = self.label_transforms
+        # Create a data transformer
+        transform_list = []
+        for t in transforms:
+            if isinstance(t, dict):
+                t = CTDataset.get_transform(**t)
+            elif not isinstance(t, object) or not isinstance(t, nn.Module):
+                raise TypeError('Expected type dict or transform.')
+            transform_list.append(t)
+        return DataTransformer(transform_list)
+
+    @staticmethod
+    def get_transform(name=None, **params):
         """
         Returns a transform based on identifier. This method will first look for a
         local transform in utils.transforms and secondly, look for an official
@@ -235,17 +243,3 @@ class CTDataset(Dataset):
             module = importlib.import_module('torchvision.transforms')
             transform = getattr(module, name)
         return transform(**params)
-
-    def get_data_transformer(self):
-        """
-        Returns an instance of a data transformer that contains the specified transformations
-        """
-        # Create a data transformer
-        transform_list = []
-        for t in self.transforms:
-            if isinstance(t, dict):
-                t = self.get_transform(**t)
-            elif not isinstance(t, object) or not isinstance(t, nn.Module):
-                raise TypeError('Expected type dict or transform.')
-            transform_list.append(t)
-        return DataTransformer(transform_list)
