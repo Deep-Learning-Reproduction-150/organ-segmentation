@@ -16,8 +16,11 @@ jobs = [
     'job_config_sample.json'
 ]
 
-# Create a trainer object and call him robert
-worker = Runner(jobs=jobs, debug=True)
+# Main guard
+if __name__ == '__main__':
 
-# Run the jobs
-worker.run()
+    # Create a trainer object and call him robert
+    worker = Runner(jobs=jobs, debug=True)
+
+    # Run the jobs
+    worker.run()

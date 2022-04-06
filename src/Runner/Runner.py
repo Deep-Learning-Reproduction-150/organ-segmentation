@@ -237,18 +237,17 @@ class Runner:
         # Check if wandb shall be used
         if self.job["wandb_api_key"]:
 
-            # Flash notification
-            Logger.log("Loading wand and creating run for project " + self.job["wandb_project_name"])
-
-            # Load wandb
-            wandb_run_id = wandb_id if not None else self.job["wandb_run_id"]
-
             # Disable wandb console output
             os.environ["WANDB_SILENT"] = "true"
             wandb.login(key=self.job["wandb_api_key"])
-            self.wandb_worker = wandb.init(
-                project=self.job["wandb_project_name"], resume=start_epoch > 0, id=wandb_run_id
-            )
+            if start_epoch > 0 and wandb_id is not None:
+                # Flash notification
+                Logger.log("Loading wand and attempting to resume run " + str(wandb_id))
+                self.wandb_worker = wandb.init(id=wandb_id, project=self.job["wandb_project_name"], resume='allow')
+            else:
+                # Flash notification
+                Logger.log("Loading wand for project " + self.job["wandb_project_name"])
+                self.wandb_worker = wandb.init(project=self.job["wandb_project_name"])
 
         # Start timer to measure data set
         self.timer.start("creating dataset")
@@ -270,7 +269,7 @@ class Runner:
         self.train_data, self.eval_data = self._get_dataloader(
             dataset,
             split_ratio=self.job["training"]["split_ratio"],
-            num_workers=self.job["training"]["num_workers"],
+            num_workers=self.job["training"]['dataset']["num_workers"],
             batch_size=self.job["training"]["batch_size"],
         )
 
@@ -310,7 +309,7 @@ class Runner:
         for epoch in range(start_epoch, self.job["training"]["epochs"]):
 
             # Start epoch timer and log the start of this epoch
-            Logger.log("Starting to run Epoch {}/{}".format(epoch + 1, self.job["training"]["epochs"]), in_cli=False)
+            Logger.log("Starting to run Epoch {}/{}".format(epoch + 1, self.job["training"]["epochs"]), in_cli=True, new_line=True)
 
             # Print epoch status bar
             Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(self.job["training"]["epochs"]))
@@ -340,8 +339,9 @@ class Runner:
 
                 # Get output
                 model_output = self.model(inputs)
-                # Calculate loss
-                loss = loss_function(model_output, labels)
+
+                # Calculate loss TODO: the labels are int8 to save storage
+                loss = loss_function(model_output, labels.to(torch.float32))
 
                 if self.job["training"]["detect_bad_gradients"]:
                     from torch import autograd
@@ -387,9 +387,7 @@ class Runner:
             if self.eval_data is not None:
 
                 # Notify the user regarding validation
-                Logger.log(
-                    "Validating the model on " + str(len(self.eval_data)) + " validation batches ...", in_cli=self.debug
-                )
+                Logger.log("Validating the model on " + str(len(self.eval_data)) + " validation batches ...")
 
                 # Set model to evaluation mode
                 self.model.eval()
@@ -412,8 +410,8 @@ class Runner:
                     # Calculate output
                     model_output = self.model(inputs)
 
-                    # Determine loss
-                    eval_loss = loss_function(model_output, labels)
+                    # Determine loss TODO: the labels are int8 to save storage
+                    eval_loss = loss_function(model_output, labels.to(torch.float32))
 
                     # Add to running validation loss
                     eval_running_loss += eval_loss.detach().cpu().numpy()
@@ -449,10 +447,6 @@ class Runner:
                 # Calculate epoch train val loss
                 epoch_evaluation_loss = eval_running_loss / len(self.eval_data)
 
-                # Notify the user regarding validation
-                avg_loss = "{:.2f}".format(epoch_evaluation_loss)
-                Logger.log("Valuation done with an average epoch loss of " + str(avg_loss), in_cli=self.debug)
-
                 # TODO: here, we could do an early stopping if the model is extremely overfitting or so
 
             else:
@@ -472,9 +466,11 @@ class Runner:
             # Stop timer to measure epoch length
             epoch_time = self.timer.get_time("epoch")
 
-            # Log the epoch success TODO: more here soon
-            avg_loss = "{:.2f}".format(epoch_train_loss)
-            Logger.log("Epoch took " + str(epoch_time) + " seconds. The average loss is " + avg_loss, in_cli=self.debug)
+            # Log the epoch success
+            avg_loss = "{:.4f}".format(epoch_train_loss)
+            avg_val_loss = "{:.4f}".format(epoch_evaluation_loss)
+            Logger.log("Epoch took " + str(epoch_time) + " seconds. Training loss is " + avg_loss +
+                       ", validation loss is " + avg_val_loss, in_cli=self.debug)
 
             # Report the current loss to wandb if it's set
             if self.job["wandb_api_key"]:
@@ -696,10 +692,6 @@ class Runner:
 
             # Start timer and log preperation operation
             self.timer.start("prediction-preperation")
-            Logger.log(
-                "Preparing " + str(self.job["wandb_prediction_examples"]) + " prediction examples for wandb",
-                in_cli=True,
-            )
 
             # Select a random sample from the batch
             batch_no = random.randint(0, inputs.size()[0] - 1)
@@ -714,31 +706,36 @@ class Runner:
                     good_slices_data["bad"].append(s)
 
             # Compose the good slices in a list
-            first_good_slice = sorted(good_slices_data["good"])[0]
-            last_good_slice = sorted(good_slices_data["good"])[-1]
-            have_want_difference = (last_good_slice - first_good_slice + 1) - self.job["wandb_prediction_examples"]
-            if have_want_difference >= 0:
-                good_slices = np.linspace(
-                    first_good_slice, last_good_slice, num=self.job["wandb_prediction_examples"], dtype=int
-                )
-            else:
-                possible_slices = self.job["wandb_prediction_examples"]
-                if self.job["wandb_prediction_examples"] > inputs.size()[-3]:
-                    Logger.log(
-                        "Requested "
-                        + str(self.job["wandb_prediction_examples"])
-                        + " slices, but can only return "
-                        + str(inputs.size()[-3]),
-                        type="ERROR",
-                        in_cli=True,
+            if len(good_slices_data["good"]) > 0:
+                first_good_slice = sorted(good_slices_data["good"])[0]
+                last_good_slice = sorted(good_slices_data["good"])[-1]
+                have_want_difference = (last_good_slice - first_good_slice + 1) - self.job["wandb_prediction_examples"]
+                if have_want_difference >= 0:
+                    good_slices = np.linspace(
+                        first_good_slice, last_good_slice, num=self.job["wandb_prediction_examples"], dtype=int
                     )
-                    possible_slices = inputs.size()[-3]
-                good_slices = sorted(good_slices_data["good"])
-                while len(good_slices) < possible_slices:
-                    random_slice = random.randint(0, inputs.size()[-3] - 1)
-                    if random_slice not in good_slices:
-                        good_slices.append(random_slice)
-                good_slices = sorted(good_slices)
+                else:
+                    possible_slices = self.job["wandb_prediction_examples"]
+                    if self.job["wandb_prediction_examples"] > inputs.size()[-3]:
+                        Logger.log(
+                            "Requested "
+                            + str(self.job["wandb_prediction_examples"])
+                            + " slices, but can only return "
+                            + str(inputs.size()[-3]),
+                            type="ERROR",
+                            in_cli=True,
+                        )
+                        possible_slices = inputs.size()[-3]
+                    good_slices = sorted(good_slices_data["good"])
+                    while len(good_slices) < possible_slices:
+                        random_slice = random.randint(0, inputs.size()[-3] - 1)
+                        if random_slice not in good_slices:
+                            good_slices.append(random_slice)
+                    good_slices = sorted(good_slices)
+            else:
+                good_slices = []
+                for i in range(self.job["wandb_prediction_examples"]):
+                    good_slices.append(random.randint(0, inputs.size()[-3] - 1))
 
             # Create a list of masks
             mask_list = []
@@ -925,7 +922,8 @@ class Runner:
         dataset = CTDataset(
             dataset_path,
             preload=preload,
-            transforms=data["transform"],
+            label_transforms=data["label_transforms"],
+            sample_transforms=data["sample_transforms"],
             no_logging=False,
             label_structure=data["labels"],
         )

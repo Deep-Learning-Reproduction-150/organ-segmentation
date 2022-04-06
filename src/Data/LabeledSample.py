@@ -56,6 +56,9 @@ class LabeledSample:
         self.id = LabeledSample.id_store
         LabeledSample.id_store += 1
 
+        # Initiate loaded with false
+        self.loaded = False
+
         # Save the path to this sample
         self.path = path
 
@@ -122,49 +125,59 @@ class LabeledSample:
             show_status_bar=show_status_bar,
         )
 
-    def get_tensor(self):
+    def get_tensor(self, transformer: DataTransformer = DataTransformer([])):
         """
         This method returns a tensor that contains the data of this sample
 
         :return tensor: which contains the data points
         """
 
-        # Check if sample has been preprocessed
-        if not self.loaded:
-            raise Exception("ERROR: Data sample has not been preprocessed yet")
-
         # Return the sample (which is a tensor)
-        return self.sample.get_tensor()
+        return self.sample.get_tensor(transformer=transformer)
 
-    def get_labels(self):
+    def get_labels(self, label_order: list, transformer: DataTransformer = DataTransformer([])):
         """
         This method returns the list of labels associated with this sample
 
         :return labels: list of tensors that are the labels
-        TODO: not used?
         """
-
-        # Check if sample has been preprocessed
-        if not self.loaded:
-            raise Exception("ERROR: Data sample has not been preprocessed yet")
 
         # Initialize a list of labels
         tensors = []
-        labels = []
 
-        # Iterate through the labels and get tensors of each
-        for label in self.labels:
-            # Append a tensor
-            tensors.append(label.get_tensor())
-            labels.append(label.name)
+        # Iterate through the labels and create
+        for wanted_label in label_order:
 
-        # return label data
-        label_data = {"features": tensors, "label": labels}
+            # Iterate through the labels and find it
+            data = None
+            for label in self.labels:
+                if label.name == wanted_label:
+                    data = label.get_tensor(transformer=transformer, dtype=torch.int8)
+                    break
 
-        # Return the list of labels
-        return label_data
+            # Check if label exists
+            if data is None:
+                # Create zero sample
+                if len(tensors) > 0:
+                    # Use an existing label tensor as reference
+                    data = torch.zeros_like(tensors[0], dtype=torch.int8)
+                else:
+                    # Have to obtain sample tensor (much more inefficient)
+                    data = torch.zeros_like(self.get_tensor(transformer=transformer), dtype=torch.int8)
 
-    def load(self, transformer: DataTransformer, label_structure: list):
+            # Append the transformed label to it
+            tensors.append(data)
+
+        # Compute a "background label" and append it to the labels
+        label_mask = torch.ones_like(tensors[0], dtype=torch.int8)
+        for i, label in enumerate(tensors):
+            label_mask = torch.where(label > torch.tensor(0, dtype=torch.int8), torch.tensor(0, dtype=torch.int8), label_mask)
+        tensors.append(label_mask)
+
+        # Return the list of label tensors
+        return torch.cat(tensors, 0)
+
+    def load(self, transformer: DataTransformer):
         """
         This method checks the dimensions of the labels and the sample data
 
@@ -182,55 +195,11 @@ class LabeledSample:
             for label in self.labels:
                 label.load(transformer=transformer)
 
-            # Get the transformed tensor from the sample
-            transformed_sample = self.sample.get_tensor()
-
-            # Change the depth and x dimension
-            self.sample = transformed_sample.unsqueeze(0)
-
-            # Initiate transformed labels
-            transformed_labels = []
-
-            # Iterate through the labels and create
-            for wanted_label in label_structure:
-
-                # Iterate through the labels and find it
-                data = None
-                for label in self.labels:
-                    if label.name == wanted_label:
-                        data = label.get_tensor().unsqueeze(0)
-                        break
-
-                # Check if label exists
-                if data is None:
-                    # Create zero sample
-                    data = torch.zeros(transformed_sample.size())
-                    data = transformer(data).unsqueeze(0)
-
-                # Append the transformed label to it
-                transformed_labels.append(data)
-
-            # Replace the labels with transformed ones
-            self.labels = transformed_labels
-
-            # TODO: The following could maybe get some more improvements
-
-            # By default choose entire image
-            label_mask = torch.zeros_like(self.sample, dtype=torch.bool)
-            background_voxel_value = self.sample.min()
-
-            # Iterate through the transformed labels
-            for label in self.labels:
-                label_threshold = label.mean()
-                current_label_mask = label > label_threshold  # Choose volume under the organ
-                label_mask = label_mask | current_label_mask  # Select it
-
-            background = deepcopy(self.sample)
-            background[label_mask] = background_voxel_value
-            self.labels.append(background)
-
-        # Remember that this sample has been checked
-        self.loaded = True
+            # Remember that this sample has been checked
+            self.loaded = True
 
     def drop(self):
+        """
+        TODO: implement
+        """
         a = 0
