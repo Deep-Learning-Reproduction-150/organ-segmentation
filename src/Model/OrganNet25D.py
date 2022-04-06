@@ -217,11 +217,11 @@ class OrganNet25D(nn.Module):
             padding["coarse_3d_3"] = "valid"
             padding["coarse_3d_4"] = "valid"
             padding["hdc_1"] = "valid"
-            padding["hdc_2"] = "valid"
+            padding["hdc_2"] = "same"
             padding["hdc_3"] = "same"
             padding["one_d_1"] = "valid"
             padding["one_d_2"] = "valid"
-            padding["one_d_3"] = (18, 40, 40)
+            padding["one_d_3"] = (14, 32, 32)
 
         # First 2D layers
         self.two_d_1 = conv_2x2d(
