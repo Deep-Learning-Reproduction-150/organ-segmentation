@@ -7,6 +7,14 @@
     "wandb_api_key": "<your wandb api key>",
     "model": {
         "name": "OrganNet25D",
+        "activations": {
+            "coarse_resse": "sigmoid",
+            "fine_resse": "sigmoid",
+            "2d": "relu",
+            "one_d_1": "relu",
+            "one_d_2": "relu",
+            "one_d_3": "relu"
+        },
         "hdc_dilations": [
             [
                 1,
