@@ -130,7 +130,10 @@ class CTDataset(Dataset):
             for i, sample in enumerate(self.samples):
 
                 # Load data for this sample and transform it
-                sample.load(sample_transformer=self.get_data_transformer('sample'), label_transforms=self.get_data_transformer('labels'))
+                sample.load(
+                    sample_transformer=self.get_data_transformer('sample'),
+                    label_transformer=self.get_data_transformer('labels')
+                )
 
                 # Print the changing import status line
                 if not no_logging:

@@ -206,12 +206,12 @@ class LabeledSample:
             # Warn about no tensors
             raise ValueError("Labeled data object does not contain any labels, stopping")
 
-    def load(self, sample_transformer: DataTransformer, label_transformer):
+    def load(self, sample_transformer: DataTransformer, label_transformer: DataTransformer):
         """
         This method checks the dimensions of the labels and the sample data
 
-        :param transformer: the transformer that is applied to every data sample
-        :param label_structure: the structure of labels to go with
+        :param sample_transformer: transformer for the sample
+        :param label_transformer: transformer for the labels
         :raise ValueError: when dimensions of labels and sample don't match
         """
         # Preprocess only if that did not happen yet
