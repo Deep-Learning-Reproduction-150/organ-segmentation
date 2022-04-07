@@ -498,6 +498,7 @@ def main():
     print(msg)
 
     from torchsummary import summary
+    from torchinfo import summary
 
     summary(model, input_size=input_shape[1:], batch_size=2)
 
