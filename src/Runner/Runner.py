@@ -170,7 +170,11 @@ class Runner:
                 json.dump(job, fp)
 
             # Create an instance of the model TODO: could be passing different models here? Via job.json?
-            self.model = OrganNet25D(hdc_dilations=job["model"]["hdc_dilations"])
+            model_choice = job['model'].pop('name')
+            if model_choice == 'OrganNet25D':
+                self.model = OrganNet25D(**job["model"])
+            else:
+                raise ValueError("Specified model not found")
 
             # Recover the last checkpoint (if exists)
             if job["resume"]:
