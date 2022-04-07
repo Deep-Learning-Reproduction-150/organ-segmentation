@@ -13,7 +13,6 @@ from src.Runner.Runner import Runner
 
 # Add all the jobs, that you want to run, here
 jobs = [
-    # "config/testing-7.json",
     "config/activation-testing-3-Cross.json",
     "config/activation-testing-3-MSE.json",
     "config/activation-testing-2-Cross.json",
