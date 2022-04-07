@@ -124,93 +124,103 @@ class Runner:
         # Iterate through all jobs
         for index, job in enumerate(self.job_queue):
 
-            # Save the current job for instance access
-            self.job = job
+            try:
 
-            # Obtain the base path at looking at the parent of the parents parent
-            base_path = Path(__file__).parent.parent.parent.resolve()
+                # Save the current job for instance access
+                self.job = job
 
-            # A directory that stores jobs data
-            job_data_dir = os.path.join(base_path, "jobs", job["name"])
+                # Obtain the base path at looking at the parent of the parents parent
+                base_path = Path(__file__).parent.parent.parent.resolve()
 
-            # Save this path to the runner object for now to be able to store stuff in there
-            self.path = job_data_dir
+                # A directory that stores jobs data
+                job_data_dir = os.path.join(base_path, "jobs", job["name"])
 
-            # Check if log dir exists, if not create
-            Path(job_data_dir).mkdir(parents=True, exist_ok=True)
+                # Save this path to the runner object for now to be able to store stuff in there
+                self.path = job_data_dir
 
-            # Create logger and clear the current file
-            Logger.initialize(log_path=job_data_dir)
+                # Check if log dir exists, if not create
+                Path(job_data_dir).mkdir(parents=True, exist_ok=True)
 
-            # Reset the log file
-            if not job["resume"]:
-                Logger.clear()
+                # Create logger and clear the current file
+                Logger.initialize(log_path=job_data_dir)
 
-            # Print CLI message
-            Logger.log("Started the job '" + job["name"] + "'", "HEADLINE", self.debug)
-
-            # check whether the job description has changed (if that is the case, re-run the job)
-            specification_path = os.path.join(self.path, "specification.json")
-
-            # if os.path.exists(specification_path):
-            #     existing_specification = json.load(open(specification_path))
-            #     if str(existing_specification) != str(job):
-            #
-            #         # Remove the last checkpoint
-            #         checkpoint_path = os.path.join(self.path, 'checkpoint.tar')
-            #         if os.path.exists(checkpoint_path):
-            #             os.remove(checkpoint_path)
-            #
-            #         # Notify user regarding rerunning of job
-            #         Logger.log("The json job specification has changed, deleting checkpoint", type="WARNING",
-            #         in_cli=True)
-
-            # Write the specification file to the job
-            with open(specification_path, "w") as fp:
-                json.dump(job, fp)
-
-            # Create an instance of the model
-            model_choice = job["model"].pop("name")
-            if model_choice == "OrganNet25D":
-                self.model = OrganNet25D(**job["model"])
-            else:
-                raise ValueError("Specified model not found")
-
-            # Recover the last checkpoint (if exists)
-            if job["resume"]:
-
-                # Load the last checkpoint
-                self.checkpoint = self._load_checkpoint()
-
-                # Check if checkpoint exists
-                if self.checkpoint is not None:
-
-                    # Recover model from last
-                    self.model.load_state_dict(self.checkpoint["model"])
-
-                    # Log a status message about recovery of model
-                    Logger.log("Recovered model from the last checkpoint", type="WARNING", in_cli=True)
-
-            else:
-                self.checkpoint = None
-
-            # Check if job contains index "training"
-            if "training" in job and type(job["training"]) is dict:
-
-                # Call train method
-                self._train()
-
-            # Check if job contains index "training"
-            if "evaluation" in job and type(job["evaluation"]) is dict:
-
-                # Call evaluation method
-                self._evaluate(job["evaluation"])
-
-            # Check if job contains index "training"
-            if "inference" in job and type(job["inference"]) is dict:
+                # Reset the log file
+                if not job["resume"]:
+                    Logger.clear()
 
                 # Print CLI message
-                Logger.log("Inference is not implemented yet", "ERROR", self.debug)
+                Logger.log("Started the job '" + job["name"] + "'", "HEADLINE", self.debug)
+
+                # check whether the job description has changed (if that is the case, re-run the job)
+                specification_path = os.path.join(self.path, "specification.json")
+
+                # if os.path.exists(specification_path):
+                #     existing_specification = json.load(open(specification_path))
+                #     if str(existing_specification) != str(job):
+                #
+                #         # Remove the last checkpoint
+                #         checkpoint_path = os.path.join(self.path, 'checkpoint.tar')
+                #         if os.path.exists(checkpoint_path):
+                #             os.remove(checkpoint_path)
+                #
+                #         # Notify user regarding rerunning of job
+                #         Logger.log("The json job specification has changed, deleting checkpoint", type="WARNING",
+                #         in_cli=True)
+
+                # Write the specification file to the job
+                with open(specification_path, "w") as fp:
+                    json.dump(job, fp)
+
+                # Create an instance of the model
+                model_choice = job["model"].pop("name")
+                if model_choice == "OrganNet25D":
+                    self.model = OrganNet25D(**job["model"])
+                else:
+                    raise ValueError("Specified model not found")
+
+                # Recover the last checkpoint (if exists)
+                if job["resume"]:
+
+                    # Load the last checkpoint
+                    self.checkpoint = self._load_checkpoint()
+
+                    # Check if checkpoint exists
+                    if self.checkpoint is not None:
+
+                        # Recover model from last
+                        self.model.load_state_dict(self.checkpoint["model"])
+
+                        # Log a status message about recovery of model
+                        Logger.log("Recovered model from the last checkpoint", type="WARNING", in_cli=True)
+
+                else:
+                    self.checkpoint = None
+
+                # Check if job contains index "training"
+                if "training" in job and type(job["training"]) is dict:
+
+                    # Call train method
+                    self._train()
+
+                # Check if job contains index "training"
+                if "evaluation" in job and type(job["evaluation"]) is dict:
+
+                    # Call evaluation method
+                    self._evaluate(job["evaluation"])
+
+                # Check if job contains index "training"
+                if "inference" in job and type(job["inference"]) is dict:
+
+                    # Print CLI message
+                    Logger.log("Inference is not implemented yet", "ERROR", self.debug)
+
+            except:
+
+                # print error message that this job failed
+                print(bcolors.FAIL + "Job could not be executed - skipping to the next" + bcolors.ENDC)
+
+        # Print done running message
+        print(bcolors.OKGREEN + "Runner finished!" + bcolors.ENDC)
 
     def _train(self):
         """
