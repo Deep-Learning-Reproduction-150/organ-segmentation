@@ -16,6 +16,7 @@ def activation_mapper(s: str) -> nn.Module:
         "ReLU": nn.ReLU(),
         "sigmoid": nn.Sigmoid(),
         "tanh": nn.Tanh(),
+        "softmax": nn.Softmax(dim=1),
     }
     return mapper[s]
 
