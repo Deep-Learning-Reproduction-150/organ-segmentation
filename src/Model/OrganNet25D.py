@@ -21,6 +21,12 @@ except ImportError:
 # from src.Dataloader.CTData import CTData
 
 
+def weight_init(m):
+    if isinstance(m, nn.Conv3d) or isinstance(m, nn.Linear):
+        nn.init.xavier_uniform_(m.weight, gain=nn.init.calculate_gain("relu"))
+        nn.init.zeros_(m.bias)
+
+
 class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
     def __init__(
         self,
@@ -49,14 +55,14 @@ class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
     def forward(self, x):
         conv_out = self.conv(x)
         resse_out = self.resse(conv_out)
-        multi = conv_out * resse_out
-        y = multi + conv_out
+        multi = torch.multiply(conv_out, resse_out)
+        y = torch.add(multi, conv_out)
 
         return y
 
 
 class HDC(nn.Module):
-    def __init__(self, in_channels=64, out_channels=128, dilations=(1, 2, 5), kernel_size=(3, 3, 3), padding="valid"):
+    def __init__(self, in_channels=64, out_channels=128, dilation=2, kernel_size=(3, 3, 3), padding="valid"):
         """
         Creates a HDC layer.
         """
@@ -64,17 +70,15 @@ class HDC(nn.Module):
 
         self.main_path = []
         prev_layer_out_channels = in_channels
-        for dilation in dilations:
-            layer = nn.Conv3d(
-                in_channels=prev_layer_out_channels,
-                out_channels=out_channels,
-                kernel_size=kernel_size,
-                stride=1,
-                padding=padding,
-                dilation=(dilation, dilation, dilation),
-            )
-            prev_layer_out_channels = out_channels
-            self.main_path.append(layer)
+        self.main_layer = nn.Conv3d(
+            in_channels=prev_layer_out_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=padding,
+            dilation=(1, dilation, dilation),
+        )
+        prev_layer_out_channels = out_channels
 
         self.shortcut_model = nn.Conv3d(
             in_channels=in_channels,
@@ -84,17 +88,16 @@ class HDC(nn.Module):
             padding=padding,
             dilation=1,
         )
+        self.relu = nn.ReLU()
 
     def forward(self, x):
         output = x
         shortcut = self.shortcut_model(x)
-        for layer in self.main_path:
-            layer_output = layer(output)
-            output = layer_output + crop3d(
-                shortcut, layer_output.shape[2:]
-            )  # + crop3d(x, layer_output.shape[2:]) TODO: Try this
-            shortcut = layer_output
-        return output
+        layer_output = self.main_layer(output)
+        output = torch.add(
+            layer_output, crop3d(shortcut, layer_output.shape[2:])
+        )  # + crop3d(x, layer_output.shape[2:]) TODO: Try this
+        return self.relu(output)
 
 
 class HDCResSE(nn.Module):  # See figure 2. from the paper
@@ -109,21 +112,24 @@ class HDCResSE(nn.Module):  # See figure 2. from the paper
     ) -> None:
 
         super().__init__()
-        # self.hdc = HDC(
-        #     dilations=dilations,
-        #     in_channels=in_channels,
-        #     out_channels=out_channels,
-        #     kernel_size=kernel_size,
-        #     padding=padding,
-        # )
-        self.hdc = nn.Conv3d(
+        self.hdc = HDC(
+            dilation=dilation,
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
             padding=padding,
-            dilation=dilation,
-            padding_mode="reflect",
         )
+        # self.hdc = nn.Sequential(
+        #     nn.Conv3d(
+        #         in_channels=in_channels,
+        #         out_channels=out_channels,
+        #         kernel_size=kernel_size,
+        #         padding=padding,
+        #         dilation=dilation,
+        #         padding_mode="reflect",
+        #     ),
+        #     nn.ReLU(),
+        # )
         self.resse = nn.Sequential(
             nn.AdaptiveAvgPool3d(output_size=(1, 1, 1)),
             nn.Flatten(),
@@ -139,8 +145,8 @@ class HDCResSE(nn.Module):  # See figure 2. from the paper
         conv_out = self.hdc(x)
         resse_out = self.resse(conv_out)
 
-        multi = conv_out * resse_out
-        y = multi + conv_out
+        multi = torch.multiply(conv_out, resse_out)
+        y = torch.add(multi, conv_out)
 
         return y
 
@@ -223,6 +229,7 @@ class OrganNet25D(nn.Module):
             padding["one_d_1"] = "valid"
             padding["one_d_2"] = "valid"
             padding["one_d_3"] = (12, 28, 28)
+        self.output_padding = padding["one_d_3"]
 
         # First 2D layers
         self.two_d_1 = conv_2x2d(
@@ -352,7 +359,7 @@ class OrganNet25D(nn.Module):
                 out_channels=out_channels,
                 kernel_size=(1, 1, 1),
                 padding=padding["one_d_3"],
-                padding_mode="reflect"
+                padding_mode="zeros",
             ),
             nn.Sigmoid(),
         )
@@ -368,6 +375,7 @@ class OrganNet25D(nn.Module):
         # Final softmax
         self.softm = nn.Softmax(dim=1)
 
+        self.apply(weight_init)
         return
 
     def forward(self, x: torch.Tensor, verbose=None):
