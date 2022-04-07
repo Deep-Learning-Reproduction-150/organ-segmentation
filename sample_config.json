@@ -5,6 +5,7 @@
     "wandb_project_name": "organ paper segmentation",
     "wandb_prediction_examples": 8,
     "wandb_api_key": "<your wandb api key>",
+    "log_3d_csv": false,
     "model": {
         "name": "OrganNet25D",
         "padding": "yes",
@@ -17,9 +18,24 @@
             "one_d_3": "relu"
         },
         "hdc_dilations": [
-            [1, 2, 5, 7],
-            [1, 2, 5, 7],
-            [1, 2, 5, 7]
+            [
+                1,
+                2,
+                5,
+                7
+            ],
+            [
+                1,
+                2,
+                5,
+                7
+            ],
+            [
+                1,
+                2,
+                5,
+                7
+            ]
         ]
     },
     "training": {
@@ -31,17 +47,34 @@
         "batch_size": 2,
         "loss": {
             "name": "CombinedLoss",
-            "alpha": [1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0, 0.5]
+            "alpha": [
+                1.0,
+                4.0,
+                1.0,
+                4.0,
+                4.0,
+                1.0,
+                1.0,
+                3.0,
+                3.0,
+                0.5
+            ]
         },
         "optimizer": {
             "name": "Adam",
             "learning_rate": 0.001,
-            "betas": [0.9, 0.999]
+            "betas": [
+                0.9,
+                0.999
+            ]
         },
         "lr_scheduler": {
             "name": "MultiStepLR",
             "gamma": 0.1,
-            "milestones": [50, 100]
+            "milestones": [
+                50,
+                100
+            ]
         },
         "dataset": {
             "root": "./data/train",
@@ -58,13 +91,33 @@
                 "Submandibular_R"
             ],
             "label_transforms": [
-                {"name": "Transpose", "dim_1": 0, "dim_2": -1},
-                {"name": "CropAroundBrainStem", "width": 256, "height": 256, "depth": 48}
+                {
+                    "name": "Transpose",
+                    "dim_1": 0,
+                    "dim_2": -1
+                },
+                {
+                    "name": "CropAroundBrainStem",
+                    "width": 256,
+                    "height": 256,
+                    "depth": 48
+                }
             ],
             "sample_transforms": [
-                {"name": "Transpose", "dim_1": 0, "dim_2": -1},
-                {"name": "CropAroundBrainStem", "width": 256, "height": 256, "depth": 48},
-                {"name": "StandardScaleTensor"}
+                {
+                    "name": "Transpose",
+                    "dim_1": 0,
+                    "dim_2": -1
+                },
+                {
+                    "name": "CropAroundBrainStem",
+                    "width": 256,
+                    "height": 256,
+                    "depth": 48
+                },
+                {
+                    "name": "StandardScaleTensor"
+                }
             ]
         }
     }
