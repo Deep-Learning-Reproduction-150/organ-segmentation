@@ -13,6 +13,7 @@ import imageio
 import matplotlib.pyplot as plt
 from torch import from_numpy
 from src.utils import bcolors, Logger
+from src.Data.utils import DataTransformer
 
 
 class CTData:
@@ -65,8 +66,8 @@ class CTData:
 
             # Extract the name of the file from the path where it is located
             if name is None:
-                filename = path.split('/')[-1]
-                self.name = filename.split('.')[0]
+                path, file = os.path.split(self.path)
+                self.name = file.split('.')[0]
             else:
                 self.name = name
 
@@ -81,10 +82,11 @@ class CTData:
         # TODO: implement dropping of data
         a = 0
 
-    def load(self, transformer=None):
+    def load(self, transformer: DataTransformer = None, dtype: torch.dtype = torch.float32):
         """
         This method reads the data and can apply a transformation to it before storing it
 
+        :param dtype: a data type to use
         :param transformer: a data transformer to apply to the data while reading it
         """
 
@@ -94,12 +96,8 @@ class CTData:
             # Try to load the data at the given path
             try:
 
-                # Load the data and throw it into an ndarray
-                extracted_data, header = nrrd.read(self.path)
-
                 # Save the as attributes for this instance
-                self.data = from_numpy(extracted_data).to(torch.float32)
-                self.meta = header
+                self.data = self._get_from_file(dtype)
 
                 # Check if the data has three dimensions
                 if self.data.ndim != 3:
@@ -109,43 +107,51 @@ class CTData:
                 # Remember that the data has been loaded
                 self.loaded = True
 
+                # Apply transformations
+                if transformer is not None:
+
+                    # Apply the transformer to the data in place
+                    self.data = transformer(self.data)
+
             except Exception as error:
 
                 # Raise exception that file could not be loaded
                 raise ValueError(
                     bcolors.FAIL + "ERROR: could not read nrrd file at " + self.path + "(" + str(error) + ")" + bcolors.ENDC)
 
-        # Apply transformations
-        if transformer is not None:
-
-            # Apply the transformer to the data in place
-            self.data = transformer(self.data)
-
-    def get_tensor(self, transformer=None):
+    def get_tensor(self, transformer=DataTransformer([]), dtype: torch.dtype = torch.float32):
         """
         This method returns the tensor containing the data. If a transformer is passed, the data is transformed on the fly.
 
         :param transformer: a data transformer that is applied to data before output
+        :param dtype: the data type to use for this tensor
         :return data: (transformed) tensor
         """
 
-        # Check if preloaded or have to load now
-        if not self.loaded:
+        # Check if data has been preloaded
+        if self.loaded:
 
-            # Load data from the file
-            self.load()
+            # Check if the channel dimension exists
+            if self.data.ndim == 3:
+                return self.data.unsqueeze(0)
 
-        # Check if transformer has been passed
-        if transformer is not None:
+            # Return the transformed data stored in instance
+            return self.data
 
-            # Return the transformed data
-            return transformer(self.data)
+        else:
 
-        # Return a tensor of data
-        return self.data
+            # Get transformed data
+            data = transformer(self._get_from_file(dtype))
+
+            # Check if the channel dimension exists
+            if data.ndim == 3:
+                return data.unsqueeze(0)
+
+            # If no preloading, read data, transform and return in place
+            return data
 
     def visualize(self, show: bool = False, export_png: bool = False, export_gif: bool = False,
-                  direction: str = "vertical", name: str = None, high_quality: bool = False,
+                  direction: str = "vertical", name: str = "visualization", high_quality: bool = False,
                   show_status_bar: bool = True):
         """
 
@@ -160,6 +166,10 @@ class CTData:
         :param show_status_bar: progress bar will be displayed to show progress of generation
         """
 
+        # Start status bar
+        if show_status_bar:
+            Logger.print_status_bar(done=0, title="visualizing")
+
         # Check if preloaded or have to load now
         if self.data is None:
             # Load data from the file
@@ -168,9 +178,6 @@ class CTData:
         # Check given parameters
         if direction not in ['vertical', 'horizontal']:
             raise ValueError(bcolors.FAIL + "ERROR: Direction has to either be 'vertical' or 'horizontal'" + bcolors.ENDC)
-
-        # Print a status update
-        Logger.log("Creating visualization of " + str(self.data.ndim) + "-dimensional data " + self.name + " with direction " + direction, in_cli=True)
 
         # Extract the three dimensions from the data set
         shape = self.data.shape
@@ -243,22 +250,49 @@ class CTData:
 
             # Print the changing import status line
             if show_status_bar:
-                done = ((index + 1) / dim_counter) * 100
-                Logger.print_status_bar(done=done, title="processing")
-
-            # Always stop status bar after this
-            if show_status_bar:
-                Logger.end_status_bar()
+                done = ((index + 1) / (dim_counter + 1)) * 100
+                Logger.print_status_bar(done=done, title="visualizing")
 
         # If system shall export a GIF from it, do so
         if export_gif:
 
-            # Print status update
-            Logger.log("Creating visualization of " + str(self.data.ndim) + "-dimensional data " + str(self.name) +
-                       ", saving GIF file", in_cli=True)
-
             # Remove the tmp tile
             os.remove('visualizations/tmp.png')
 
+            # Create the output path
+            output_path = 'visualizations/' + (self.name if name is None else name) + '.gif'
+
+            # Check if it already exist
+            counter = 1
+            while os.path.exists(output_path):
+                # Create the output path
+                output_path = 'visualizations/' + (self.name if name is None else name) + '-' + str(counter) + '.gif'
+                counter += 1
+
+            if counter > 1:
+                Logger.log("CTData visualization: path already exist")
+
             # Save GIF file
-            imageio.mimsave('visualizations/' + (self.name if name is None else name) + '.gif', images)
+            imageio.mimsave(output_path, images)
+
+        # Always stop status bar after this
+        if show_status_bar:
+            Logger.print_status_bar(done=100, title="visualizing")
+            Logger.end_status_bar()
+
+    def _get_from_file(self, dtype: torch.dtype = torch.float32):
+        """
+        Method reads the file from the path
+
+        :param dtype: a data type to cast to
+        """
+
+        # Check if data is none
+        if self.data is not None:
+            raise ValueError("ERROR while reading data from file: CTData object already has data assigned")
+
+        # Load the data and throw it into an ndarray
+        extracted_data, header = nrrd.read(self.path)
+
+        # Save the as attributes for this instance
+        return from_numpy(extracted_data).to(dtype)

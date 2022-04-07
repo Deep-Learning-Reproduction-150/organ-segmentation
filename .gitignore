@@ -3,8 +3,11 @@
 
 # Exclude the path where the trainer writes his/her logs
 logs
+config/*
 jobs
 data/*
+
+wandb
 
 # Exclude macOS files
 *.DS_Store

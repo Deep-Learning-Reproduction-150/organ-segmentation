@@ -126,7 +126,7 @@ class Logger:
             file.write("")
 
     @staticmethod
-    def log(message: str, type: str = "", in_cli: bool = True):
+    def log(message: str, type: str = "", in_cli: bool = True, new_line: bool = False):
         """
         Writes a log message to log file. Message will also be printed in terminal.
 
@@ -139,19 +139,22 @@ class Logger:
         if not Logger.initialized:
             raise Exception("ERROR: Logger is not initialized")
 
+        # Check if content shall be in a new line
+        prefix = "\n" if new_line else ""
+
         if in_cli:
-            Logger.out(message, type)
+            Logger.out(message, type, new_line)
 
         if Logger.path is not None:
             with open(Logger.path, 'a+') as file:
                 if message != '':
                     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     log_message = Logger._get_content(message, type, time_str)
-                    file.write(log_message)
+                    file.write(prefix + log_message)
                 file.write('\n')
 
     @staticmethod
-    def out(message: str, type: str):
+    def out(message: str, type: str, new_line: bool = False):
         """
         Only writes message to terminal for debugging purposes.
 
@@ -166,15 +169,18 @@ class Logger:
         # Get the CLI message to display
         cli_message = Logger._get_content(message, type)
 
+        # Check for new line prefix
+        prefix = "\n" if new_line else ""
+
         if Logger.status_bar_active:
-            sys.stdout.write("\r" + cli_message)
+            sys.stdout.write("\r" + prefix + cli_message)
             sys.stdout.flush()
             print("")
             if Logger.last_status_bar is not None:
                 sys.stdout.write(Logger.last_status_bar)
                 sys.stdout.flush()
         else:
-            print(cli_message)
+            print(prefix + cli_message)
 
     @staticmethod
     def print_status_bar(title: str = "done", done: float = 0, bar_width: int = 50):

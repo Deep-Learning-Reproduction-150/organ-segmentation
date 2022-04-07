@@ -2,9 +2,22 @@ import torch
 from torch import nn
 from torchvision.transforms import CenterCrop
 
+
 """
 Contains auxiliary functions for the model.
 """
+
+
+def activation_mapper(s: str) -> nn.Module:
+    mapper = {
+        None: None,
+        "none": None,
+        "relu": nn.ReLU(),
+        "ReLU": nn.ReLU(),
+        "sigmoid": nn.Sigmoid(),
+        "tanh": nn.Tanh(),
+    }
+    return mapper[s]
 
 
 def crop3d(x: torch.Tensor, target_shape: tuple):
@@ -21,9 +34,18 @@ def crop3d(x: torch.Tensor, target_shape: tuple):
 
 
 def conv_2x2d(
-    in_channels=1, out_channels=16, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid", *args, **kwargs
+    in_channels=1,
+    out_channels=16,
+    groups=1,
+    kernel_size=(1, 3, 3),
+    stride=1,
+    padding="valid",
+    activation=nn.ReLU(),
+    *args,
+    **kwargs
 ):
-    return nn.Sequential(
+    modules = []
+    modules.append(
         nn.Conv3d(
             in_channels=in_channels,
             out_channels=out_channels,
@@ -33,7 +55,9 @@ def conv_2x2d(
             padding=padding,
             *args,
             **kwargs,
-        ),
+        )
+    )
+    modules.append(
         nn.Conv3d(
             in_channels=out_channels,
             out_channels=out_channels,
@@ -43,12 +67,16 @@ def conv_2x2d(
             padding=padding,
             *args,
             **kwargs,
-        ),
-        nn.ReLU(),  # Maybe not
+        )
     )
+    if activation != "linear":
+        modules.append(activation)
+    return nn.Sequential(*modules)
 
 
-def conv_2x3d_coarse(in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0, *args, **kwargs):
+def conv_2x3d_coarse(
+    in_channels=16, out_channels=32, kernel_size=(3, 3, 3), stride=1, padding=0, activation="linear", *args, **kwargs
+):
     """
     The 2xConv with 3,3,3 kernel without the ResSE presented in the paper
     """
@@ -76,24 +104,3 @@ def conv_2x3d_coarse(in_channels=16, out_channels=32, kernel_size=(3, 3, 3), str
             nn.ReLU(),
         ),
     )
-
-
-def HDC(in_channels=64, out_channels=128, dilations=(1, 2, 5), kernel_size=(3, 3, 3)):
-    """
-    Creates a HDC layer.
-    """
-    layers = []
-    prev_out = in_channels
-    for dilation in dilations:
-        layer = nn.Conv3d(
-            in_channels=prev_out,
-            out_channels=out_channels,
-            kernel_size=kernel_size,
-            stride=1,
-            padding="same",
-            dilation=dilation,
-        )
-        layers.append(layer)
-        prev_out = out_channels
-    hdc = nn.Sequential(*layers)
-    return hdc
