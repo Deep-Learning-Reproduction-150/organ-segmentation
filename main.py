@@ -12,10 +12,18 @@ from src.Runner.Runner import Runner
 
 
 # Add all the jobs, that you want to run, here
-jobs = ['sample_config.json']
+jobs = [
+    # "config/testing-7.json",
+    "config/activation-testing-3-Cross.json",
+    "config/activation-testing-3-MSE.json",
+    "config/activation-testing-2-Cross.json",
+    "config/activation-testing-2-MSE.json",
+    "config/activation-testing-1-Cross.json",
+    "config/activation-testing-1-MSE.json",
+]
 
 # Main guard for multithreading the runner "below"
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     # Create a runner instance and pass it the jobs
     worker = Runner(jobs=jobs, debug=True)
