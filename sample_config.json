@@ -8,12 +8,28 @@
     "model": {
         "name": "OrganNet25D",
         "hdc_dilations": [
-            [1, 2, 5, 7],
-            [1, 2, 5, 7],
-            [1, 2, 5, 7]
+            [
+                1,
+                2,
+                5,
+                7
+            ],
+            [
+                1,
+                2,
+                5,
+                7
+            ],
+            [
+                1,
+                2,
+                5,
+                7
+            ]
         ]
     },
     "training": {
+        "early_stopping_patience": 4,
         "epochs": 300,
         "detect_bad_gradients": false,
         "grad_norm_clip": 1,
@@ -21,7 +37,18 @@
         "batch_size": 2,
         "loss": {
             "name": "CombinedLoss",
-            "alpha": [1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0, 0.5],
+            "alpha": [
+                1.0,
+                4.0,
+                1.0,
+                4.0,
+                4.0,
+                1.0,
+                1.0,
+                3.0,
+                3.0,
+                0.5
+            ],
         },
         "optimizer": {
             "name": "Adam",
@@ -34,7 +61,10 @@
         "lr_scheduler": {
             "name": "MultiStepLR",
             "gamma": 0.1,
-            "milestones": [50, 100]
+            "milestones": [
+                50,
+                100
+            ]
         },
         "dataset": {
             "root": "./data/train",
