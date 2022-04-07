@@ -16,8 +16,10 @@ from torch import nn
 
 try:
     from .utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
+    from .HDC import *
 except ImportError:
     from utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
+    from HDC import *
 # from src.Dataloader.CTData import CTData
 
 
@@ -61,49 +63,11 @@ class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
         return y
 
 
-class HDC(nn.Module):
-    def __init__(self, in_channels=64, out_channels=128, dilation=2, kernel_size=(3, 3, 3), padding="valid"):
-        """
-        Creates a HDC layer.
-        """
-        super().__init__()
-
-        self.main_path = []
-        prev_layer_out_channels = in_channels
-        self.main_layer = nn.Conv3d(
-            in_channels=prev_layer_out_channels,
-            out_channels=out_channels,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=padding,
-            dilation=(dilation, dilation, dilation),
-        )
-        prev_layer_out_channels = out_channels
-
-        self.shortcut_model = nn.Conv3d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=(1, 1, 1),
-            stride=1,
-            padding=padding,
-            dilation=1,
-        )
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        output = x
-        shortcut = self.shortcut_model(x)
-        layer_output = self.main_layer(output)
-        output = torch.add(
-            layer_output, crop3d(shortcut, layer_output.shape[2:])
-        )  # + crop3d(x, layer_output.shape[2:]) TODO: Try this
-        return self.relu(output)
-
-
 class HDCResSE(nn.Module):  # See figure 2. from the paper
     def __init__(
         self,
-        dilation=1,
+        hdc,
+        dilation=(1, 2, 3),
         in_channels=16,
         out_channels=32,
         kernel_size=(3, 3, 3),
@@ -112,24 +76,14 @@ class HDCResSE(nn.Module):  # See figure 2. from the paper
     ) -> None:
 
         super().__init__()
-        self.hdc = HDC(
+        self.hdc = hdc(
             dilation=dilation,
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
             padding=padding,
         )
-        # self.hdc = nn.Sequential(
-        #     nn.Conv3d(
-        #         in_channels=in_channels,
-        #         out_channels=out_channels,
-        #         kernel_size=kernel_size,
-        #         padding=padding,
-        #         dilation=dilation,
-        #         padding_mode="reflect",
-        #     ),
-        #     nn.ReLU(),
-        # )
+
         self.resse = nn.Sequential(
             nn.AdaptiveAvgPool3d(output_size=(1, 1, 1)),
             nn.Flatten(),
@@ -281,6 +235,7 @@ class OrganNet25D(nn.Module):
         # Fine 3D block
 
         self.fine_3d_1 = HDCResSE(
+            hdc=ResHDC,
             in_channels=64,
             out_channels=128,
             padding=padding["hdc_1"],
@@ -288,6 +243,7 @@ class OrganNet25D(nn.Module):
             dilation=hdc_dilations[0],
         )
         self.fine_3d_2 = HDCResSE(
+            hdc=ResHDC,
             in_channels=128,
             out_channels=256,
             padding=padding["hdc_2"],
@@ -295,6 +251,7 @@ class OrganNet25D(nn.Module):
             dilation=hdc_dilations[1],
         )
         self.fine_3d_3 = HDCResSE(
+            hdc=ResHDC,
             in_channels=256,
             out_channels=128,
             padding=padding["hdc_3"],
@@ -534,7 +491,8 @@ def main():
     expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
-    model = OrganNet25D(hdc_dilations=(1, 2, 5), padding="yes")
+    dilations = [[1, 2, 5, 9], [1, 2, 5, 9], [1, 2, 5, 9]]
+    model = OrganNet25D(hdc_dilations=dilations, padding="yes")
     # model = ToyOrganNet25D()
 
     output = model(input, verbose=True)
