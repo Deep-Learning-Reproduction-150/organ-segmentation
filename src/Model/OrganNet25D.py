@@ -329,7 +329,6 @@ class OrganNet25D(nn.Module):
 
         # Final softmax
         self.softm = nn.Softmax(dim=1)
-        self.apply(weight_init)
         return
 
     def forward(self, x: torch.Tensor, verbose=None):
