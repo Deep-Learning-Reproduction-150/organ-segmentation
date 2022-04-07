@@ -115,11 +115,11 @@ class OrganNet25D(nn.Module):
         hdc_dilations=(1, 2, 3),
         out_channels=10,
         activations={
-            "coarse_resse": "sigmoid",
-            "fine_resse": "sigmoid",
+            "coarse_resse": "relu",
+            "fine_resse": "relu",
             "2d": "relu",
-            "one_d_1": "none",
-            "one_d_2": "none",
+            "one_d_1": "relu",
+            "one_d_2": "relu",
         },
         padding="no",
         *args,
@@ -287,7 +287,7 @@ class OrganNet25D(nn.Module):
                 out_channels=128,
                 groups=1,
                 kernel_size=(1, 1, 1),
-                padding=padding["one_d_1"],
+                padding=padding["one_d_1"]
             )
         ]
         if temp_layer := activations.get("one_d_1"):
@@ -443,12 +443,12 @@ class OrganNet25D(nn.Module):
         if verbose:
             print(f"\tOutput 19 (final) shape:\t\t{out19.shape}")
 
-        output = self.softm(out19)
+        # output = self.softm(out19)
         # d, w, h = self.padding["output"]
         # t4d = torch.ones(1, 1, 1, 1, 1)
         # p1d = (1, 1)  # pad last dim by 1 on each side
         # output = torch.nn.functional.pad(output, (h, h, w, w, d, d), "constant", 0)
-        return output
+        return out19
 
 
 class ToyOrganNet25D(OrganNet25D):

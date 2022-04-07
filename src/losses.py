@@ -131,3 +131,23 @@ class MSELoss(nn.Module):
             loss = loss / input_batch.shape[0]
 
         return loss
+
+
+class L1Loss(nn.Module):
+    def __init__(self, **params):
+        super().__init__()
+
+    def forward(self, output_batch, input_batch):
+        # Determine loss
+        loss = nn.L1Loss()(output_batch, input_batch)
+        return loss
+
+
+class CrossEntropyLoss(nn.Module):
+    def __init__(self, **params):
+        super().__init__()
+
+    def forward(self, output_batch, input_batch):
+        # Determine loss
+        loss = nn.CrossEntropyLoss()(output_batch, input_batch)
+        return loss
