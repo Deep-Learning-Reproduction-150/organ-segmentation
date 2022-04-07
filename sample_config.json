@@ -8,9 +8,9 @@
     "model": {
         "name": "OrganNet25D",
         "hdc_dilations": [
-            1,
-            2,
-            5
+            [1, 2, 5, 7],
+            [1, 2, 5, 7],
+            [1, 2, 5, 7]
         ]
     },
     "training": {
