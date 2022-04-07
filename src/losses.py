@@ -5,6 +5,7 @@ Course: Deep Learning
 Date: 03.04.2022
 Group: 150
 """
+import copy
 
 import torch
 from torch import nn
@@ -25,7 +26,11 @@ DEFAULT_AC = torch.Tensor(
 
 
 class CombinedLoss(nn.Module):
-    def __init__(self, alpha, input_dim, weight=None, size_average=True, *args, **kwargs):
+
+    input_dim = None
+    alpha_vals = None
+
+    def __init__(self, alpha, **kwargs):
         """
         TODO: Implement weights["focal"] as
         0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, and 3.0
@@ -36,24 +41,25 @@ class CombinedLoss(nn.Module):
 
         self.dice = DiceLoss()
         self.focal = FocalLoss()
-
-        self.alpha = self.make_ac(alpha, input_dim)
+        self.alpha = alpha
 
     def forward(self, inputs, targets, l=1.0, gamma=2):
 
+        # Get dice and focal loss
         dice = self.dice(inputs, targets)
+        focal = self.focal(inputs, targets, alpha=self.get_alpha(inputs), gamma=gamma)
 
-        focal = self.focal(inputs, targets, alpha=self.alpha, gamma=gamma)
+        # Stich them together and return
         combined = focal + l * dice
-
         return combined
 
-    @staticmethod
-    def make_ac(alpha_values, input_dims):
-        alpha_tensor = torch.Tensor(alpha_values)
-        placeholder = torch.ones(input_dims)
-        alpha = (placeholder.transpose(1, -1) * alpha_tensor).transpose(1, -1).view(-1)
-        return alpha
+    def get_alpha(self, inputs):
+        if CombinedLoss.alpha_vals is None:
+            alpha_tensor = torch.Tensor(self.alpha)
+            placeholder = torch.ones_like(inputs)
+            alpha = (placeholder.transpose(1, -1) * alpha_tensor).transpose(1, -1).view(-1)
+            CombinedLoss.alpha_vals = alpha
+        return CombinedLoss.alpha_vals
 
 
 class DiceCoefficient(nn.Module):
@@ -61,12 +67,12 @@ class DiceCoefficient(nn.Module):
         super().__init__()
 
     def forward(self, inputs, targets):
-        # # flatten label and prediction tensors
-        inputs = inputs.contiguous().view(-1)
-        targets = targets.contiguous().view(-1)
-
+        # Compute the dice coefficient
+        channels = inputs.size()[1]
+        inputs = inputs[:].contiguous().view(-1)
+        targets = targets[:].contiguous().view(-1)
         intersection = (inputs * targets).sum()
-        dice = (2.0 * intersection) / (inputs.sum() + targets.sum())
+        dice = ((2.0 * intersection) / (inputs.sum() + targets.sum())) / channels
         return dice
 
 
@@ -85,15 +91,18 @@ class FocalLoss(nn.Module):
 
     def forward(self, inputs, targets, alpha, gamma=2.0):
 
+        # Remember the number of batches
+        batches = inputs.size()[0]
+
         # flatten label and prediction tensors
         inputs = inputs.view(-1)
         targets = targets.view(-1)
-        # first compute binary cross-entropy
 
+        # first compute binary cross-entropy
         BCE = F.binary_cross_entropy(inputs, targets, weight=alpha[: inputs.shape[0]], reduction="mean")
 
         BCE_EXP = torch.exp(-BCE)
-        focal_loss = (1 - BCE_EXP) ** gamma * BCE
+        focal_loss = ((1 - BCE_EXP) ** gamma * BCE) / batches
         return focal_loss
 
 
