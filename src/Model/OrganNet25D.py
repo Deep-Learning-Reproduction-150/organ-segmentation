@@ -71,7 +71,7 @@ class HDCResSE(nn.Module):  # See figure 2. from the paper
         in_channels=16,
         out_channels=32,
         kernel_size=(3, 3, 3),
-        activation=nn.Sigmoid(),
+        activation=nn.ReLU(),
         padding=0,
     ) -> None:
 
@@ -120,8 +120,9 @@ class OrganNet25D(nn.Module):
             "2d": "relu",
             "one_d_1": "none",
             "one_d_2": "none",
+            "one_d_3": "softmax",
         },
-        padding="no",
+        padding="yes",
         *args,
         **kwargs,
     ):
@@ -149,6 +150,8 @@ class OrganNet25D(nn.Module):
 
         # Call torch superclass constructor
         super().__init__()
+        if activations["one_d_3"] not in ["sigmoid", "softmax"]:
+            raise ValueError("one_d_3 activation needs to be either 'softmax' or 'softmax'")
         activations = {k: activation_mapper(v) for k, v in activations.items()}
         allowed_padding_values = ["yes", "no"]
         if type(padding) is not dict and padding not in allowed_padding_values:
@@ -235,7 +238,7 @@ class OrganNet25D(nn.Module):
         # Fine 3D block
 
         self.fine_3d_1 = HDCResSE(
-            hdc=ResHDC,
+            hdc=ResHDCModule,
             in_channels=64,
             out_channels=128,
             padding=padding["hdc_1"],
@@ -243,7 +246,7 @@ class OrganNet25D(nn.Module):
             dilation=hdc_dilations[0],
         )
         self.fine_3d_2 = HDCResSE(
-            hdc=ResHDC,
+            hdc=ResHDCModule,
             in_channels=128,
             out_channels=256,
             padding=padding["hdc_2"],
@@ -251,7 +254,7 @@ class OrganNet25D(nn.Module):
             dilation=hdc_dilations[1],
         )
         self.fine_3d_3 = HDCResSE(
-            hdc=ResHDC,
+            hdc=ResHDCModule,
             in_channels=256,
             out_channels=128,
             padding=padding["hdc_3"],
@@ -316,7 +319,7 @@ class OrganNet25D(nn.Module):
                 padding=padding["one_d_3"],
                 padding_mode="zeros",
             ),
-            nn.Sigmoid(),
+            activations["one_d_3"],
         )
 
         # Downsampling maxpool
@@ -327,8 +330,6 @@ class OrganNet25D(nn.Module):
         self.upsample1 = nn.ConvTranspose3d(in_channels=64, out_channels=32, stride=(2, 2, 2), kernel_size=(2, 2, 2))
         self.upsample2 = nn.ConvTranspose3d(in_channels=32, out_channels=16, stride=(1, 2, 2), kernel_size=(1, 2, 2))
 
-        # Final softmax
-        self.softm = nn.Softmax(dim=1)
         return
 
     def forward(self, x: torch.Tensor, verbose=None):
@@ -385,11 +386,11 @@ class OrganNet25D(nn.Module):
             print(f"\tOutput 7 shape:\t\t{out7.shape}")
         # Output 7 to "Conv 1x1x1" layer 1 -> Output 8 (2,128,18,57,57)
         out8 = self.one_d_1(out7)
-        out6_xyzcropped = crop3d(out6, target_shape=out8.shape[-3:])
+        # out6_xyzcropped = crop3d(out6, target_shape=out8.shape[-3:])
         if verbose:
             print(f"\tOutput 8 shape:\t\t{out8.shape}")
         # Concatenate Output 6 and Output 8 -> Output 9 (2,256,18,57,57)
-        out9 = torch.cat([out6_xyzcropped, out8], dim=1)
+        out9 = torch.cat([out6, out8], dim=1)
         if verbose:
             print(f"\tOutput 9 shape:\t\t{out9.shape}")
         # Output 9 to Fine 3D Layer 3 -> Output 10 (2,128,18,57,57)
@@ -402,8 +403,8 @@ class OrganNet25D(nn.Module):
         if verbose:
             print(f"\tOutput 11 shape:\t\t{out11.shape}")
         # Concatenate Output 11 and Output 5 -> Output 12
-        out5_xyzcropped = crop3d(out5, target_shape=out11.shape[-3:])
-        out12 = torch.cat([out5_xyzcropped, out11], dim=1)
+        # out5_xyzcropped = crop3d(out5, target_shape=out11.shape[-3:])
+        out12 = torch.cat([out5, out11], dim=1)
         if verbose:
             print(f"\tOutput 12 shape:\t\t{out12.shape}")
         # Output 12 to Fine 3d layer 3 -> Output 13
@@ -416,8 +417,8 @@ class OrganNet25D(nn.Module):
             print(f"\tOutput 14 shape:\t\t{out14.shape}")
         # Concatenate Output 14 and Output 3 -> Output 15
         # First crop 3, (..., 122, 122) -> (..., 114, 114)
-        out3_xyzcropped = crop3d(out3, target_shape=out14.shape[-3:])
-        out15 = torch.cat([out3_xyzcropped, out14], dim=1)
+        # out3_xyzcropped = crop3d(out3, target_shape=out14.shape[-3:])
+        out15 = torch.cat([out3, out14], dim=1)
         if verbose:
             print(f"\tOutput 15 shape:\t\t{out15.shape}")
         # Output 15 to Coarse 3d Layer 4 -> Output 16
@@ -426,11 +427,11 @@ class OrganNet25D(nn.Module):
             print(f"\tOutput 16 shape:\t\t{out16.shape}")
         # Concatenate Output 1 and Output 16 -> Output 17
         out16up = self.upsample2(out16)
-        out1_xyzcropped = crop3d(out1, target_shape=out16up.shape[-3:])
+        # out1_xyzcropped = crop3d(out1, target_shape=out16up.shape[-3:])
         if verbose:
             print(f"\t\t16 upsampled:\t\t{out16up.shape}")
-            print(f"\t\tOutput 1 cropped:\t\t{out1_xyzcropped.shape}")
-        out17 = torch.cat([out1_xyzcropped, out16up], axis=1)
+            # print(f"\t\tOutput 1 cropped:\t\t{out1_xyzcropped.shape}")
+        out17 = torch.cat([out1, out16up], axis=1)
         if verbose:
             print(f"\tOutput 17 shape:\t\t{out17.shape}")
         # Output 17 to 2D layer 2 -> Output 18
@@ -442,12 +443,12 @@ class OrganNet25D(nn.Module):
         if verbose:
             print(f"\tOutput 19 (final) shape:\t\t{out19.shape}")
 
-        output = self.softm(out19)
+        # output = self.softm(out19)
         # d, w, h = self.padding["output"]
         # t4d = torch.ones(1, 1, 1, 1, 1)
         # p1d = (1, 1)  # pad last dim by 1 on each side
         # output = torch.nn.functional.pad(output, (h, h, w, w, d, d), "constant", 0)
-        return output
+        return out19
 
 
 class ToyOrganNet25D(OrganNet25D):
@@ -499,9 +500,9 @@ def main():
     """
     print(msg)
 
-    from torchsummary import summary
+    # from torchsummary import summary
 
-    summary(model, input_size=input_shape[1:], batch_size=2)
+    # summary(model, input_size=input_shape[1:], batch_size=2)
 
 
 if __name__ == "__main__":

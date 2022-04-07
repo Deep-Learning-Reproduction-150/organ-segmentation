@@ -1,4 +1,3 @@
-from abc import abstractclassmethod
 import torch
 from torch import nn
 
@@ -91,43 +90,65 @@ class WorkingHDC(nn.Module):
         return output
 
 
+class ConvBNReLU(nn.Module):
+    def __init__(self, in_channels=64, out_channels=128, dilation=(1, 2, 5), kernel_size=(3, 3, 3), padding="same"):
+
+        super().__init__()
+        self.layer = nn.intrinsic.ConvBnReLU3d(  # does this speed things up?
+            nn.Conv3d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                padding=padding,
+                dilation=dilation,
+            ),
+            torch.nn.BatchNorm3d(out_channels),
+            nn.ReLU(),
+        )
+
+    def forward(self, x):
+        return self.layer(x)
+
+
 class ResHDC(nn.Module):
+    def __init__(self, in_channels=64, out_channels=128, dilation=3, kernel_size=(3, 3, 3), padding="same"):
+        super().__init__()
+        self.skip_path = ConvBNReLU(
+            in_channels=in_channels, out_channels=out_channels, dilation=1, kernel_size=1, padding=padding
+        )
+        self.main_path = ConvBNReLU(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            dilation=dilation,
+            kernel_size=kernel_size,
+            padding=padding,
+        )
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        out1 = self.skip_path(x)
+        out2 = self.main_path(out1)
+        out3 = torch.add(out1, out2)
+        return self.relu(out3)
+
+
+class ResHDCModule(nn.Sequential):
     def __init__(self, in_channels=64, out_channels=128, dilation=(1, 2, 5), kernel_size=(3, 3, 3), padding="same"):
         """
         Creates a nn.Module layer with a ResNet style skip connection.
         """
         super().__init__()
-        self.main_path = []
-        prev_layer_out_channels = in_channels
-        for dilation in dilation:
-            layer = nn.intrinsic.ConvBnReLU3d(  # does this speed things up?
-                nn.Conv3d(
-                    in_channels=prev_layer_out_channels,
-                    out_channels=out_channels,
-                    kernel_size=kernel_size,
-                    padding=padding,
-                    dilation=dilation,
-                ),
-                torch.nn.BatchNorm3d(out_channels),
-                nn.ReLU(),
+        self.layers = []
+        prev_out = in_channels
+        for dil in dilation:
+            layer = ResHDC(
+                in_channels=prev_out, out_channels=out_channels, dilation=dil, kernel_size=kernel_size, padding=padding
             )
-            prev_layer_out_channels = out_channels
-            self.main_path.append(layer)
-
-        self.shortcut_model = nn.Conv3d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=(1, 1, 1),
-            stride=1,
-            padding=padding,
-            dilation=1,
-        )
+            prev_out = out_channels
+            self.layers.append(layer)
 
     def forward(self, x):
-        shortcut = self.shortcut_model(x)
-        main_path = x
-        for layer in self.main_path:
-            main_path = layer(main_path)
-
-        output = torch.add(shortcut, main_path)
+        output = x
+        for layer in self.layers:
+            output = layer(output)
         return output
