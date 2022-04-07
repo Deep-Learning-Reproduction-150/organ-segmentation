@@ -14,12 +14,9 @@ import torch
 from torch import nn
 
 
-try:
-    from .utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
-    from .HDC import *
-except ImportError:
-    from utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
-    from HDC import *
+from .utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
+from .HDC import *
+
 # from src.Dataloader.CTData import CTData
 
 

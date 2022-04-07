@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torchvision.transforms import CenterCrop
 
-from HDC import ConvBNReLU
+from .HDC import ConvBNReLU
 
 """
 Contains auxiliary functions for the model.
