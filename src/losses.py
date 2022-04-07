@@ -23,6 +23,13 @@ DEFAULT_AC = torch.Tensor(
     [0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0]
 )  # TODO: focal loss weights per channels from the paper
 
+from torch.nn import CrossEntropyLoss
+
+
+class CrossEntropyLoss(CrossEntropyLoss):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
 
 class CombinedLoss(nn.Module):
     def __init__(self, alpha, input_dim, weight=None, size_average=True, *args, **kwargs):
