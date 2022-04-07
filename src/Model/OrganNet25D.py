@@ -76,7 +76,7 @@ class HDC(nn.Module):
             kernel_size=kernel_size,
             stride=1,
             padding=padding,
-            dilation=(1, dilation, dilation),
+            dilation=(dilation, dilation, dilation),
         )
         prev_layer_out_channels = out_channels
 
@@ -191,7 +191,7 @@ class OrganNet25D(nn.Module):
             'one_d_2'
             'one_d_3'
         """
-        print(f"Initialising organNet with {hdc_dilations}")
+        print(f"Initialising organNet with {hdc_dilations}, padding: {padding}")
 
         # Call torch superclass constructor
         super().__init__()
@@ -203,8 +203,8 @@ class OrganNet25D(nn.Module):
         # Preset default options
         if padding == "yes":
             padding = {}
-            padding["two_d_1"] = "valid"
-            padding["two_d_2"] = "valid"
+            padding["two_d_1"] = "same"
+            padding["two_d_2"] = "same"
             padding["coarse_3d_1"] = "same"
             padding["coarse_3d_2"] = "same"
             padding["coarse_3d_3"] = "same"
@@ -214,7 +214,8 @@ class OrganNet25D(nn.Module):
             padding["hdc_3"] = "same"
             padding["one_d_1"] = 0
             padding["one_d_2"] = 0
-            padding["one_d_3"] = (0, 4, 4)
+            padding["one_d_3"] = "same"  # (0, 4, 4)
+            padding["output"] = "same"
         elif padding == "no":
             padding = {}
             padding["two_d_1"] = "valid"
@@ -228,8 +229,9 @@ class OrganNet25D(nn.Module):
             padding["hdc_3"] = "same"
             padding["one_d_1"] = "valid"
             padding["one_d_2"] = "valid"
-            padding["one_d_3"] = (12, 28, 28)
-        self.output_padding = padding["one_d_3"]
+            padding["one_d_3"] = "valid"  # (12, 28, 28)
+            padding["output"] = (12, 28, 28)
+        self.padding = padding
 
         # First 2D layers
         self.two_d_1 = conv_2x2d(
@@ -374,7 +376,6 @@ class OrganNet25D(nn.Module):
 
         # Final softmax
         self.softm = nn.Softmax(dim=1)
-
         self.apply(weight_init)
         return
 
@@ -490,7 +491,10 @@ class OrganNet25D(nn.Module):
             print(f"\tOutput 19 (final) shape:\t\t{out19.shape}")
 
         output = self.softm(out19)
-
+        # d, w, h = self.padding["output"]
+        # t4d = torch.ones(1, 1, 1, 1, 1)
+        # p1d = (1, 1)  # pad last dim by 1 on each side
+        # output = torch.nn.functional.pad(output, (h, h, w, w, d, d), "constant", 0)
         return output
 
 
@@ -521,13 +525,16 @@ def main():
     channels_in = 1
     channels_out = 10
 
+    # width = height = 48  # * 2
+    # depth = 36
+
     # Batch x Channels x Depth x Height x Width
     input_shape = (batch, channels_in, depth, height, width)
     # Batch x  Channels x Depth x Height x Width
     expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
-    model = OrganNet25D(hdc_dilations=(1, 2, 5), padding="no")
+    model = OrganNet25D(hdc_dilations=(1, 2, 5), padding="yes")
     # model = ToyOrganNet25D()
 
     output = model(input, verbose=True)
