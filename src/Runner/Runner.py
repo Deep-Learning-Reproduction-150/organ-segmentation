@@ -345,7 +345,7 @@ class Runner:
                 model_output = self.model(inputs)
 
                 # output should be 2, 10, 24, 72, 72 FIXME: hard coded padding test
-                trans = CenterCrop(size=(72, 72))
+                trans = CenterCrop(size=(200, 200))
                 labels = trans(labels)
                 labels = labels[:, :, 12:36, :, :].contiguous()
                 labels = labels.to(torch.float32)
@@ -413,7 +413,7 @@ class Runner:
                     inputs, labels = batch_input
 
                     # output should be 2, 10, 24, 72, 72 FIXME: hard coded padding test
-                    trans = CenterCrop(size=(72, 72))
+                    trans = CenterCrop(size=(200, 200))
                     labels = trans(labels)
                     labels = labels[:, :, 12:36, :, :].contiguous()
                     labels = labels.to(torch.float32)
@@ -606,7 +606,7 @@ class Runner:
         """
 
         # Trans FIXME: just testing here
-        trans = CenterCrop(size=(72, 72))
+        trans = CenterCrop(size=(200, 200))
         inputs = trans(inputs)
         inputs = inputs[:, :, 12:36, :, :].contiguous()
         inputs = inputs.to(torch.float32)
@@ -709,7 +709,7 @@ class Runner:
         if model_output is not None:
 
             # Trans FIXME: just testing here
-            trans = CenterCrop(size=(72, 72))
+            trans = CenterCrop(size=(200, 200))
             inputs = trans(inputs)
             inputs = inputs[:, :, 12:36, :, :].contiguous()
             inputs = inputs.to(torch.float32)
