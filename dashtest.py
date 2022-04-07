@@ -2,18 +2,16 @@ from dash import Dash, dcc, html, Input, Output
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
+from glob import glob
 
 
-base_url = "https://raw.githubusercontent.com/plotly/datasets/master/ply/"
-mesh_names = ["sandal", "scissors", "shark", "walkman"]
-dataframes = {name: pd.read_csv(base_url + name + "-ply.csv") for name in mesh_names}
+data_files = glob("./data/examples/*.csv")
+print(f"Found files {data_files}")
+mesh_names = [file.split("/")[-1] for file in data_files]
 
-organ_names = [f"organ_{i}" for i in range(9)] + ["all_organs"]
-for organ in organ_names:
-    try:
-        dataframes[organ] = pd.read_csv(f"{organ}.csv")
-    except FileNotFoundError:
-        pass
+dataframes = {}
+for organ in data_files:
+    dataframes[organ] = pd.read_csv(organ)
 
 app = Dash(__name__)
 
@@ -21,7 +19,7 @@ app.layout = html.Div(
     [
         html.H4("PLY Object Explorer"),
         html.P("Choose an object:"),
-        dcc.Dropdown(id="dropdown", options=mesh_names + organ_names, value="sandal", clearable=False),
+        dcc.Dropdown(id="dropdown", options=list(dataframes.keys()), value=list(dataframes.keys())[0], clearable=False),
         dcc.Graph(id="graph"),
     ]
 )
@@ -30,20 +28,8 @@ app.layout = html.Div(
 @app.callback(Output("graph", "figure"), Input("dropdown", "value"))
 def display_mesh(name):
     df = dataframes[name]  # replace with your own data source
-    if "i" in df.columns:
-        fig = go.Figure(
-            go.Mesh3d(
-                x=df.x,
-                y=df.y,
-                z=df.z,
-                i=df.i,
-                j=df.j,
-                k=df.k,
-                facecolor=df.facecolor,
-            )
-        )
-    else:
-        fig = px.scatter_3d(df, x="x", y="y", z="z", color="organ_names")
+
+    fig = px.scatter_3d(df, x="x", y="y", z="z", color="organ_names")
     return fig
 
 
