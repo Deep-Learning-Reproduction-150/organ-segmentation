@@ -212,12 +212,11 @@ class CropAroundBrainStem(object):
         return vol
 
 
-class MakeEverythingBrainStem(object):
+class ZeroOneScaleTensor(object):
+    def __init__(self, **params):
+        super().__init__()
+
     def __call__(self, tensor):
-        from copy import deepcopy
+        scaled_tensor = ((tensor - tensor.min()) / (tensor.max() - tensor.min() + 1e-6)).to(tensor.dtype)
 
-        # Remove all other channels than 0
-        tensor[:, :] = deepcopy(tensor[:, 0])
-        return tensor
-
-
+        return scaled_tensor
