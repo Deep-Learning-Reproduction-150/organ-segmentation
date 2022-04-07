@@ -166,6 +166,10 @@ class CTData:
         :param show_status_bar: progress bar will be displayed to show progress of generation
         """
 
+        # Start status bar
+        if show_status_bar:
+            Logger.print_status_bar(done=0, title="visualizing")
+
         # Check if preloaded or have to load now
         if self.data is None:
             # Load data from the file
@@ -174,9 +178,6 @@ class CTData:
         # Check given parameters
         if direction not in ['vertical', 'horizontal']:
             raise ValueError(bcolors.FAIL + "ERROR: Direction has to either be 'vertical' or 'horizontal'" + bcolors.ENDC)
-
-        # Print a status update
-        Logger.log("Creating visualization of " + str(self.data.ndim) + "-dimensional data " + str(self.name) + " with direction " + direction, in_cli=True)
 
         # Extract the three dimensions from the data set
         shape = self.data.shape
@@ -249,25 +250,35 @@ class CTData:
 
             # Print the changing import status line
             if show_status_bar:
-                done = ((index + 1) / dim_counter) * 100
-                Logger.print_status_bar(done=done, title="processing")
-
-        # Always stop status bar after this
-        if show_status_bar:
-            Logger.end_status_bar()
+                done = ((index + 1) / (dim_counter + 1)) * 100
+                Logger.print_status_bar(done=done, title="visualizing")
 
         # If system shall export a GIF from it, do so
         if export_gif:
 
-            # Print status update
-            Logger.log("Creating visualization of " + str(self.data.ndim) + "-dimensional data " + str(self.name) +
-                       ", saving GIF file", in_cli=True)
-
             # Remove the tmp tile
             os.remove('visualizations/tmp.png')
 
+            # Create the output path
+            output_path = 'visualizations/' + (self.name if name is None else name) + '.gif'
+
+            # Check if it already exist
+            counter = 1
+            while os.path.exists(output_path):
+                # Create the output path
+                output_path = 'visualizations/' + (self.name if name is None else name) + '-' + str(counter) + '.gif'
+                counter += 1
+
+            if counter > 1:
+                Logger.log("CTData visualization: path already exist")
+
             # Save GIF file
-            imageio.mimsave('visualizations/' + (self.name if name is None else name) + '.gif', images)
+            imageio.mimsave(output_path, images)
+
+        # Always stop status bar after this
+        if show_status_bar:
+            Logger.print_status_bar(done=100, title="visualizing")
+            Logger.end_status_bar()
 
     def _get_from_file(self, dtype: torch.dtype = torch.float32):
         """

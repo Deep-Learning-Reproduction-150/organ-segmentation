@@ -13,15 +13,17 @@ TODO:
 import torch
 from torch import nn
 
-from .utils import conv_2x3d_coarse, HDC, conv_2x2d, crop3d
 
+try:
+    from .utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
+except ImportError:
+    from utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
 # from src.Dataloader.CTData import CTData
 
 
 class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
     def __init__(
         self,
-        global_pooling_size,
         activation=nn.Sigmoid(),
         in_channels=16,
         out_channels=32,
@@ -31,55 +33,104 @@ class DoubleConvResSE(nn.Module):  # See figure 2. from the paper
     ) -> None:
 
         super().__init__()
-
         self.conv = conv_2x3d_coarse(
             in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding
         )
         self.resse = nn.Sequential(
-            nn.AvgPool3d(global_pooling_size),
+            nn.AdaptiveAvgPool3d(output_size=(1, 1, 1)),
             nn.Flatten(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
+            nn.ReLU(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
             activation,
             nn.Unflatten(1, (out_channels, 1, 1, 1)),
         )
 
     def forward(self, x):
-
         conv_out = self.conv(x)
         resse_out = self.resse(conv_out)
-
         multi = conv_out * resse_out
         y = multi + conv_out
 
         return y
 
 
+class HDC(nn.Module):
+    def __init__(self, in_channels=64, out_channels=128, dilations=(1, 2, 5), kernel_size=(3, 3, 3), padding="valid"):
+        """
+        Creates a HDC layer.
+        """
+        super().__init__()
+
+        self.main_path = []
+        prev_layer_out_channels = in_channels
+        for dilation in dilations:
+            layer = nn.Conv3d(
+                in_channels=prev_layer_out_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=1,
+                padding=padding,
+                dilation=(dilation, dilation, dilation),
+            )
+            prev_layer_out_channels = out_channels
+            self.main_path.append(layer)
+
+        self.shortcut_model = nn.Conv3d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=(1, 1, 1),
+            stride=1,
+            padding=padding,
+            dilation=1,
+        )
+
+    def forward(self, x):
+        output = x
+        shortcut = self.shortcut_model(x)
+        for layer in self.main_path:
+            layer_output = layer(output)
+            output = layer_output + crop3d(
+                shortcut, layer_output.shape[2:]
+            )  # + crop3d(x, layer_output.shape[2:]) TODO: Try this
+            shortcut = layer_output
+        return output
+
+
 class HDCResSE(nn.Module):  # See figure 2. from the paper
     def __init__(
         self,
-        global_pooling_size,
-        dilations=(1, 2, 5),
+        dilation=1,
         in_channels=16,
         out_channels=32,
         kernel_size=(3, 3, 3),
-        stride=1,
+        activation=nn.Sigmoid(),
         padding=0,
     ) -> None:
 
         super().__init__()
-        self.hdc = HDC(
-            dilations=dilations,
+        # self.hdc = HDC(
+        #     dilations=dilations,
+        #     in_channels=in_channels,
+        #     out_channels=out_channels,
+        #     kernel_size=kernel_size,
+        #     padding=padding,
+        # )
+        self.hdc = nn.Conv3d(
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
+            padding=padding,
+            dilation=dilation,
+            padding_mode="reflect",
         )
         self.resse = nn.Sequential(
-            nn.AvgPool3d(global_pooling_size),
+            nn.AdaptiveAvgPool3d(output_size=(1, 1, 1)),
             nn.Flatten(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
+            nn.ReLU(),
             nn.Linear(in_features=out_channels, out_features=out_channels),
-            nn.Sigmoid(),
+            activation,
             nn.Unflatten(1, (out_channels, 1, 1, 1)),
         )
 
@@ -100,130 +151,222 @@ class OrganNet25D(nn.Module):
     """
 
     def __init__(
-        self, hdc_dilations=(1, 2, 5), input_shape=(48, 256, 256), resse_activation=nn.Sigmoid(), *args, **kwargs
+        self,
+        hdc_dilations=(1, 2, 3),
+        out_channels=10,
+        activations={
+            "coarse_resse": "sigmoid",
+            "fine_resse": "sigmoid",
+            "2d": "relu",
+            "one_d_1": "none",
+            "one_d_2": "none",
+        },
+        padding="no",
+        *args,
+        **kwargs,
     ):
         """
-        Constructor method of the OrganNet
+        Constructor method of the OrganNet.
+        Arguments:
+        - hdc_dilations: Default (1, 2, 5)
+        - input_shape: Default (48, 256, 256)
+        - activations: The activation functions of different layers. None to omit (linear activation). Keys: 'coarse_resse', 'fine_resse', 'one_d_1','one_d_3'
+        - padding: 'yes' to do default padding, 'no' to not pad (instead pad at the output), or custom dict with keys:
+            'two_d_1'
+            'two_d_2'
+            'coarse_3d_1'
+            'coarse_3d_2'
+            'coarse_3d_3'
+            'coarse_3d_4'
+            'hdc_1'
+            'hdc_2'
+            'hdc_3'
+            'one_d_1'
+            'one_d_2'
+            'one_d_3'
         """
+        print(f"Initialising organNet with {hdc_dilations}")
 
         # Call torch superclass constructor
         super().__init__()
+        activations = {k: activation_mapper(v) for k, v in activations.items()}
+        allowed_padding_values = ["yes", "no"]
+        if type(padding) is not dict and padding not in allowed_padding_values:
+            raise ValueError(f"padding {padding} not a dict and not in {allowed_padding_values}")
 
-        d, h, w = input_shape
+        # Preset default options
+        if padding == "yes":
+            padding = {}
+            padding["two_d_1"] = "valid"
+            padding["two_d_2"] = "valid"
+            padding["coarse_3d_1"] = "same"
+            padding["coarse_3d_2"] = "same"
+            padding["coarse_3d_3"] = "same"
+            padding["coarse_3d_4"] = "same"
+            padding["hdc_1"] = "same"
+            padding["hdc_2"] = "same"
+            padding["hdc_3"] = "same"
+            padding["one_d_1"] = 0
+            padding["one_d_2"] = 0
+            padding["one_d_3"] = (0, 4, 4)
+        elif padding == "no":
+            padding = {}
+            padding["two_d_1"] = "valid"
+            padding["two_d_2"] = "valid"
+            padding["coarse_3d_1"] = "valid"  # (4, 0, 0)  # "valid" # (4, 0, 0)
+            padding["coarse_3d_2"] = "valid"  # (4, 0, 0)  # "valid"
+            padding["coarse_3d_3"] = "valid"
+            padding["coarse_3d_4"] = "valid"
+            padding["hdc_1"] = "same"
+            padding["hdc_2"] = "same"
+            padding["hdc_3"] = "same"
+            padding["one_d_1"] = "valid"
+            padding["one_d_2"] = "valid"
+            padding["one_d_3"] = (12, 28, 28)
 
         # First 2D layers
         self.two_d_1 = conv_2x2d(
-            in_channels=1, out_channels=16, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid"
+            in_channels=1,
+            out_channels=16,
+            groups=1,
+            kernel_size=(1, 3, 3),
+            stride=1,
+            activation=activations["2d"],
+            padding=padding["two_d_1"],
         )
 
         self.two_d_2 = conv_2x2d(
-            in_channels=32, out_channels=32, groups=1, kernel_size=(1, 3, 3), stride=1, padding="valid"
+            in_channels=32,
+            out_channels=32,
+            groups=1,
+            kernel_size=(1, 3, 3),
+            stride=1,
+            activation=activations["2d"],
+            padding=padding["two_d_2"],
         )  # TODO: Remove the padding
 
         # Coarse 3D layers
 
-        d_here = d - 4  # 44 -> two 2x2x2 convolutions
-        h_here = int((h - 4) / 2) - 4  # 122, two 1x2x2 convolutions -> downsample -> two 2x2x2 convolutions
         # First part of 2 x Conv + ResSE
+
         self.coarse_3d_1 = DoubleConvResSE(
-            (d_here, h_here, h_here),
-            activation=resse_activation,
             in_channels=16,
             out_channels=32,
             kernel_size=(3, 3, 3),
             stride=1,
-            padding="same",
+            activation=activations["coarse_resse"],
+            padding=padding["coarse_3d_1"],
         )
 
-        d_here = int(d_here / 2)  # - 4  # 18 # downsample + two 3x3x3 conv
-        h_here = int(h_here / 2)  # - 4  # 57  # downsample + two 3x3x3 conv
+        # Check if no padding -> reduce both dims, else check if tuple, then reduce the dimensions accordingly
 
         self.coarse_3d_2 = DoubleConvResSE(
-            (d_here, h_here, h_here),
-            activation=resse_activation,
             in_channels=32,
             out_channels=64,
             kernel_size=(3, 3, 3),
             stride=1,
-            padding="same",
+            activation=activations["coarse_resse"],
+            padding=padding["coarse_3d_2"],
         )
 
         # Fine 3D block
 
-        self.fine_3d_1 = HDCResSE((d_here, h_here, h_here), in_channels=64, out_channels=128, dilations=hdc_dilations)
-        self.fine_3d_2 = HDCResSE((d_here, h_here, h_here), in_channels=128, out_channels=256, dilations=hdc_dilations)
-        self.fine_3d_3 = HDCResSE((d_here, h_here, h_here), in_channels=256, out_channels=128, dilations=hdc_dilations)
+        self.fine_3d_1 = HDCResSE(
+            in_channels=64,
+            out_channels=128,
+            padding=padding["hdc_1"],
+            activation=activations["fine_resse"],
+            dilation=hdc_dilations[0],
+        )
+        self.fine_3d_2 = HDCResSE(
+            in_channels=128,
+            out_channels=256,
+            padding=padding["hdc_2"],
+            activation=activations["fine_resse"],
+            dilation=hdc_dilations[1],
+        )
+        self.fine_3d_3 = HDCResSE(
+            in_channels=256,
+            out_channels=128,
+            padding=padding["hdc_3"],
+            activation=activations["fine_resse"],
+            dilation=hdc_dilations[2],
+        )
 
         # Last two coarse 3d
-        d_here = d_here  # - 4  # 14  -> two 3x3x3 conv
-        h_here = h_here  # - 4  # 53  -> two 3x3x3 conv
+
         self.coarse_3d_3 = DoubleConvResSE(
-            (d_here, h_here, h_here),
-            activation=resse_activation,
             in_channels=128,
             out_channels=64,
             kernel_size=(3, 3, 3),
             stride=1,
-            padding="same",
+            activation=activations["coarse_resse"],
+            padding=padding["coarse_3d_3"],
         )
-        d_here = d_here * 2  # - 4  # 14  -> upsample + two 3x3x3 conv
-        h_here = h_here * 2  # - 4  # 53  -> upsample + two 3x3x3 conv
+
         self.coarse_3d_4 = DoubleConvResSE(
-            (d_here, h_here, h_here),
-            activation=resse_activation,
             in_channels=64,
             out_channels=32,
             kernel_size=(3, 3, 3),
             stride=1,
-            padding="same",
+            activation=activations["coarse_resse"],
+            padding=padding["coarse_3d_4"],
         )
 
         # 1x1x1 convs
 
-        self.one_d_1 = nn.Sequential(
+        temp = [
             nn.Conv3d(
                 in_channels=256,
                 out_channels=128,
                 groups=1,
                 kernel_size=(1, 1, 1),
-                padding=0,  # TODO: Check on the padding, this is for the toy model
+                padding=padding["one_d_1"],
                 *args,
                 **kwargs,
-            ),
-            nn.ReLU(),
-        )
-        self.one_d_2 = nn.Sequential(
+            )
+        ]
+        if temp_layer := activations.get("one_d_1"):
+            temp.append(temp_layer)
+
+        self.one_d_1 = nn.Sequential(*temp)
+
+        temp = [
             nn.Conv3d(
                 in_channels=128,
                 out_channels=64,
                 groups=1,
                 kernel_size=(1, 1, 1),
-                padding=0,  # TODO: Check on the padding, this is for the toy model
+                padding=padding["one_d_2"],
                 *args,
                 **kwargs,
             ),
-            nn.ReLU(),
-        )
+        ]
+        if temp_layer := activations.get("one_d_2"):
+            temp.append(temp_layer)
+        self.one_d_2 = nn.Sequential(*temp)
+
         self.one_d_3 = nn.Sequential(
             nn.Conv3d(  # The final layer in the network
                 in_channels=32,
-                out_channels=10,
-                groups=1,
+                out_channels=out_channels,
                 kernel_size=(1, 1, 1),
-                padding=(0, 4, 4),  # TODO: Check on the padding, this is for the toy model
-                *args,
-                **kwargs,
+                padding=padding["one_d_3"],
+                padding_mode="reflect"
             ),
             nn.Sigmoid(),
         )
 
         # Downsampling maxpool
-        self.downsample1 = nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2), padding=0, dilation=1)
-        self.downsample2 = nn.MaxPool3d(kernel_size=(2, 2, 2), stride=(2, 2, 2), padding=0, dilation=1)
+        self.downsample1 = nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2), padding=0)
+        self.downsample2 = nn.MaxPool3d(kernel_size=(2, 2, 2), stride=(2, 2, 2), padding=0)
 
         # Upsampling layer
         self.upsample1 = nn.ConvTranspose3d(in_channels=64, out_channels=32, stride=(2, 2, 2), kernel_size=(2, 2, 2))
         self.upsample2 = nn.ConvTranspose3d(in_channels=32, out_channels=16, stride=(1, 2, 2), kernel_size=(1, 2, 2))
+
+        # Final softmax
+        self.softm = nn.Softmax(dim=1)
 
         return
 
@@ -281,10 +424,11 @@ class OrganNet25D(nn.Module):
             print(f"\tOutput 7 shape:\t\t{out7.shape}")
         # Output 7 to "Conv 1x1x1" layer 1 -> Output 8 (2,128,18,57,57)
         out8 = self.one_d_1(out7)
+        out6_xyzcropped = crop3d(out6, target_shape=out8.shape[-3:])
         if verbose:
             print(f"\tOutput 8 shape:\t\t{out8.shape}")
         # Concatenate Output 6 and Output 8 -> Output 9 (2,256,18,57,57)
-        out9 = torch.cat([out6, out8], dim=1)
+        out9 = torch.cat([out6_xyzcropped, out8], dim=1)
         if verbose:
             print(f"\tOutput 9 shape:\t\t{out9.shape}")
         # Output 9 to Fine 3D Layer 3 -> Output 10 (2,128,18,57,57)
@@ -297,7 +441,8 @@ class OrganNet25D(nn.Module):
         if verbose:
             print(f"\tOutput 11 shape:\t\t{out11.shape}")
         # Concatenate Output 11 and Output 5 -> Output 12
-        out12 = torch.cat([out5, out11], dim=1)
+        out5_xyzcropped = crop3d(out5, target_shape=out11.shape[-3:])
+        out12 = torch.cat([out5_xyzcropped, out11], dim=1)
         if verbose:
             print(f"\tOutput 12 shape:\t\t{out12.shape}")
         # Output 12 to Fine 3d layer 3 -> Output 13
@@ -336,7 +481,9 @@ class OrganNet25D(nn.Module):
         if verbose:
             print(f"\tOutput 19 (final) shape:\t\t{out19.shape}")
 
-        return out19
+        output = self.softm(out19)
+
+        return output
 
 
 class ToyOrganNet25D(OrganNet25D):
@@ -350,7 +497,9 @@ class ToyOrganNet25D(OrganNet25D):
         out18 = self.two_d_2(out17)
         out19 = self.one_d_3(out18)
 
-        return out19
+        output = self.softm(out19)
+
+        return output
 
 
 def main():
@@ -370,7 +519,7 @@ def main():
     expected_output_shape = (batch, channels_out, depth, height, width)
     input = torch.rand(input_shape)
 
-    model = OrganNet25D(input_shape=input_shape[-3::], hdc_dilations=(1, 5, 9))
+    model = OrganNet25D(hdc_dilations=(1, 2, 5), padding="no")
     # model = ToyOrganNet25D()
 
     output = model(input, verbose=True)
@@ -381,6 +530,10 @@ def main():
     Output shape correct: {output.shape == expected_output_shape} (expected: {expected_output_shape}).
     """
     print(msg)
+
+    from torchsummary import summary
+
+    summary(model, input_size=input_shape[1:], batch_size=2)
 
 
 if __name__ == "__main__":

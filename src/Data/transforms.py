@@ -1,6 +1,7 @@
 import skimage.transform as transform
 from torchvision.transforms import CenterCrop
 import numpy as np
+from scipy import ndimage
 from sklearn.preprocessing import MinMaxScaler
 import torch
 
@@ -138,10 +139,75 @@ class Transpose(object):
 
 
 class StandardScaleTensor(object):
-
     def __init__(self, **params):
         super().__init__()
 
     def __call__(self, tensor):
-        scaled_tensor = ((tensor - tensor.min()) / (tensor.max() - tensor.min() + 1e-6)).to(tensor.dtype)
+        # scaled_tensor = ((tensor - tensor.min()) / (tensor.max() - tensor.min() + 1e-6)).to(tensor.dtype)
+
+        mu = tensor.mean()
+        std = tensor.std()
+
+        scaled_tensor = (tensor - mu) / std
+
         return scaled_tensor
+
+
+class CropAroundBrainStem(object):
+    def __init__(self, depth=1, width=1, height=1):
+        self.depth = depth
+        self.width = width
+        self.height = height
+
+    def __call__(self, vol, center):
+
+        # Get the tensors dimensions for further computation
+        dims = list(vol[:, :, :].size())
+        wanted_dims = [self.depth, self.width, self.height]
+
+        # Check the desired dimensions
+        if len(dims) != len(wanted_dims):
+            raise ValueError("Dimensions mismatch in CropAroundBrainStem transformation")
+
+        # Check if the dimensions are all possible
+        for i in range(len(dims)):
+            if wanted_dims[i] > dims[i]:
+                raise ValueError("Can not increase the size of the image")
+
+        # Iterate through the dimensions of gravity center
+        for i, center in enumerate(center):
+
+            # Compute the max and min crop bound
+            crop_max = int(center + wanted_dims[i] / 2)
+            crop_min = crop_max - wanted_dims[i]
+
+            if crop_max > dims[i]:
+                # Correct downwards
+                diff = crop_max - dims[i]
+                crop_max -= diff
+                crop_min -= diff
+
+            if crop_min < 0:
+                # Correct upwards
+                diff = -crop_min
+                crop_max += diff
+                crop_min += diff
+
+            # Depending on the dimension, cut tensor
+            if i == 0:
+                vol = vol[crop_min:crop_max, :, :]
+            if i == 1:
+                vol = vol[:, crop_min:crop_max, :]
+            if i == 2:
+                vol = vol[:, :, crop_min:crop_max]
+
+        return vol
+
+
+class MakeEverythingBrainStem(object):
+    def __call__(self, tensor):
+        from copy import deepcopy
+
+        # Remove all other channels than 0
+        tensor[:, :] = deepcopy(tensor[:, 0])
+        return tensor

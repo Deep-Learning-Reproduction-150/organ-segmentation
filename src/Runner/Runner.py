@@ -170,9 +170,7 @@ class Runner:
                 json.dump(job, fp)
 
             # Create an instance of the model TODO: could be passing different models here? Via job.json?
-            self.model = OrganNet25D(
-                input_shape=job["model"]["input_shape"], hdc_dilations=job["model"]["hdc_dilations"]
-            )
+            self.model = OrganNet25D(hdc_dilations=job["model"]["hdc_dilations"])
 
             # Recover the last checkpoint (if exists)
             if job["resume"]:
@@ -285,6 +283,9 @@ class Runner:
             in_cli=self.debug,
         )
 
+        # Notify the user regarding validation
+        Logger.log("Validation is done on " + str(len(self.eval_data)) + " batches ...")
+
         # Create optimizer
         optimizer = self._get_optimizer(self.job["training"]["optimizer"])
 
@@ -314,7 +315,7 @@ class Runner:
             Logger.log("Starting to run Epoch {}/{}".format(epoch + 1, self.job["training"]["epochs"]), in_cli=True, new_line=True)
 
             # Print epoch status bar
-            Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(self.job["training"]["epochs"]))
+            Logger.print_status_bar(done=0, title="training loss: -")
 
             # Initiate a model output, input and labels variable with none
             model_output = None
@@ -371,12 +372,7 @@ class Runner:
                 # Print epoch status bar
                 Logger.print_status_bar(
                     done=((batch + 1) / len(self.train_data)) * 100,
-                    title="epoch "
-                    + str(epoch + 1)
-                    + "/"
-                    + str(self.job["training"]["epochs"])
-                    + ", loss: "
-                    + "{:.2f}".format(current_loss),
+                    title="training loss: " + "{:.5f}".format(current_loss),
                 )
 
             # Finish the status bar
@@ -388,8 +384,8 @@ class Runner:
             # Perform validation
             if self.eval_data is not None:
 
-                # Notify the user regarding validation
-                Logger.log("Validating the model on " + str(len(self.eval_data)) + " validation batches ...")
+                # Print epoch status bar
+                Logger.print_status_bar(done=0, title="evaluation loss: -")
 
                 # Set model to evaluation mode
                 self.model.eval()
@@ -436,8 +432,14 @@ class Runner:
                         )
                     )
 
+                    # Get the current running los
+                    current_loss = eval_running_loss / batch if batch > 0 else eval_running_loss
+
                     # Print epoch status bar
-                    Logger.print_status_bar(done=((batch + 1) / len(self.eval_data)) * 100, title="validating model")
+                    Logger.print_status_bar(
+                        done=((batch + 1) / len(self.eval_data)) * 100,
+                        title="evaluation loss: " + "{:.5f}".format(current_loss)
+                    )
 
                 # Mean over the dice losses
                 for key, val in organ_dice_losses.items():
@@ -461,18 +463,12 @@ class Runner:
             # Obtain the current learning rate
             current_lr = scheduler.get_last_lr()[0]
 
-            # Print the current learning rate
-            lr_formatted = "{:.6f}".format(current_lr)
-            Logger.log("Learning rate currently at " + str(lr_formatted), in_cli=True)
-
             # Stop timer to measure epoch length
             epoch_time = self.timer.get_time("epoch")
 
             # Log the epoch success
             avg_loss = "{:.4f}".format(epoch_train_loss)
             avg_val_loss = "{:.4f}".format(epoch_evaluation_loss)
-            Logger.log("Epoch took " + str(epoch_time) + " seconds. Training loss is " + avg_loss +
-                       ", validation loss is " + avg_val_loss, in_cli=self.debug)
 
             # Report the current loss to wandb if it's set
             if self.job["wandb_api_key"]:
@@ -514,8 +510,12 @@ class Runner:
                 }
             )
 
-            # Write log message that the training has been completed
-            Logger.log("Checkpoint updated for epoch " + str(epoch + 1) + " (data has been saved)", in_cli=True)
+            # Obtain the current learning rate
+            lr_formatted = "{:.6f}".format(current_lr)
+
+            # Print epoch status
+            Logger.log("Train loss: " + avg_loss + ". Eval loss: " + avg_val_loss + ". LR: " + lr_formatted, in_cli=True)
+            Logger.log("Epoch took " + str(epoch_time) + " seconds.", in_cli=self.debug)
 
         # Write log message that the training has been completed
         Logger.log("Training of the model completed", type="SUCCESS", in_cli=True)

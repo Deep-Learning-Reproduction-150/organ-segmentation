@@ -15,8 +15,7 @@
         "hdc_dilations": [
             1,
             2,
-            5,
-            9
+            5
         ]
     },
     "training": {
@@ -81,7 +80,7 @@
                     "dim_2": -1
                 },
                 {
-                    "name": "EasyResize",
+                    "name": "CropAroundBrainStem",
                     "width": 256,
                     "height": 256,
                     "depth": 48
@@ -94,7 +93,7 @@
                     "dim_2": -1
                 },
                 {
-                    "name": "EasyResize",
+                    "name": "CropAroundBrainStem",
                     "width": 256,
                     "height": 256,
                     "depth": 48
