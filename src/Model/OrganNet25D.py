@@ -500,9 +500,9 @@ def main():
     """
     print(msg)
 
-    # from torchsummary import summary
+    from torchsummary import summary
 
-    # summary(model, input_size=input_shape[1:], batch_size=2)
+    summary(model, input_size=input_shape[1:], batch_size=2)
 
 
 if __name__ == "__main__":

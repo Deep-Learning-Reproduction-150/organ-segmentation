@@ -1,66 +1,6 @@
 import torch
 from torch import nn
 
-try:
-    from .utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
-except ImportError:
-    from utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
-
-
-class SingleHDC(nn.Module):
-    def __init__(self, in_channels=64, out_channels=128, dilation=2, kernel_size=(3, 3, 3), padding="same"):
-        super().__init__()
-        self = nn.Sequential(
-            nn.Conv3d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=kernel_size,
-                padding=padding,
-                dilation=dilation,
-                padding_mode="zeros",
-            ),
-            nn.ReLU(),
-        )
-
-
-class SimpleHDC(nn.Module):
-    def __init__(self, in_channels=64, out_channels=128, dilation=2, kernel_size=(3, 3, 3), padding="same"):
-        """
-        Creates a nn.Module layer.
-        """
-        super().__init__()
-
-        self.main_path = []
-        prev_layer_out_channels = in_channels
-        self.main_layer = nn.Conv3d(
-            in_channels=prev_layer_out_channels,
-            out_channels=out_channels,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=padding,
-            dilation=(dilation, dilation, dilation),
-        )
-        prev_layer_out_channels = out_channels
-
-        self.shortcut_model = nn.Conv3d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=(1, 1, 1),
-            stride=1,
-            padding=padding,
-            dilation=1,
-        )
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        output = x
-        shortcut = self.shortcut_model(x)
-        layer_output = self.main_layer(output)
-        output = torch.add(
-            layer_output, crop3d(shortcut, layer_output.shape[2:])
-        )  # + crop3d(x, layer_output.shape[2:]) TODO: Try this
-        return self.relu(output)
-
 
 class WorkingHDC(nn.Module):
     def __init__(self, in_channels=64, out_channels=128, dilation=(1, 2, 5), kernel_size=(3, 3, 3), padding="same"):
@@ -91,19 +31,29 @@ class WorkingHDC(nn.Module):
 
 
 class ConvBNReLU(nn.Module):
-    def __init__(self, in_channels=64, out_channels=128, dilation=(1, 2, 5), kernel_size=(3, 3, 3), padding="same"):
+    def __init__(
+        self,
+        in_channels=64,
+        out_channels=128,
+        dilation=(1, 2, 5),
+        activation=nn.ReLU(),
+        kernel_size=(3, 3, 3),
+        stride=1,
+        padding="same",
+    ):
 
         super().__init__()
-        self.layer = nn.intrinsic.ConvBnReLU3d(  # does this speed things up?
+        self.layer = nn.Sequential(  # does this speed things up?
             nn.Conv3d(
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=kernel_size,
                 padding=padding,
                 dilation=dilation,
+                stride=stride,
             ),
             torch.nn.BatchNorm3d(out_channels),
-            nn.ReLU(),
+            activation,
         )
 
     def forward(self, x):
