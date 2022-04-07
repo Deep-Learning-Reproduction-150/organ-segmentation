@@ -1,6 +1,8 @@
 """
-This main function enables one to call operation of this package via CLI
+A sample main function to run this program. You can also use the Runner
+in your own context or pass it dicts to dynamically create configs.
 
+Delft University of Technology
 Course: Deep Learning
 Date: 25.03.2022
 Group: 150
@@ -9,17 +11,14 @@ Group: 150
 from src.Runner.Runner import Runner
 
 
-# Gather the wanted jobs in a list (only testing job for now)
-jobs = [
-    'config/testing.json',
-    'config/paper_reproduction.json'
-]
+# Add all the jobs, that you want to run, here
+jobs = ['config_sample.json']
 
-# Main guard
+# Main guard for multithreading the runner "below"
 if __name__ == '__main__':
 
-    # Create a trainer object and call him robert
+    # Create a runner instance and pass it the jobs
     worker = Runner(jobs=jobs, debug=True)
 
-    # Run the jobs
+    # Start working on the jobs until all are finished
     worker.run()
