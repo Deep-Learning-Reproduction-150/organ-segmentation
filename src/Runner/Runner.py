@@ -15,6 +15,7 @@ import os
 import numpy as np
 from src.utils import Logger, Timer, bcolors
 from src.losses import DiceCoefficient
+from torchvision.transforms import CenterCrop
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
 from src.Model.OrganNet25D import OrganNet25D
@@ -343,8 +344,14 @@ class Runner:
                 # Get output
                 model_output = self.model(inputs)
 
+                # output should be 2, 10, 24, 72, 72 FIXME: hard coded padding test
+                trans = CenterCrop(size=(72, 72))
+                labels = trans(labels)
+                labels = labels[:, :, 12:36, :, :].contiguous()
+                labels = labels.to(torch.float32)
+
                 # Calculate loss TODO: the labels are int8 to save storage
-                loss = loss_function(model_output, labels.to(torch.float32))
+                loss = loss_function(model_output, labels)
 
                 if self.job["training"]["detect_bad_gradients"]:
                     from torch import autograd
@@ -404,6 +411,12 @@ class Runner:
 
                     # Extract inputs and labels from the batch input
                     inputs, labels = batch_input
+
+                    # output should be 2, 10, 24, 72, 72 FIXME: hard coded padding test
+                    trans = CenterCrop(size=(72, 72))
+                    labels = trans(labels)
+                    labels = labels[:, :, 12:36, :, :].contiguous()
+                    labels = labels.to(torch.float32)
 
                     # Calculate output
                     model_output = self.model(inputs)
@@ -592,6 +605,12 @@ class Runner:
         :param model_output:
         """
 
+        # Trans FIXME: just testing here
+        trans = CenterCrop(size=(72, 72))
+        inputs = trans(inputs)
+        inputs = inputs[:, :, 12:36, :, :].contiguous()
+        inputs = inputs.to(torch.float32)
+
         # Generate a random slice as example for reconstruction
         if model_output is not None:
 
@@ -688,6 +707,12 @@ class Runner:
 
         # Generate a random slice as example for reconstruction
         if model_output is not None:
+
+            # Trans FIXME: just testing here
+            trans = CenterCrop(size=(72, 72))
+            inputs = trans(inputs)
+            inputs = inputs[:, :, 12:36, :, :].contiguous()
+            inputs = inputs.to(torch.float32)
 
             # Start timer and log preperation operation
             self.timer.start("prediction-preperation")
