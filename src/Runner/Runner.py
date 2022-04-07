@@ -53,6 +53,9 @@ class Runner:
     # This attribute stores the current job the runner is working on
     job = None
 
+    # Attribute that stores the path to the specification file
+    specification_path = None
+
     # Attribute that stores the jobs that still need to be done
     job_queue = None
 
@@ -148,7 +151,7 @@ class Runner:
                 Logger.log("Started the job '" + job["name"] + "'", "HEADLINE", self.debug)
 
                 # check whether the job description has changed (if that is the case, re-run the job)
-                specification_path = os.path.join(self.path, "specification.json")
+                self.specification_path = os.path.join(self.path, "specification.json")
 
                 # if os.path.exists(specification_path):
                 #     existing_specification = json.load(open(specification_path))
@@ -164,7 +167,9 @@ class Runner:
                 #         in_cli=True)
 
                 # Write the specification file to the job
-                with open(specification_path, "w") as fp:
+                with open(self.specification_path, "w") as fp:
+
+                    # Save the json file out
                     json.dump(job, fp)
 
                 # Create an instance of the model
@@ -259,6 +264,9 @@ class Runner:
                 Logger.log("Loading wand for project " + self.job["wandb_project_name"])
                 self.wandb_worker = wandb.init(project=self.job["wandb_project_name"])
 
+            # If wandb is activated, save the job configuration
+            wandb.save(self.specification_path)
+
         # Start timer to measure data set
         self.timer.start("creating dataset")
 
@@ -267,9 +275,6 @@ class Runner:
 
         # Start timer to measure data set
         creation_took = self.timer.get_time("creating dataset")
-
-        # This variable eventually contains dice scores that are created in evaluation
-        organ_dice_losses = {}
 
         # Notify about data set creation
         dataset_constructor_took = "{:.2f}".format(creation_took)
@@ -400,6 +405,12 @@ class Runner:
             # Calculate epoch los
             epoch_train_loss = running_loss / len(self.train_data)
 
+            # Initiate dice loss per organ and total
+            organ_dice_coefficients = {}
+            total_organ_dice = []
+            average_dice_coefficient = 0
+            dice_loss_fn = DiceCoefficient()
+
             # Perform validation
             if self.eval_data is not None:
 
@@ -411,10 +422,6 @@ class Runner:
 
                 # Initialize a running loss of 99999
                 eval_running_loss = 0
-
-                # Initiate dice loss per organ and total
-                organ_dice_coefficients = {}
-                dice_loss_fn = DiceCoefficient()
 
                 # Perform validation on healthy images
                 for batch, batch_input in enumerate(self.eval_data):
@@ -435,7 +442,6 @@ class Runner:
 
                     # Iterate through channels and compute dice coefficients for metric logging
                     if batch == len(self.eval_data) - 1:
-                        total_organ_dice = []
                         for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
                             sub_tensor = model_output[:, i, :, :, :]
                             sub_label = labels[:, i, :, :, :]
@@ -454,7 +460,6 @@ class Runner:
                                 )
                             )
                         )
-                        average_dice_coefficient = sum(total_organ_dice) / len(total_organ_dice)
 
                     # Get the current running los
                     current_eval_loss = eval_running_loss / (batch + 1)
@@ -483,8 +488,11 @@ class Runner:
                         break
 
                 # Mean over the dice losses
-                for key, val in organ_dice_losses.items():
-                    organ_dice_losses[key] = sum(organ_dice_losses[key]) / len(organ_dice_losses[key])
+                for key, val in organ_dice_coefficients.items():
+                    organ_dice_coefficients[key] = sum(organ_dice_coefficients[key]) / len(organ_dice_coefficients[key])
+
+                # Compute an average dice coefficient
+                average_dice_coefficient = sum(total_organ_dice) / len(total_organ_dice)
 
                 # End status bar
                 Logger.end_status_bar()
@@ -529,7 +537,7 @@ class Runner:
                         "Learning Rate": current_lr,
                         "Epoch (Duration)": epoch_time,
                         "Epoch": epoch + 1,
-                        "DSC per channel": organ_dice_losses,
+                        "DSC per channel": organ_dice_coefficients,
                         "Dice Score (average)": average_dice_coefficient,
                     },
                     commit=False,
