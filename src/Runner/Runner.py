@@ -24,10 +24,6 @@ from src.Data.CTDataset import CTDataset
 class Runner:
     """
     This trainer instance performs the training of the network by executing jobs
-
-    TODO:
-        - feel free to add ideas what the trainer should be able to do
-        - we should definitely include a "resume" option in the trainer, so save pytorch checkpoints (as .tar)
     """
 
     # Attribute stores an instance of the network
@@ -214,10 +210,10 @@ class Runner:
                     # Print CLI message
                     Logger.log("Inference is not implemented yet", "ERROR", self.debug)
 
-            except:
+            except Exception as error:
 
                 # print error message that this job failed
-                print(bcolors.FAIL + "Job could not be executed - skipping to the next" + bcolors.ENDC)
+                print(bcolors.FAIL + "Fatal error occured in job: " + str(error) + bcolors.ENDC)
 
         # Print done running message
         print(bcolors.OKGREEN + "Runner finished!" + bcolors.ENDC)
@@ -322,6 +318,11 @@ class Runner:
         if self.job["training"]["detect_bad_gradients"]:
             Logger.log("Selected detect_bad_gradients - using AutoGrad", type="WARNING", in_cli=True)
 
+        # Initiate early stopping
+        best_eval_loss = torch.inf
+        current_eval_loss = best_eval_loss
+        early_stopping_counter = 0
+
         # Iterate through epochs (based on jobs setting)
         for epoch in range(start_epoch, self.job["training"]["epochs"]):
 
@@ -348,8 +349,6 @@ class Runner:
 
             # Initialize variables
             running_loss = 0
-            best_eval_loss = torch.inf
-            early_stopping_counter = 0
 
             # Run through batches and perform model training
             for batch, batch_input in enumerate(self.train_data):
@@ -414,7 +413,7 @@ class Runner:
                 eval_running_loss = 0
 
                 # Initiate dice loss per organ and total
-                organ_dice_losses = {}
+                organ_dice_coefficients = {}
                 dice_loss_fn = DiceCoefficient()
 
                 # Perform validation on healthy images
@@ -434,37 +433,42 @@ class Runner:
                     # Add to running validation loss
                     eval_running_loss += eval_loss.detach().cpu().numpy()
 
-                    # Iterate through channels and compute dice losses for metric logging
-                    for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
-                        sub_tensor = model_output[:, i, :, :, :]
-                        sub_label = labels[:, i, :, :, :]
-                        if organ not in organ_dice_losses.keys():
-                            organ_dice_losses[organ] = []
-                        organ_dice_losses[organ].append(float(dice_loss_fn(sub_tensor, sub_label)))
-                    if "Background" not in organ_dice_losses.keys():
-                        organ_dice_losses["Background"] = []
-                    organ_dice_losses["Background"].append(
-                        float(
-                            dice_loss_fn(
-                                model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :],
-                                labels[:, len(self.job["training"]["dataset"]["labels"]), :, :, :],
+                    # Iterate through channels and compute dice coefficients for metric logging
+                    if batch == len(self.eval_data) - 1:
+                        total_organ_dice = []
+                        for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
+                            sub_tensor = model_output[:, i, :, :, :]
+                            sub_label = labels[:, i, :, :, :]
+                            if organ not in organ_dice_coefficients.keys():
+                                organ_dice_coefficients[organ] = []
+                            current_organ_dice_coeff = float(dice_loss_fn(sub_tensor, sub_label))
+                            total_organ_dice.append(current_organ_dice_coeff)
+                            organ_dice_coefficients[organ].append(current_organ_dice_coeff)
+                        if "Background" not in organ_dice_coefficients.keys():
+                            organ_dice_coefficients["Background"] = []
+                        organ_dice_coefficients["Background"].append(
+                            float(
+                                dice_loss_fn(
+                                    model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :],
+                                    labels[:, len(self.job["training"]["dataset"]["labels"]), :, :, :],
+                                )
                             )
                         )
-                    )
+                        average_dice_coefficient = sum(total_organ_dice) / len(total_organ_dice)
 
                     # Get the current running los
-                    current_loss = eval_running_loss / (batch + 1)
+                    current_eval_loss = eval_running_loss / (batch + 1)
 
                     # Print epoch status bar
                     Logger.print_status_bar(
                         done=((batch + 1) / len(self.eval_data)) * 100,
-                        title="evaluation loss: " + "{:.5f}".format(current_loss),
+                        title="evaluation loss: " + "{:.5f}".format(current_eval_loss),
                     )
 
                 # Do early stopping here
-                if current_loss < best_eval_loss - 1e-2:  # Should improve at least this over n epochs
+                if current_eval_loss < best_eval_loss - 1e-2:  # Should improve at least this over n epochs
                     # Loss decreased - RESET
-                    best_eval_loss = current_loss
+                    best_eval_loss = current_eval_loss
                     early_stopping_counter = 0
                 else:
                     early_stopping_counter += 1
@@ -472,7 +476,7 @@ class Runner:
                     if early_stopping_counter >= self.job["training"].get("early_stopping_patience", torch.inf):
                         val = self.job["training"].get("early_stopping_patience", torch.inf)
                         Logger.log(
-                            f"Initalising early stopping after model not improved for {val} epochs",
+                            f"Initialising early stopping after model not improved for {val} epochs",
                             type="INFO",
                             in_cli=True,
                         )
@@ -520,12 +524,13 @@ class Runner:
                 # Log this current status
                 self.wandb_worker.log(
                     {
-                        "training loss": epoch_train_loss,
-                        "evaluation loss": epoch_evaluation_loss,
-                        "learning rate": current_lr,
-                        "epoch duration": epoch_time,
-                        "epoch": epoch + 1,
+                        "Training Loss": epoch_train_loss,
+                        "Evaluation Loss": epoch_evaluation_loss,
+                        "Learning Rate": current_lr,
+                        "Epoch (Duration)": epoch_time,
+                        "Epoch": epoch + 1,
                         "DSC per channel": organ_dice_losses,
+                        "Dice Score (average)": average_dice_coefficient,
                     },
                     commit=False,
                 )
