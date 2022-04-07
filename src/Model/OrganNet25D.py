@@ -288,8 +288,6 @@ class OrganNet25D(nn.Module):
                 groups=1,
                 kernel_size=(1, 1, 1),
                 padding=padding["one_d_1"],
-                *args,
-                **kwargs,
             )
         ]
         if temp_layer := activations.get("one_d_1"):
@@ -304,8 +302,6 @@ class OrganNet25D(nn.Module):
                 groups=1,
                 kernel_size=(1, 1, 1),
                 padding=padding["one_d_2"],
-                *args,
-                **kwargs,
             ),
         ]
         if temp_layer := activations.get("one_d_2"):
