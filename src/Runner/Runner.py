@@ -258,11 +258,14 @@ class Runner:
             if start_epoch > 0 and wandb_id is not None:
                 # Flash notification
                 Logger.log("Loading wand and attempting to resume run " + str(wandb_id))
-                self.wandb_worker = wandb.init(id=wandb_id, project=self.job["wandb_project_name"], resume="allow")
+                self.wandb_worker = wandb.init(
+                    id=wandb_id, project=self.job["wandb_project_name"], resume="allow", name=self.job["name"]
+                )
+
             else:
                 # Flash notification
                 Logger.log("Loading wand for project " + self.job["wandb_project_name"])
-                self.wandb_worker = wandb.init(project=self.job["wandb_project_name"])
+                self.wandb_worker = wandb.init(project=self.job["wandb_project_name"], name=self.job["name"])
 
             # If wandb is activated, save the job configuration
             wandb.save(self.specification_path)
