@@ -206,7 +206,7 @@ class LabeledSample:
             # Warn about no tensors
             raise ValueError("Labeled data object does not contain any labels, stopping")
 
-    def load(self, transformer: DataTransformer):
+    def load(self, sample_transformer: DataTransformer, label_transformer):
         """
         This method checks the dimensions of the labels and the sample data
 
@@ -218,14 +218,15 @@ class LabeledSample:
         if not self.loaded:
 
             # Inject the center position
-            transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+            sample_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+            label_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
 
             # Load sample
-            self.sample.load(transformer=transformer)
+            self.sample.load(transformer=sample_transformer)
 
             # Load labels
             for label in self.labels:
-                label.load(transformer=transformer)
+                label.load(transformer=label_transformer)
 
             # Remember that this sample has been checked
             self.loaded = True

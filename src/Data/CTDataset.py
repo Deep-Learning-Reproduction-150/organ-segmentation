@@ -130,7 +130,7 @@ class CTDataset(Dataset):
             for i, sample in enumerate(self.samples):
 
                 # Load data for this sample and transform it
-                sample.load(transformer=self.get_data_transformer('sample'))
+                sample.load(sample_transformer=self.get_data_transformer('sample'), label_transforms=self.get_data_transformer('labels'))
 
                 # Print the changing import status line
                 if not no_logging:
@@ -187,7 +187,7 @@ class CTDataset(Dataset):
         for index, sample in enumerate(self.samples):
 
             # Load the sample TODO: pass transformer rather to visualize functino (for inplace)
-            sample.load(transformer=self.get_data_transformer('sample'))
+            sample.load(sample_transformer=self.get_data_transformer('sample'), label_transformer=self.get_data_transformer('labels'))
 
             # Create visualization for the sample
             sample.visualize(
