@@ -371,7 +371,7 @@ class Runner:
                 running_loss += loss.detach().cpu().numpy()
 
                 # Get the current running los
-                current_loss = running_loss / batch if batch > 0 else running_loss
+                current_loss = running_loss / (batch + 1)
 
                 # Print epoch status bar
                 Logger.print_status_bar(
@@ -437,7 +437,7 @@ class Runner:
                     )
 
                     # Get the current running los
-                    current_loss = eval_running_loss / batch if batch > 0 else eval_running_loss
+                    current_loss = eval_running_loss / (batch + 1)
 
                     # Print epoch status bar
                     Logger.print_status_bar(
@@ -830,12 +830,14 @@ class Runner:
             Logger.log("No prediction examples could be logged, as there is no model output", in_cli=True)
 
     def _log_prediction_max_min(self, model_output):
-
+        organ_labels = self.job['training']['dataset']['labels']
         max_vals = {}
         min_vals = {}
-        for i, organ in enumerate(self.job['training']['dataset']['labels']):
+        for i, organ in enumerate(organ_labels):
             max_vals[organ] = model_output[:, i, :, :, :].max()
             min_vals[organ] = model_output[:, i, :, :, :].min()
+        max_vals['Background'] = model_output[:, len(organ_labels), :, :, :].max()
+        min_vals['Background'] = model_output[:, len(organ_labels), :, :, :].min()
 
         self.wandb_worker.log(
             {"predictions minimum value": min_vals, "predictions maximum value": max_vals}, commit=False
