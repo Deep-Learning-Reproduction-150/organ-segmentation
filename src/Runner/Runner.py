@@ -755,7 +755,7 @@ class Runner:
                     raw_label = labels[batch_no, organ_slice, slice_no, :, :]
 
                     # Label threshold
-                    label_threshold = raw_label.min() + (raw_label.max() / raw_label.min()) / 2
+                    label_threshold = (raw_label.min() + (raw_label.max() / raw_label.min()) / 2) if raw_label.min() > 0 else 0
 
                     # Create a dynamic threshold based on the median
                     dynamic_predict_threshold = float(
