@@ -452,7 +452,7 @@ class Runner:
                     )
 
                 # Do early stopping here
-                if current_loss < best_eval_loss:
+                if current_loss < best_eval_loss - 1e-2:  # Should improve at least this over n epochs
                     # Loss decreased - RESET
                     best_eval_loss = current_loss
                     early_stopping_counter = 0
