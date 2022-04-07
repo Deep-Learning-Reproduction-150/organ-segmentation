@@ -754,6 +754,9 @@ class Runner:
                     raw_prediction = model_output[batch_no, organ_slice, slice_no, :, :]
                     raw_label = labels[batch_no, organ_slice, slice_no, :, :]
 
+                    # Label threshold
+                    label_threshold = (raw_label.min() + (raw_label.max() / raw_label.min()) / 2) if raw_label.min() > 0 else 0
+
                     # Create a dynamic threshold based on the median
                     dynamic_predict_threshold = float(
                         raw_prediction.min() + ((raw_prediction.max() - raw_prediction.min()) / 2)
@@ -765,7 +768,7 @@ class Runner:
                         prediction_mask_data,
                     )
                     label_mask_data = torch.where(
-                        raw_label > 0.5, torch.tensor(organ_slice, dtype=torch.float32), label_mask_data
+                        raw_label > label_threshold, torch.tensor(organ_slice, dtype=torch.float32), label_mask_data
                     )
 
                 # Do the same for the background
