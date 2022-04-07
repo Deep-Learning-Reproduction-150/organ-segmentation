@@ -169,7 +169,7 @@ class Runner:
             with open(specification_path, "w") as fp:
                 json.dump(job, fp)
 
-            # Create an instance of the model TODO: could be passing different models here? Via job.json?
+            # Create an instance of the model
             model_choice = job['model'].pop('name')
             if model_choice == 'OrganNet25D':
                 self.model = OrganNet25D(**job["model"])
