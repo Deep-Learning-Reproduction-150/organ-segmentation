@@ -213,10 +213,3 @@ class MakeEverythingBrainStem(object):
         return tensor
 
 
-class AdjustForPadding(object):
-    def __call__(self, tensor):
-        tensor = tensor.to(torch.float32)
-        d, w, h = (12, 28, 28)
-        tensor[:, :, :d, :w, :h] = 0.1  # 1/channels
-        tensor[:, :, -d - 1 :, -w - 1 :, -h - 1 :] = 0.1
-        return tensor
