@@ -121,7 +121,15 @@ class EasyResize(object):
 
     def __call__(self, vol):
         return torch.from_numpy(
-            transform.resize(vol, (self.depth, self.height, self.width), anti_aliasing=False, order=0)
+            transform.resize(
+                vol,
+                (self.depth, self.height, self.width),
+                anti_aliasing=False,
+                order=0,
+                mode="constant",
+                cval=0,
+                preserve_range=True,
+            )
         )
 
 
