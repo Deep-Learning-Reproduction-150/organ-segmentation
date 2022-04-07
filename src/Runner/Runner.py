@@ -607,9 +607,9 @@ class Runner:
 
         # Trans FIXME: just testing here
         trans = CenterCrop(size=(72, 72))
-        labels = trans(labels)
-        labels = labels[:, :, 12:24, :, :].contiguous()
-        labels = labels.to(torch.float32)
+        inputs = trans(inputs)
+        inputs = inputs[:, :, 12:24, :, :].contiguous()
+        inputs = inputs.to(torch.float32)
 
         # Generate a random slice as example for reconstruction
         if model_output is not None:
@@ -710,9 +710,9 @@ class Runner:
 
             # Trans FIXME: just testing here
             trans = CenterCrop(size=(72, 72))
-            labels = trans(labels)
-            labels = labels[:, :, 12:24, :, :].contiguous()
-            labels = labels.to(torch.float32)
+            inputs = trans(inputs)
+            inputs = inputs[:, :, 12:24, :, :].contiguous()
+            inputs = inputs.to(torch.float32)
 
             # Start timer and log preperation operation
             self.timer.start("prediction-preperation")
