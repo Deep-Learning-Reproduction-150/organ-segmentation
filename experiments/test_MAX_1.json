@@ -1,5 +1,5 @@
 {
-    "name": "Test 4",
+    "name": "Test MAX 1",
     "resume": false,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
@@ -10,12 +10,12 @@
         "name": "OrganNet25D",
         "padding": "yes",
         "activations": {
-            "coarse_resse": "sigmoid",
-            "fine_resse": "sigmoid",
+            "coarse_resse": "relu",
+            "fine_resse": "relu",
             "2d": "relu",
             "one_d_1": "relu",
             "one_d_2": "relu",
-            "one_d_3": "softmax"
+            "one_d_3": "sigmoid"
         },
         "hdc_dilations": [
             [

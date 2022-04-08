@@ -1,10 +1,10 @@
 {
-    "name": "Test 1",
+    "name": "Test 3",
     "resume": false,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
     "wandb_prediction_examples": 8,
-    "wandb_api_key": null,
+    "wandb_api_key": "95ed858952b08bd94a4727a73c4cd889dff22a19",
     "log_3d_csv": true,
     "model": {
         "name": "OrganNet25D",
@@ -18,9 +18,24 @@
             "one_d_3": "sigmoid"
         },
         "hdc_dilations": [
-            [1, 2, 5, 7],
-            [1, 2, 5, 7],
-            [1, 2, 5, 7]
+            [
+                1,
+                2,
+                5,
+                9
+            ],
+            [
+                1,
+                2,
+                5,
+                9
+            ],
+            [
+                1,
+                2,
+                5,
+                9
+            ]
         ]
     },
     "training": {
@@ -32,7 +47,18 @@
         "batch_size": 2,
         "loss": {
             "name": "CombinedLoss",
-            "alpha": [1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0, 0.5]
+            "alpha": [
+                1.0,
+                4.0,
+                1.0,
+                4.0,
+                4.0,
+                1.0,
+                1.0,
+                3.0,
+                3.0,
+                0.5
+            ]
         },
         "optimizer": {
             "name": "Adam",
@@ -43,7 +69,7 @@
             "gamma": 0.1,
             "milestones": [
                 50,
-                100
+                75
             ]
         },
         "dataset": {
@@ -74,9 +100,9 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 128,
+                    "height": 128,
+                    "depth": 24
                 }
             ],
             "sample_transforms": [
@@ -93,9 +119,9 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 128,
+                    "height": 128,
+                    "depth": 24
                 },
                 {
                     "name": "StandardScaleTensor"
