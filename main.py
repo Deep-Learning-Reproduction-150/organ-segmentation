@@ -12,7 +12,7 @@ from src.Runner.Runner import Runner
 
 
 # Add all the jobs, that you want to run, here
-jobs = ['sample_config.json']
+jobs = ["./sample_config.json"]
 
 
 # Main guard for multithreading the runner "below"

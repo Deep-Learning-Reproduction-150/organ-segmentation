@@ -216,9 +216,21 @@ class Runner:
                     Logger.log("Inference is not implemented yet", "ERROR", self.debug)
 
             except Exception as error:
+                import traceback
+                import sys
 
+                exc_info = sys.exc_info()
+                traceback.print_exception(*exc_info)
+                del exc_info
                 # print error message that this job failed
                 print(bcolors.FAIL + "Fatal error occured in job: " + str(error) + bcolors.ENDC)
+
+            # Save the log file for this job
+            if self.job["wandb_api_key"]:
+                # Check if a log file exists
+                if not os.path.isfile(Logger.path):
+                    # Save this log file to wandb
+                    self.wandb_worker.save(Logger.path)
 
         # Print done running message
         print(bcolors.OKGREEN + "Runner finished!" + bcolors.ENDC)
@@ -268,7 +280,7 @@ class Runner:
                 self.wandb_worker = wandb.init(project=self.job["wandb_project_name"], name=self.job["name"])
 
             # If wandb is activated, save the job configuration
-            wandb.save(self.specification_path)
+            self.wandb_worker.save(self.specification_path)
 
         # Start timer to measure data set
         self.timer.start("creating dataset")
@@ -864,17 +876,17 @@ class Runner:
                     raw_label = labels[batch_no, organ_slice, slice_no, :, :]
 
                     # Label threshold
-                    label_threshold = (
-                        (raw_label.min() + (raw_label.max() / raw_label.min()) / 2) if raw_label.min() > 0 else 0
+                    label_threshold = float(
+                        (raw_label.min() + (raw_label.max() - raw_label.min()) / 2) if raw_label.min() > 0 else 0
                     )
 
                     # Create a dynamic threshold based on the median
-                    dynamic_predict_threshold = float(
+                    prediction_threshold = float(
                         raw_prediction.min() + ((raw_prediction.max() - raw_prediction.min()) / 2)
                     )
 
                     prediction_mask_data = torch.where(
-                        raw_prediction > dynamic_predict_threshold,
+                        raw_prediction > prediction_threshold,
                         torch.tensor(organ_slice, dtype=torch.float32),
                         prediction_mask_data,
                     )
@@ -1129,4 +1141,4 @@ class Runner:
 
         # Check if wandb shall be used
         if self.job["wandb_api_key"]:
-            wandb.save(save_path)
+            self.wandb_worker.save(save_path)
