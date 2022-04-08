@@ -225,6 +225,13 @@ class Runner:
                 # print error message that this job failed
                 print(bcolors.FAIL + "Fatal error occured in job: " + str(error) + bcolors.ENDC)
 
+            # Save the log file for this job
+            if self.job["wandb_api_key"]:
+                # Check if a log file exists
+                if not os.path.isfile(Logger.path):
+                    # Save this log file to wandb
+                    self.wandb_worker.save(Logger.path)
+
         # Print done running message
         print(bcolors.OKGREEN + "Runner finished!" + bcolors.ENDC)
 
@@ -273,7 +280,7 @@ class Runner:
                 self.wandb_worker = wandb.init(project=self.job["wandb_project_name"], name=self.job["name"])
 
             # If wandb is activated, save the job configuration
-            wandb.save(self.specification_path)
+            self.wandb_worker.save(self.specification_path)
 
         # Start timer to measure data set
         self.timer.start("creating dataset")
@@ -1134,4 +1141,4 @@ class Runner:
 
         # Check if wandb shall be used
         if self.job["wandb_api_key"]:
-            wandb.save(save_path)
+            self.wandb_worker.save(save_path)
