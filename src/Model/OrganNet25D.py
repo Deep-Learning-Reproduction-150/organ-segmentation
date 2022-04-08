@@ -177,7 +177,7 @@ class OrganNet25D(nn.Module):
         )
         self.fine_3d_3 = HDCResSE(
             hdc=ResHDCModule,
-            in_channels=2 * hdc_out_channels[1],
+            in_channels=2 * hdc_out_channels[0],
             out_channels=hdc_out_channels[2],
             padding=padding["hdc_3"],
             activation=activations["fine_resse"],
