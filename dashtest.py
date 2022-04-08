@@ -29,7 +29,7 @@ app.layout = html.Div(
 def display_mesh(name):
     df = dataframes[name]  # replace with your own data source
 
-    fig = px.scatter_3d(df, x="x", y="y", z="z", color="organ_names")
+    fig = px.scatter_3d(df, x="x", y="y", z="z", color="organ_names", opacity=0.3)
     return fig
 
 
