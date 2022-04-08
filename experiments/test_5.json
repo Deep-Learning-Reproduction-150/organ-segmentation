@@ -1,10 +1,10 @@
 {
-    "name": "Test 1",
+    "name": "Test 5",
     "resume": false,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
     "wandb_prediction_examples": 8,
-    "wandb_api_key": null,
+    "wandb_api_key": "fc5956d0fca9948179775b93d897216829180ad5",
     "log_3d_csv": true,
     "model": {
         "name": "OrganNet25D",
@@ -15,12 +15,12 @@
             "2d": "relu",
             "one_d_1": "relu",
             "one_d_2": "relu",
-            "one_d_3": "sigmoid"
+            "one_d_3": "softmax"
         },
         "hdc_dilations": [
             [1, 2, 5, 7],
-            [1, 2, 5, 7],
-            [1, 2, 5, 7]
+            [3, 9, 12],
+            [3, 9, 12]
         ]
     },
     "training": {
@@ -74,9 +74,9 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 128,
+                    "height": 128,
+                    "depth": 36
                 }
             ],
             "sample_transforms": [
@@ -93,9 +93,9 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 128,
+                    "height": 128,
+                    "depth": 36
                 },
                 {
                     "name": "StandardScaleTensor"
