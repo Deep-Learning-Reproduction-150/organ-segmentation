@@ -15,7 +15,8 @@
             "2d": "relu",
             "one_d_1": "relu",
             "one_d_2": "relu",
-            "one_d_3": "sigmoid"
+            "one_d_3": "relu",
+            "output_activation": "sigmoid"
         },
         "hdc_dilations": [
             [

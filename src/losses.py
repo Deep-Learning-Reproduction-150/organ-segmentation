@@ -38,10 +38,6 @@ class L1Loss(L1Loss):
 
 
 class CombinedLoss(nn.Module):
-
-    input_dim = None
-    alpha_vals = None
-
     def __init__(self, alpha, **kwargs):
         """
         TODO: Implement weights["focal"] as
@@ -50,7 +46,8 @@ class CombinedLoss(nn.Module):
         background, brain stem, optic chiasma, mandible, optic nerve left, optic nerve right, parotid gland left, parotid gland right, submandibular left, submandibular right
         """
         super(CombinedLoss, self).__init__()
-
+        self.input_dim = None
+        self.alpha_vals = None
         self.dice = DiceLoss()
         self.focal = FocalLoss()
         self.alpha = alpha
@@ -66,12 +63,12 @@ class CombinedLoss(nn.Module):
         return combined
 
     def get_alpha(self, inputs):
-        if CombinedLoss.alpha_vals is None:
+        if self.alpha_vals is None:
             alpha_tensor = torch.Tensor(self.alpha)
             placeholder = torch.ones_like(inputs)
             alpha = (placeholder.transpose(1, -1) * alpha_tensor).transpose(1, -1).view(-1)
-            CombinedLoss.alpha_vals = alpha
-        return CombinedLoss.alpha_vals
+            self.alpha_vals = alpha
+        return self.alpha_vals
 
 
 class DiceCoefficient(nn.Module):
