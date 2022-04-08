@@ -216,7 +216,12 @@ class Runner:
                     Logger.log("Inference is not implemented yet", "ERROR", self.debug)
 
             except Exception as error:
+                import traceback
+                import sys
 
+                exc_info = sys.exc_info()
+                traceback.print_exception(*exc_info)
+                del exc_info
                 # print error message that this job failed
                 print(bcolors.FAIL + "Fatal error occured in job: " + str(error) + bcolors.ENDC)
 
