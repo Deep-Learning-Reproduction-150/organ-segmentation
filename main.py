@@ -9,12 +9,7 @@ Group: 150
 from src.Runner.Runner import Runner
 
 
-# Gather the wanted jobs in a list (only testing job for now)
-jobs = [
-    'config/testing_tom.json',
-    #'config/testing.json',
-    #'config/paper_reproduction.json'
-]
+
 
 # Main guard
 if __name__ == '__main__':
