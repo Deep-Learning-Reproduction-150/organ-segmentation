@@ -56,9 +56,10 @@ class CombinedLoss(nn.Module):
     def forward(self, inputs, targets, l=1.0, gamma=2, dsc_reduce="mean", return_per_channel_dsc=False):
 
         # Get dice and focal loss
-        dice, dice_per_channel = self.dice(
-            inputs, targets, reduce_method=dsc_reduce, return_per_channel_dsc=return_per_channel_dsc
-        )
+        if return_per_channel_dsc:
+            dice, dice_per_channel = self.dice(inputs, targets, reduce_method=dsc_reduce, return_per_channel_dsc=True)
+        else:
+            dice = self.dice(inputs, targets, reduce_method=dsc_reduce, return_per_channel_dsc=False)
         focal = self.focal(inputs, targets, alpha=self.get_alpha(inputs), gamma=gamma)
 
         # Stich them together and return
