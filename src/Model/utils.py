@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torchvision.transforms import CenterCrop
 
+from .HDC import ConvBNReLU
 
 """
 Contains auxiliary functions for the model.
@@ -16,6 +17,7 @@ def activation_mapper(s: str) -> nn.Module:
         "ReLU": nn.ReLU(),
         "sigmoid": nn.Sigmoid(),
         "tanh": nn.Tanh(),
+        "softmax": nn.Softmax(dim=1),
     }
     return mapper[s]
 
@@ -44,34 +46,24 @@ def conv_2x2d(
     *args,
     **kwargs
 ):
-    modules = []
-    modules.append(
-        nn.Conv3d(
+    return nn.Sequential(
+        ConvBNReLU(
             in_channels=in_channels,
             out_channels=out_channels,
-            groups=groups,
             kernel_size=kernel_size,
             stride=stride,
+            activation=activation,
             padding=padding,
-            *args,
-            **kwargs,
-        )
-    )
-    modules.append(
-        nn.Conv3d(
+        ),
+        ConvBNReLU(
             in_channels=out_channels,
             out_channels=out_channels,
-            groups=groups,
             kernel_size=kernel_size,
             stride=stride,
+            activation=activation,
             padding=padding,
-            *args,
-            **kwargs,
-        )
+        ),
     )
-    if activation != "linear":
-        modules.append(activation)
-    return nn.Sequential(*modules)
 
 
 def conv_2x3d_coarse(

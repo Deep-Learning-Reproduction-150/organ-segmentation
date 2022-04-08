@@ -121,7 +121,15 @@ class EasyResize(object):
 
     def __call__(self, vol):
         return torch.from_numpy(
-            transform.resize(vol, (self.depth, self.height, self.width), anti_aliasing=False, order=0)
+            transform.resize(
+                vol,
+                (self.depth, self.height, self.width),
+                anti_aliasing=False,
+                order=0,
+                mode="constant",
+                cval=0,
+                preserve_range=True,
+            )
         )
 
 
@@ -204,19 +212,11 @@ class CropAroundBrainStem(object):
         return vol
 
 
-class MakeEverythingBrainStem(object):
+class ZeroOneScaleTensor(object):
+    def __init__(self, **params):
+        super().__init__()
+
     def __call__(self, tensor):
-        from copy import deepcopy
+        scaled_tensor = ((tensor - tensor.min()) / (tensor.max() - tensor.min() + 1e-6)).to(tensor.dtype)
 
-        # Remove all other channels than 0
-        tensor[:, :] = deepcopy(tensor[:, 0])
-        return tensor
-
-
-class AdjustForPadding(object):
-    def __call__(self, tensor):
-        tensor = tensor.to(torch.float32)
-        d, w, h = (12, 28, 28)
-        tensor[:, :, :d, :w, :h] = 0.1  # 1/channels
-        tensor[:, :, -d - 1 :, -w - 1 :, -h - 1 :] = 0.1
-        return tensor
+        return scaled_tensor

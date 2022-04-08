@@ -1,24 +1,49 @@
 {
-    "name": "half_size_test",
-    "resume": true,
-    "preload": false,
-    "wandb_project_name": "testing project",
+    "name": "Test 3",
+    "resume": false,
+    "preload": true,
+    "wandb_project_name": "Parameter Sweep",
     "wandb_prediction_examples": 8,
-    "wandb_api_key": null,
+    "wandb_api_key": "95ed858952b08bd94a4727a73c4cd889dff22a19",
+    "log_3d_csv": true,
     "model": {
         "name": "OrganNet25D",
+        "padding": "yes",
+        "activations": {
+            "coarse_resse": "sigmoid",
+            "fine_resse": "sigmoid",
+            "2d": "relu",
+            "one_d_1": "relu",
+            "one_d_2": "relu",
+            "one_d_3": "sigmoid"
+        },
         "hdc_dilations": [
-            1,
-            2,
-            5
-        ],
-        "output_channels": 10
+            [
+                1,
+                2,
+                5,
+                9
+            ],
+            [
+                1,
+                2,
+                5,
+                9
+            ],
+            [
+                1,
+                2,
+                5,
+                9
+            ]
+        ]
     },
     "training": {
-        "epochs": 300,
+        "early_stopping_patience": 40,
+        "epochs": 120,
         "detect_bad_gradients": false,
         "grad_norm_clip": 1,
-        "split_ratio": 0.5,
+        "split_ratio": 0.77,
         "batch_size": 2,
         "loss": {
             "name": "CombinedLoss",
@@ -33,29 +58,18 @@
                 3.0,
                 3.0,
                 0.5
-            ],
-            "input_dim": [
-                2,
-                10,
-                48,
-                256,
-                256
             ]
         },
         "optimizer": {
             "name": "Adam",
-            "learning_rate": 0.001,
-            "betas": [
-                0.9,
-                0.999
-            ]
+            "learning_rate": 0.001
         },
         "lr_scheduler": {
             "name": "MultiStepLR",
-            "gamma": 0.01,
+            "gamma": 0.1,
             "milestones": [
                 50,
-                100
+                75
             ]
         },
         "dataset": {
@@ -83,6 +97,12 @@
                     "width": 256,
                     "height": 256,
                     "depth": 48
+                },
+                {
+                    "name": "EasyResize",
+                    "width": 96,
+                    "height": 96,
+                    "depth": 24
                 }
             ],
             "sample_transforms": [
@@ -98,12 +118,15 @@
                     "depth": 48
                 },
                 {
+                    "name": "EasyResize",
+                    "width": 96,
+                    "height": 96,
+                    "depth": 24
+                },
+                {
                     "name": "StandardScaleTensor"
                 }
             ]
         }
-    },
-    "evaluation": {
-        "name": "ChenEvaluator"
     }
 }
