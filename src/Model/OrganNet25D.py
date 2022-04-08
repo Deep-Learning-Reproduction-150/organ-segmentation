@@ -14,7 +14,7 @@ import torch
 from torch import nn
 
 
-from .utils import conv_2x3d_coarse, conv_2x2d, crop3d, activation_mapper
+from .utils import activation_mapper
 from .HDC import *
 
 # from src.Dataloader.CTData import CTData
