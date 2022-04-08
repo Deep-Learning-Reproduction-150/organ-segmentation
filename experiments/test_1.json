@@ -70,8 +70,8 @@
             "name": "MultiStepLR",
             "gamma": 0.1,
             "milestones": [
-                30,
-                60
+                40,
+                80
             ]
         },
         "dataset": {
