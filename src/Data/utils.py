@@ -6,6 +6,8 @@ Date: 03.04.2022
 Group: 150
 """
 
+from src.Data.transforms import CropAroundBrainStem
+
 
 class DataTransformer(object):
     """
@@ -14,8 +16,17 @@ class DataTransformer(object):
 
     def __init__(self, transforms):
         self.transforms = transforms
+        self.organ_centers = {}
+
+    def inject_organ_center(self, organ: str, center):
+        self.organ_centers[organ] = center
 
     def __call__(self, img):
         for t in self.transforms:
-            img = t(img)
+            a = 0
+            # Check if transform is the special brain stem transformation
+            if type(t) is CropAroundBrainStem:
+                img = t(img, self.organ_centers['BrainStem'])
+            else:
+                img = t(img)
         return img

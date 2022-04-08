@@ -5,11 +5,14 @@ Course: Deep Learning
 Date: 03.04.2022
 Group: 150
 """
+import copy
 
 import torch
 from torch import nn
 import torch.nn.functional as F
 from tqdm import tqdm
+from torch.nn import CrossEntropyLoss
+from torch.nn import L1Loss
 
 from matplotlib import pyplot as plt
 
@@ -24,8 +27,18 @@ DEFAULT_AC = torch.Tensor(
 )  # TODO: focal loss weights per channels from the paper
 
 
+class CrossEntropyLoss(CrossEntropyLoss):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+
+class L1Loss(L1Loss):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+
 class CombinedLoss(nn.Module):
-    def __init__(self, weight=None, size_average=True, alpha=DEFAULT_AC, input_dim=None, *args, **kwargs):
+    def __init__(self, alpha, **kwargs):
         """
         TODO: Implement weights["focal"] as
         0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, and 3.0
@@ -33,29 +46,29 @@ class CombinedLoss(nn.Module):
         background, brain stem, optic chiasma, mandible, optic nerve left, optic nerve right, parotid gland left, parotid gland right, submandibular left, submandibular right
         """
         super(CombinedLoss, self).__init__()
-
+        self.input_dim = None
+        self.alpha_vals = None
         self.dice = DiceLoss()
         self.focal = FocalLoss()
+        self.alpha = alpha
 
-        if input_dim is not None and alpha is not None:
-            self.alpha = self.make_ac(alpha, input_dim)
+    def forward(self, inputs, targets, l=1.0, gamma=2):
 
-    def forward(self, inputs, targets, l=1.0, gamma=2, alpha=DEFAULT_AC):
-        if self.alpha is None:
-            self.alpha = self.make_ac(alpha, inputs.shape)
-
+        # Get dice and focal loss
         dice = self.dice(inputs, targets)
+        focal = self.focal(inputs, targets, alpha=self.get_alpha(inputs), gamma=gamma)
 
-        focal = self.focal(inputs, targets, alpha=self.alpha, gamma=gamma)
+        # Stich them together and return
         combined = focal + l * dice
-
         return combined
 
-    @staticmethod
-    def make_ac(alpha_values, input_dims):
-        placeholder = torch.ones(input_dims)
-        alpha = (placeholder.transpose(1, -1) * alpha_values).transpose(1, -1).view(-1)
-        return alpha
+    def get_alpha(self, inputs):
+        if self.alpha_vals is None:
+            alpha_tensor = torch.Tensor(self.alpha)
+            placeholder = torch.ones_like(inputs)
+            alpha = (placeholder.transpose(1, -1) * alpha_tensor).transpose(1, -1).view(-1)
+            self.alpha_vals = alpha
+        return self.alpha_vals
 
 
 class DiceCoefficient(nn.Module):
@@ -63,12 +76,12 @@ class DiceCoefficient(nn.Module):
         super().__init__()
 
     def forward(self, inputs, targets):
-        # # flatten label and prediction tensors
-        inputs = inputs.view(-1)
-        targets = targets.view(-1)
-
+        # Compute the dice coefficient
+        channels = inputs.size()[1]
+        inputs = inputs[:].contiguous().view(-1)
+        targets = targets[:].contiguous().view(-1)
         intersection = (inputs * targets).sum()
-        dice = (2.0 * intersection) / (inputs.sum() + targets.sum())
+        dice = ((2.0 * intersection) / (inputs.sum() + targets.sum())) / channels
         return dice
 
 
@@ -85,17 +98,27 @@ class FocalLoss(nn.Module):
     def __init__(self, **params):
         super().__init__()
 
-    def forward(self, inputs, targets, alpha=DEFAULT_AC, gamma=2.0):
+    def forward(self, inputs, targets, alpha, gamma=2.0):
 
-        # flatten label and prediction tensors
+        # # Remember the number of batches
+        # batches = inputs.size()[0]
+
+        # # flatten label and prediction tensors
+        # inputs = inputs.view(-1)
+        # targets = targets.view(-1)
+
+        # # first compute binary cross-entropy
+        # BCE = F.binary_cross_entropy(inputs, targets, weight=alpha[: inputs.shape[0]], reduction="mean")
+
+        # BCE_EXP = torch.exp(-BCE)
+        # focal_loss = ((1 - BCE_EXP) ** gamma * BCE) / batches
+        # return focal_loss
         inputs = inputs.view(-1)
         targets = targets.view(-1)
+
         # first compute binary cross-entropy
-
-        BCE = F.binary_cross_entropy(inputs, targets, weight=DEFAULT_AC, reduction="mean")
-
-        BCE_EXP = torch.exp(-BCE)
-        focal_loss = (1 - BCE_EXP) ** gamma * BCE
+        weight = alpha[: inputs.shape[0]] * (1 - targets) ** gamma
+        focal_loss = F.binary_cross_entropy(inputs, targets, weight=weight, reduction="mean")
         return focal_loss
 
 

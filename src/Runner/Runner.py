@@ -13,8 +13,8 @@ import json
 import wandb
 import os
 import numpy as np
-from torch.optim.lr_scheduler import MultiStepLR
 from src.utils import Logger, Timer, bcolors
+from src.losses import DiceCoefficient
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
 from src.Model.OrganNet25D import OrganNet25D
@@ -24,10 +24,6 @@ from src.Data.CTDataset import CTDataset
 class Runner:
     """
     This trainer instance performs the training of the network by executing jobs
-
-    TODO:
-        - feel free to add ideas what the trainer should be able to do
-        - we should definitely include a "resume" option in the trainer, so save pytorch checkpoints (as .tar)
     """
 
     # Attribute stores an instance of the network
@@ -45,8 +41,10 @@ class Runner:
     # A data set that will overwrite the data set specified in the job
     dataset = None
 
-    # The current eval and train data used by the runner
+    # The current train data set that is used by the runner
     train_data = None
+
+    # The current evaluation data set that is used by the runner
     eval_data = None
 
     # When true, trainer will output much more details about jobs progress
@@ -54,6 +52,9 @@ class Runner:
 
     # This attribute stores the current job the runner is working on
     job = None
+
+    # Attribute that stores the path to the specification file
+    specification_path = None
 
     # Attribute that stores the jobs that still need to be done
     job_queue = None
@@ -122,91 +123,117 @@ class Runner:
         # Iterate through all jobs
         for index, job in enumerate(self.job_queue):
 
-            # Save the current job for instance access
-            self.job = job
+            try:
 
-            # Obtain the base path at looking at the parent of the parents parent
-            base_path = Path(__file__).parent.parent.parent.resolve()
+                # Save the current job for instance access
+                self.job = job
 
-            # A directory that stores jobs data
-            job_data_dir = os.path.join(base_path, "jobs", job["name"])
+                # Obtain the base path at looking at the parent of the parents parent
+                base_path = Path(__file__).parent.parent.parent.resolve()
 
-            # Save this path to the runner object for now to be able to store stuff in there
-            self.path = job_data_dir
+                # A directory that stores jobs data
+                job_data_dir = os.path.join(base_path, "jobs", job["name"])
 
-            # Check if log dir exists, if not create
-            Path(job_data_dir).mkdir(parents=True, exist_ok=True)
+                # Save this path to the runner object for now to be able to store stuff in there
+                self.path = job_data_dir
 
-            # Create logger and clear the current file
-            Logger.initialize(log_path=job_data_dir)
+                # Check if log dir exists, if not create
+                Path(job_data_dir).mkdir(parents=True, exist_ok=True)
 
-            # Reset the log file
-            if not job["resume"]:
-                Logger.clear()
+                # Create logger and clear the current file
+                Logger.initialize(log_path=job_data_dir)
 
-            # Print CLI message
-            Logger.log("Started the job '" + job["name"] + "'", "HEADLINE", self.debug)
-
-            # check whether the job description has changed (if that is the case, re-run the job)
-            specification_path = os.path.join(self.path, "specification.json")
-
-            # if os.path.exists(specification_path):
-            #     existing_specification = json.load(open(specification_path))
-            #     if str(existing_specification) != str(job):
-            #
-            #         # Remove the last checkpoint
-            #         checkpoint_path = os.path.join(self.path, 'checkpoint.tar')
-            #         if os.path.exists(checkpoint_path):
-            #             os.remove(checkpoint_path)
-            #
-            #         # Notify user regarding rerunning of job
-            #         Logger.log("The json job specification has changed, deleting checkpoint", type="WARNING",
-            #         in_cli=True)
-
-            # Write the specification file to the job
-            with open(specification_path, "w") as fp:
-                json.dump(job, fp)
-
-            # Create an instance of the model TODO: could be passing different models here? Via job.json?
-            self.model = OrganNet25D(
-                input_shape=job["model"]["input_shape"], hdc_dilations=job["model"]["hdc_dilations"]
-            )
-
-            # Recover the last checkpoint (if exists)
-            if job["resume"]:
-
-                # Load the last checkpoint
-                self.checkpoint = self._load_checkpoint()
-
-                # Check if checkpoint exists
-                if self.checkpoint is not None:
-
-                    # Recover model from last
-                    self.model.load_state_dict(self.checkpoint["model"])
-
-                    # Log a status message about recovery of model
-                    Logger.log("Recovered model from the last checkpoint", type="WARNING", in_cli=True)
-
-            else:
-                self.checkpoint = None
-
-            # Check if job contains index "training"
-            if "training" in job and type(job["training"]) is dict:
-
-                # Call train method
-                self._train()
-
-            # Check if job contains index "training"
-            if "evaluation" in job and type(job["evaluation"]) is dict:
-
-                # Call evaluation method
-                self._evaluate(job["evaluation"])
-
-            # Check if job contains index "training"
-            if "inference" in job and type(job["inference"]) is dict:
+                # Reset the log file
+                if not job["resume"]:
+                    Logger.clear()
 
                 # Print CLI message
-                Logger.log("Inference is not implemented yet", "ERROR", self.debug)
+                Logger.log("Started the job '" + job["name"] + "'", "HEADLINE", self.debug)
+
+                # check whether the job description has changed (if that is the case, re-run the job)
+                self.specification_path = os.path.join(self.path, "specification.json")
+
+                # if os.path.exists(specification_path):
+                #     existing_specification = json.load(open(specification_path))
+                #     if str(existing_specification) != str(job):
+                #
+                #         # Remove the last checkpoint
+                #         checkpoint_path = os.path.join(self.path, 'checkpoint.tar')
+                #         if os.path.exists(checkpoint_path):
+                #             os.remove(checkpoint_path)
+                #
+                #         # Notify user regarding rerunning of job
+                #         Logger.log("The json job specification has changed, deleting checkpoint", type="WARNING",
+                #         in_cli=True)
+
+                # Write the specification file to the job
+                with open(self.specification_path, "w") as fp:
+
+                    # Save the json file out
+                    json.dump(job, fp)
+
+                # Create an instance of the model
+                model_choice = job["model"].pop("name")
+                if model_choice == "OrganNet25D":
+                    self.model = OrganNet25D(**job["model"])
+                else:
+                    raise ValueError("Specified model not found")
+
+                # Recover the last checkpoint (if exists)
+                if job["resume"]:
+
+                    # Load the last checkpoint
+                    self.checkpoint = self._load_checkpoint()
+
+                    # Check if checkpoint exists
+                    if self.checkpoint is not None:
+
+                        # Recover model from last
+                        self.model.load_state_dict(self.checkpoint["model"])
+
+                        # Log a status message about recovery of model
+                        Logger.log("Recovered model from the last checkpoint", type="WARNING", in_cli=True)
+
+                else:
+                    self.checkpoint = None
+
+                # Check if job contains index "training"
+                if "training" in job and type(job["training"]) is dict:
+
+                    # Call train method
+                    self._train()
+
+                # Check if job contains index "training"
+                if "evaluation" in job and type(job["evaluation"]) is dict:
+
+                    # Call evaluation method
+                    self._evaluate(job["evaluation"])
+
+                # Check if job contains index "training"
+                if "inference" in job and type(job["inference"]) is dict:
+
+                    # Print CLI message
+                    Logger.log("Inference is not implemented yet", "ERROR", self.debug)
+
+            except Exception as error:
+                import traceback
+                import sys
+
+                exc_info = sys.exc_info()
+                traceback.print_exception(*exc_info)
+                del exc_info
+                # print error message that this job failed
+                print(bcolors.FAIL + "Fatal error occured in job: " + str(error) + bcolors.ENDC)
+
+            # Save the log file for this job
+            if self.job["wandb_api_key"]:
+                # Check if a log file exists
+                if not os.path.isfile(Logger.path):
+                    # Save this log file to wandb
+                    self.wandb_worker.save(Logger.path)
+
+        # Print done running message
+        print(bcolors.OKGREEN + "Runner finished!" + bcolors.ENDC)
 
     def _train(self):
         """
@@ -237,18 +264,23 @@ class Runner:
         # Check if wandb shall be used
         if self.job["wandb_api_key"]:
 
-            # Flash notification
-            Logger.log("Loading wand and creating run for project " + self.job["wandb_project_name"])
-
-            # Load wandb
-            wandb_run_id = wandb_id if not None else self.job["wandb_run_id"]
-
             # Disable wandb console output
             os.environ["WANDB_SILENT"] = "true"
             wandb.login(key=self.job["wandb_api_key"])
-            self.wandb_worker = wandb.init(
-                project=self.job["wandb_project_name"], resume=start_epoch > 0, id=wandb_run_id
-            )
+            if start_epoch > 0 and wandb_id is not None:
+                # Flash notification
+                Logger.log("Loading wand and attempting to resume run " + str(wandb_id))
+                self.wandb_worker = wandb.init(
+                    id=wandb_id, project=self.job["wandb_project_name"], resume="allow", name=self.job["name"]
+                )
+
+            else:
+                # Flash notification
+                Logger.log("Loading wand for project " + self.job["wandb_project_name"])
+                self.wandb_worker = wandb.init(project=self.job["wandb_project_name"], name=self.job["name"])
+
+            # If wandb is activated, save the job configuration
+            self.wandb_worker.save(self.specification_path)
 
         # Start timer to measure data set
         self.timer.start("creating dataset")
@@ -267,7 +299,7 @@ class Runner:
         self.train_data, self.eval_data = self._get_dataloader(
             dataset,
             split_ratio=self.job["training"]["split_ratio"],
-            num_workers=self.job["training"]["num_workers"],
+            num_workers=self.job["training"]["dataset"]["num_workers"],
             batch_size=self.job["training"]["batch_size"],
         )
 
@@ -280,6 +312,9 @@ class Runner:
             type="INFO",
             in_cli=self.debug,
         )
+
+        # Notify the user regarding validation
+        Logger.log("Validation is done on " + str(len(self.eval_data)) + " batches ...")
 
         # Create optimizer
         optimizer = self._get_optimizer(self.job["training"]["optimizer"])
@@ -301,16 +336,25 @@ class Runner:
             Logger.log("Resuming training in epoch " + str(start_epoch), in_cli=True)
 
         if self.job["training"]["detect_bad_gradients"]:
-            Logger.log("Selected detect_bad_gradients - using AutoGrad", type="WARNUNG", in_cli=True)
+            Logger.log("Selected detect_bad_gradients - using AutoGrad", type="WARNING", in_cli=True)
+
+        # Initiate early stopping
+        best_eval_loss = torch.inf
+        current_eval_loss = best_eval_loss
+        early_stopping_counter = 0
 
         # Iterate through epochs (based on jobs setting)
         for epoch in range(start_epoch, self.job["training"]["epochs"]):
 
             # Start epoch timer and log the start of this epoch
-            Logger.log("Starting to run Epoch {}/{}".format(epoch + 1, self.job["training"]["epochs"]), in_cli=False)
+            Logger.log(
+                "Starting to run Epoch {}/{}".format(epoch + 1, self.job["training"]["epochs"]),
+                in_cli=True,
+                new_line=True,
+            )
 
             # Print epoch status bar
-            Logger.print_status_bar(done=0, title="epoch " + str(epoch + 1) + "/" + str(self.job["training"]["epochs"]))
+            Logger.print_status_bar(done=0, title="training loss: -")
 
             # Initiate a model output, input and labels variable with none
             model_output = None
@@ -337,8 +381,9 @@ class Runner:
 
                 # Get output
                 model_output = self.model(inputs)
-                # Calculate loss
-                loss = loss_function(model_output, labels)
+
+                # Calculate loss TODO: the labels are int8 to save storage
+                loss = loss_function(model_output, labels.to(torch.float32))
 
                 if self.job["training"]["detect_bad_gradients"]:
                     from torch import autograd
@@ -350,9 +395,9 @@ class Runner:
                     loss.backward()
 
                 # Gradient clipping
-                grad_norm = torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(), self.job["training"]["grad_norm_clip"]
-                )
+                # grad_norm = torch.nn.utils.clip_grad_norm_(
+                #     self.model.parameters(), self.job["training"]["grad_norm_clip"]
+                # )
 
                 # Perform optimization step
                 optimizer.step()
@@ -361,17 +406,12 @@ class Runner:
                 running_loss += loss.detach().cpu().numpy()
 
                 # Get the current running los
-                current_loss = running_loss / batch if batch > 0 else running_loss
+                current_loss = running_loss / (batch + 1)
 
                 # Print epoch status bar
                 Logger.print_status_bar(
                     done=((batch + 1) / len(self.train_data)) * 100,
-                    title="epoch "
-                    + str(epoch + 1)
-                    + "/"
-                    + str(self.job["training"]["epochs"])
-                    + ", loss: "
-                    + "{:.2f}".format(current_loss),
+                    title="training loss: " + "{:.5f}".format(current_loss),
                 )
 
             # Finish the status bar
@@ -380,13 +420,17 @@ class Runner:
             # Calculate epoch los
             epoch_train_loss = running_loss / len(self.train_data)
 
+            # Initiate dice loss per organ and total
+            organ_dice_coefficients = {}
+            total_organ_dice = []
+            average_dice_coefficient = 0
+            dice_loss_fn = DiceCoefficient()
+
             # Perform validation
             if self.eval_data is not None:
 
-                # Notify the user regarding validation
-                Logger.log(
-                    "Validating the model on " + str(len(self.eval_data)) + " validation batches ...", in_cli=self.debug
-                )
+                # Print epoch status bar
+                Logger.print_status_bar(done=0, title="evaluation loss: -")
 
                 # Set model to evaluation mode
                 self.model.eval()
@@ -404,24 +448,72 @@ class Runner:
 
                     # Calculate output
                     model_output = self.model(inputs)
-                    # Determine loss
-                    eval_loss = loss_function(model_output, labels)
+
+                    # Determine loss TODO: the labels are int8 to save storage
+                    eval_loss = loss_function(model_output, labels.to(torch.float32))
 
                     # Add to running validation loss
                     eval_running_loss += eval_loss.detach().cpu().numpy()
 
+                    # Iterate through channels and compute dice coefficients for metric logging
+                    if batch == len(self.eval_data) - 1:
+                        for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
+                            sub_tensor = model_output[:, i, :, :, :]
+                            sub_label = labels[:, i, :, :, :]
+                            if organ not in organ_dice_coefficients.keys():
+                                organ_dice_coefficients[organ] = []
+                            current_organ_dice_coeff = float(dice_loss_fn(sub_tensor, sub_label))
+                            total_organ_dice.append(current_organ_dice_coeff)
+                            organ_dice_coefficients[organ].append(current_organ_dice_coeff)
+                        if "Background" not in organ_dice_coefficients.keys():
+                            organ_dice_coefficients["Background"] = []
+                        organ_dice_coefficients["Background"].append(
+                            float(
+                                dice_loss_fn(
+                                    model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :],
+                                    labels[:, len(self.job["training"]["dataset"]["labels"]), :, :, :],
+                                )
+                            )
+                        )
+
+                    # Get the current running los
+                    current_eval_loss = eval_running_loss / (batch + 1)
+
                     # Print epoch status bar
-                    Logger.print_status_bar(done=((batch + 1) / len(self.eval_data)) * 100, title="validating model")
+                    Logger.print_status_bar(
+                        done=((batch + 1) / len(self.eval_data)) * 100,
+                        title="evaluation loss: " + "{:.5f}".format(current_eval_loss),
+                    )
+
+                # Do early stopping here
+                if current_eval_loss < best_eval_loss - 1e-2:  # Should improve at least this over n epochs
+                    # Loss decreased - RESET
+                    best_eval_loss = current_eval_loss
+                    early_stopping_counter = 0
+                else:
+                    early_stopping_counter += 1
+
+                    if early_stopping_counter >= self.job["training"].get("early_stopping_patience", torch.inf):
+                        val = self.job["training"].get("early_stopping_patience", torch.inf)
+                        Logger.log(
+                            f"Initialising early stopping after model not improved for {val} epochs",
+                            type="INFO",
+                            in_cli=True,
+                        )
+                        break
+
+                # Mean over the dice losses
+                for key, val in organ_dice_coefficients.items():
+                    organ_dice_coefficients[key] = sum(organ_dice_coefficients[key]) / len(organ_dice_coefficients[key])
+
+                # Compute an average dice coefficient
+                average_dice_coefficient = sum(total_organ_dice) / len(total_organ_dice)
 
                 # End status bar
                 Logger.end_status_bar()
 
                 # Calculate epoch train val loss
                 epoch_evaluation_loss = eval_running_loss / len(self.eval_data)
-
-                # Notify the user regarding validation
-                avg_loss = "{:.2f}".format(epoch_evaluation_loss)
-                Logger.log("Valuation done with an average epoch loss of " + str(avg_loss), in_cli=self.debug)
 
                 # TODO: here, we could do an early stopping if the model is extremely overfitting or so
 
@@ -435,16 +527,12 @@ class Runner:
             # Obtain the current learning rate
             current_lr = scheduler.get_last_lr()[0]
 
-            # Print the current learning rate
-            lr_formatted = "{:.6f}".format(current_lr)
-            Logger.log("Learning rate currently at " + str(lr_formatted), in_cli=True)
-
             # Stop timer to measure epoch length
             epoch_time = self.timer.get_time("epoch")
 
-            # Log the epoch success TODO: more here soon
-            avg_loss = "{:.2f}".format(epoch_train_loss)
-            Logger.log("Epoch took " + str(epoch_time) + " seconds. The average loss is " + avg_loss, in_cli=self.debug)
+            # Log the epoch success
+            avg_loss = "{:.4f}".format(epoch_train_loss)
+            avg_val_loss = "{:.4f}".format(epoch_evaluation_loss)
 
             # Report the current loss to wandb if it's set
             if self.job["wandb_api_key"]:
@@ -453,26 +541,28 @@ class Runner:
                 self._log_prediction_examples(inputs, labels, model_output)
                 self._log_prediction_examples_3d(inputs, labels, model_output)
 
+                if self.job.get("log_3d_csv"):
+                    self._export_prediction_examples(inputs, labels, model_output)
+
                 # Include max and min of predictions per organ
                 self._log_prediction_max_min(model_output)
 
                 # Log this current status
                 self.wandb_worker.log(
                     {
-                        "training loss": epoch_train_loss,
-                        "evaluation loss": epoch_evaluation_loss,
-                        "learning rate": current_lr,
-                        "epoch duration": epoch_time,
-                        "epoch": epoch + 1,
+                        "Training Loss": epoch_train_loss,
+                        "Evaluation Loss": epoch_evaluation_loss,
+                        "Learning Rate": current_lr,
+                        "Epoch (Duration)": epoch_time,
+                        "Epoch": epoch + 1,
+                        "DSC per channel": organ_dice_coefficients,
+                        "Dice Score (average)": average_dice_coefficient,
                     },
                     commit=False,
                 )
 
                 # Log all to wandb
                 self.wandb_worker.log({})
-
-            # Log that the checkpoint is saved
-            Logger.log("Saving checkpoint for epoch " + str(epoch + 1), in_cli=True)
 
             # Save a checkpoint for this job after each epoch (to be able to resume)
             self._save_checkpoint(
@@ -488,8 +578,14 @@ class Runner:
                 }
             )
 
-            # Write log message that the training has been completed
-            Logger.log("Checkpoint updated (data has been saved)", in_cli=True)
+            # Obtain the current learning rate
+            lr_formatted = "{:.6f}".format(current_lr)
+
+            # Print epoch status
+            Logger.log(
+                "Train loss: " + avg_loss + ". Eval loss: " + avg_val_loss + ". LR: " + lr_formatted, in_cli=True
+            )
+            Logger.log("Epoch took " + str(epoch_time) + " seconds.", in_cli=self.debug)
 
         # Write log message that the training has been completed
         Logger.log("Training of the model completed", type="SUCCESS", in_cli=True)
@@ -531,8 +627,12 @@ class Runner:
 
         # Add a default scheduler
         job_data["training"].setdefault(
-            "lr_scheduler", {"name": "LinearLR", "start_factor": 1, "end_factor": 0.01, "total_iters": 100}
+            "lr_scheduler",
+            {"name": "LinearLR", "start_factor": 1, "end_factor": 0.01, "total_iters": 100},
         )
+
+        # Set labels to none by default so the data set figures out the order
+        job_data["training"]["dataset"].setdefault("labels", None)
 
         # Set a default if predictino examples is not set
         job_data.setdefault("wandb_prediction_examples", 6)
@@ -565,13 +665,6 @@ class Runner:
         # Generate a random slice as example for reconstruction
         if model_output is not None:
 
-            # Start timer and log preperation operation
-            self.timer.start("prediction-preperation")
-            Logger.log(
-                "Preparing " + str(self.job["wandb_prediction_examples"]) + " prediction examples for wandb",
-                in_cli=True,
-            )
-
             # Create a list of masks
             mask_list = []
 
@@ -585,11 +678,13 @@ class Runner:
                 sample_image = inputs[batch_no, 0, :, :, :].mean(dim=perspective_idx)
 
                 # Create raw prediction and label masks
-                prediction_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure) + 1
-                label_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure)
+                prediction_mask_data = (
+                    torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"]) + 1
+                )
+                label_mask_data = torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"])
 
                 # Iterate through all organs and add them to it
-                for organ_slice, organ in enumerate(CTDataset.label_structure):
+                for organ_slice, organ in enumerate(self.job["training"]["dataset"]["labels"]):
                     raw_prediction = model_output[batch_no, organ_slice, :, :, :].max(dim=perspective_idx).values
                     raw_label = labels[batch_no, organ_slice, :, :, :].max(dim=perspective_idx).values
 
@@ -602,20 +697,22 @@ class Runner:
 
                 # Do the same for the background
                 background_prediction = (
-                    model_output[batch_no, len(CTDataset.label_structure), :, :, :].max(dim=perspective_idx).values
+                    model_output[batch_no, len(self.job["training"]["dataset"]["labels"]), :, :, :]
+                    .max(dim=perspective_idx)
+                    .values
                 )
                 prediction_mask_data = torch.where(
                     background_prediction > 0.5,
-                    torch.tensor(len(CTDataset.label_structure), dtype=torch.float32),
+                    torch.tensor(len(self.job["training"]["dataset"]["labels"]), dtype=torch.float32),
                     prediction_mask_data,
                 )
 
                 # Prepare class labels
                 class_labels = {
-                    len(CTDataset.label_structure): "Background",
-                    len(CTDataset.label_structure) + 1: "No Prediction",
+                    len(self.job["training"]["dataset"]["labels"]): "Background",
+                    len(self.job["training"]["dataset"]["labels"]) + 1: "No Prediction",
                 }
-                for i, organ in enumerate(CTDataset.label_structure):
+                for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
                     class_labels[i] = organ
 
                 # Convert to ndarray for wandb
@@ -647,14 +744,54 @@ class Runner:
                 commit=False,
             )
 
-            # Notify about duration
-            prep_took = self.timer.get_time("prediction-preperation")
-            Logger.log("Preparing the examples took {:.2f} seconds".format(prep_took), in_cli=True)
-
         else:
 
             # Warn that there was no model output
             Logger.log("No prediction examples could be logged, as there is no model output", in_cli=True)
+
+    def _export_prediction_examples(self, inputs, labels, model_output):
+        try:
+            import pandas as pd
+
+            organ_data = []
+
+            batch_no = random.randint(0, inputs.size()[0] - 1)
+            # Obtain the actual image
+            sample_image = inputs[batch_no, 0, :, :, :]
+
+            # Create raw prediction and label masks
+            prediction_mask_data = torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"]) + 1
+            label_mask_data = torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"])
+
+            # Iterate through all organs and add them to it
+            for organ_slice, organ in enumerate(self.job["training"]["dataset"]["labels"]):
+                raw_prediction = model_output[batch_no, organ_slice, :, :, :]
+                raw_label = labels[batch_no, organ_slice, :, :, :]
+
+                prediction_mask_data = torch.where(raw_prediction > 0.5, 1, 0).nonzero(as_tuple=False).detach().numpy()
+
+                label_mask_data = torch.where(raw_label > 0.5, 1, 0).nonzero(as_tuple=False).detach().numpy()
+
+                prediction_df = pd.DataFrame(data=prediction_mask_data, columns=["x", "y", "z"])
+                organ_df = pd.DataFrame(data=label_mask_data, columns=["x", "y", "z"])
+                organ_df["facecolor"] = "rgb(0,169,0)"
+                prediction_df["facecolor"] = "rgb(35,169,131)"
+                organ_df["organ_names"] = organ
+                prediction_df["organ_names"] = organ + "Pred"
+
+                organ_data.append(organ_df)
+                organ_data.append(prediction_df)
+            from datetime import datetime
+
+            datetime_str = datetime.now()
+
+            filename = self.job["name"] + datetime.strftime(datetime_str, "%m-%d-%H:%M:%S")
+        except:
+            pass
+
+        path = Path(".") / Path("data") / "examples" / f"{filename}.csv"
+        # Append this slice to the predictions
+        pd.concat(organ_data).to_csv(path)
 
     def _log_prediction_examples(self, inputs, labels, model_output):
         """
@@ -672,40 +809,52 @@ class Runner:
 
             # Start timer and log preperation operation
             self.timer.start("prediction-preperation")
-            Logger.log(
-                "Preparing " + str(self.job["wandb_prediction_examples"]) + " prediction examples for wandb",
-                in_cli=True,
-            )
 
             # Select a random sample from the batch
             batch_no = random.randint(0, inputs.size()[0] - 1)
 
             # Iterate through the model output and find good and bad slices
-            good_slices_data = {'good': [], 'bad': []}
+            good_slices_data = {"good": [], "bad": []}
             for s in range(labels.size()[-3] - 1):
-                current_max = labels[batch_no, list(range(len(CTDataset.label_structure) - 1)), s, :, :].max()
+                current_max = labels[
+                    batch_no, list(range(len(self.job["training"]["dataset"]["labels"]) - 1)), s, :, :
+                ].max()
                 if current_max > 0.5:
-                    good_slices_data['good'].append(s)
+                    good_slices_data["good"].append(s)
                 else:
-                    good_slices_data['bad'].append(s)
+                    good_slices_data["bad"].append(s)
 
             # Compose the good slices in a list
-            first_good_slice = sorted(good_slices_data['good'])[0]
-            last_good_slice = sorted(good_slices_data['good'])[-1]
-            have_want_difference = (last_good_slice - first_good_slice + 1) - self.job["wandb_prediction_examples"]
-            if have_want_difference >= 0:
-                good_slices = np.linspace(first_good_slice, last_good_slice, num=self.job["wandb_prediction_examples"], dtype=int)
+            if len(good_slices_data["good"]) > 0:
+                first_good_slice = sorted(good_slices_data["good"])[0]
+                last_good_slice = sorted(good_slices_data["good"])[-1]
+                have_want_difference = (last_good_slice - first_good_slice + 1) - self.job["wandb_prediction_examples"]
+                if have_want_difference >= 0:
+                    good_slices = np.linspace(
+                        first_good_slice, last_good_slice, num=self.job["wandb_prediction_examples"], dtype=int
+                    )
+                else:
+                    possible_slices = self.job["wandb_prediction_examples"]
+                    if self.job["wandb_prediction_examples"] > inputs.size()[-3]:
+                        Logger.log(
+                            "Requested "
+                            + str(self.job["wandb_prediction_examples"])
+                            + " slices, but can only return "
+                            + str(inputs.size()[-3]),
+                            type="ERROR",
+                            in_cli=True,
+                        )
+                        possible_slices = inputs.size()[-3]
+                    good_slices = sorted(good_slices_data["good"])
+                    while len(good_slices) < possible_slices:
+                        random_slice = random.randint(0, inputs.size()[-3] - 1)
+                        if random_slice not in good_slices:
+                            good_slices.append(random_slice)
+                    good_slices = sorted(good_slices)
             else:
-                possible_slices = self.job["wandb_prediction_examples"]
-                if self.job["wandb_prediction_examples"] > inputs.size()[-3]:
-                    Logger.log("Requested " + str(self.job["wandb_prediction_examples"]) + " slices, but can only return " + str(inputs.size()[-3]), type="ERROR", in_cli=True)
-                    possible_slices = inputs.size()[-3]
-                good_slices = sorted(good_slices_data['good'])
-                while len(good_slices) < possible_slices:
-                    random_slice = random.randint(0, inputs.size()[-3] - 1)
-                    if random_slice not in good_slices:
-                        good_slices.append(random_slice)
-                good_slices = sorted(good_slices)
+                good_slices = []
+                for i in range(self.job["wandb_prediction_examples"]):
+                    good_slices.append(random.randint(0, inputs.size()[-3] - 1))
 
             # Create a list of masks
             mask_list = []
@@ -717,33 +866,51 @@ class Runner:
                 sample_image = inputs[batch_no, 0, slice_no, :, :]
 
                 # Create raw prediction and label masks
-                prediction_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure) + 1
-                label_mask_data = torch.ones_like(sample_image) * len(CTDataset.label_structure)
+                prediction_mask_data = (
+                    torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"]) + 1
+                )
+                label_mask_data = torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"])
 
                 # Iterate through all organs and add them to it
-                for organ_slice, organ in enumerate(CTDataset.label_structure):
+                for organ_slice, organ in enumerate(self.job["training"]["dataset"]["labels"]):
                     raw_prediction = model_output[batch_no, organ_slice, slice_no, :, :]
                     raw_label = labels[batch_no, organ_slice, slice_no, :, :]
 
+                    # Label threshold
+                    label_threshold = float(
+                        (raw_label.min() + (raw_label.max() - raw_label.min()) / 2) if raw_label.min() > 0 else 0
+                    )
+
                     # Create a dynamic threshold based on the median
-                    dynamic_predict_threshold = float(raw_prediction.median())
+                    prediction_threshold = float(
+                        raw_prediction.min() + ((raw_prediction.max() - raw_prediction.min()) / 2)
+                    )
 
                     prediction_mask_data = torch.where(
-                        raw_prediction > dynamic_predict_threshold, torch.tensor(organ_slice, dtype=torch.float32), prediction_mask_data
+                        raw_prediction > prediction_threshold,
+                        torch.tensor(organ_slice, dtype=torch.float32),
+                        prediction_mask_data,
                     )
                     label_mask_data = torch.where(
-                        raw_label > 0.5, torch.tensor(organ_slice, dtype=torch.float32), label_mask_data
+                        raw_label > label_threshold, torch.tensor(organ_slice, dtype=torch.float32), label_mask_data
                     )
 
                 # Do the same for the background
-                background_prediction = model_output[batch_no, len(CTDataset.label_structure), slice_no, :, :]
+                background_prediction = model_output[
+                    batch_no, len(self.job["training"]["dataset"]["labels"]), slice_no, :, :
+                ]
                 prediction_mask_data = torch.where(
-                    background_prediction > float(background_prediction.median()), torch.tensor(len(CTDataset.label_structure), dtype=torch.float32), prediction_mask_data
+                    background_prediction > float(background_prediction.median()),
+                    torch.tensor(len(self.job["training"]["dataset"]["labels"]), dtype=torch.float32),
+                    prediction_mask_data,
                 )
 
                 # Prepare class labels
-                class_labels = {len(CTDataset.label_structure): "Background", len(CTDataset.label_structure) + 1: "No Prediction"}
-                for i, organ in enumerate(CTDataset.label_structure):
+                class_labels = {
+                    len(self.job["training"]["dataset"]["labels"]): "Background",
+                    len(self.job["training"]["dataset"]["labels"]) + 1: "No Prediction",
+                }
+                for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
                     class_labels[i] = organ
 
                 # Convert to ndarray for wandb
@@ -785,23 +952,22 @@ class Runner:
             Logger.log("No prediction examples could be logged, as there is no model output", in_cli=True)
 
     def _log_prediction_max_min(self, model_output):
-
+        organ_labels = self.job["training"]["dataset"]["labels"]
         max_vals = {}
         min_vals = {}
-        for i, organ in enumerate(CTDataset.label_structure):
+        for i, organ in enumerate(organ_labels):
             max_vals[organ] = model_output[:, i, :, :, :].max()
             min_vals[organ] = model_output[:, i, :, :, :].min()
+        max_vals["Background"] = model_output[:, len(organ_labels), :, :, :].max()
+        min_vals["Background"] = model_output[:, len(organ_labels), :, :, :].min()
 
-        self.wandb_worker.log({
-            'predictions minimum value': min_vals,
-            'predictions maximum value': max_vals
-        }, commit=False)
+        self.wandb_worker.log(
+            {"predictions minimum value": min_vals, "predictions maximum value": max_vals}, commit=False
+        )
 
     def _get_optimizer(self, optimizer_setup: dict, **params):
         if optimizer_setup["name"] == "Adam":
-            optimizer = torch.optim.Adam(
-                self.model.parameters(), lr=optimizer_setup["learning_rate"], betas=optimizer_setup["betas"], **params
-            )
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=optimizer_setup["learning_rate"])
             if self.checkpoint is not None:
                 Logger.log("Recovering optimizer from the last checkpoint", type="WARNING", in_cli=True)
                 try:
@@ -829,12 +995,12 @@ class Runner:
         TODO: make this dynamic
         """
 
-        # Create a scheduler based on the description
-        scheduler = MultiStepLR(
-            optimizer,
-            gamma=0.1,
-            milestones=[50, 100],  # Every 50 epochs, until 0.001 -> 0.00001
-        )
+        # Every scheduler will need the optimizer
+        scheduler_setup["optimizer"] = optimizer
+        scheduler_name = scheduler_setup.pop("name")
+        module = importlib.import_module("torch.optim.lr_scheduler")
+        lr_scheduler_class = getattr(module, scheduler_name)
+        scheduler = lr_scheduler_class(**scheduler_setup)
 
         # Check if there is a checkpoint
         if self.checkpoint is not None:
@@ -880,8 +1046,22 @@ class Runner:
         # Generate the path where the data set is located at
         dataset_path = os.path.join(base_path, data["root"])
 
+        # Save a global version of the label order
+        if data["labels"] is None:
+            # Abort as the label structure is missing
+            raise ValueError(
+                "You have to add the desired label structure to your job configuration (add a list at training/dataset/labels"
+            )
+
         # Create an instance of the dataloader and pass location of data
-        dataset = CTDataset(dataset_path, preload=preload, transforms=data["transform"], no_logging=False)
+        dataset = CTDataset(
+            dataset_path,
+            preload=preload,
+            label_transforms=data["label_transforms"],
+            sample_transforms=data["sample_transforms"],
+            label_structure=data["labels"],
+            no_logging=False,
+        )
 
         return dataset
 
@@ -962,4 +1142,4 @@ class Runner:
 
         # Check if wandb shall be used
         if self.job["wandb_api_key"]:
-            wandb.save(save_path)
+            self.wandb_worker.save(save_path)

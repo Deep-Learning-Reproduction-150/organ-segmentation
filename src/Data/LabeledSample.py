@@ -8,13 +8,14 @@ Date: 25.03.2022
 Group: 150
 """
 
-from copy import deepcopy
 import os
 import glob
 import torch
-from torch import from_numpy
+from src.Data.transforms import CropAroundBrainStem
 from src.utils import bcolors, Logger
 from src.Data.CTData import CTData
+import numpy as np
+from scipy import ndimage
 from src.Data.utils import DataTransformer
 
 
@@ -42,6 +43,9 @@ class LabeledSample:
     # Stores whether the sample has been processed already
     loaded = None
 
+    # Attribute storing the brain stem center
+    brain_stem_center = None
+
     def __init__(self, path, labels_folder_path: str = "structures"):
         """
         Constructor of the LabeledSample object. Expected by default is a folder that contains one nrrd file which
@@ -55,6 +59,12 @@ class LabeledSample:
         # Assign an id and increment the id store
         self.id = LabeledSample.id_store
         LabeledSample.id_store += 1
+
+        # Initiate loaded with false
+        self.loaded = False
+
+        # Initialize the brain stem center with none
+        self.brain_stem_center = None
 
         # Save the path to this sample
         self.path = path
@@ -122,115 +132,125 @@ class LabeledSample:
             show_status_bar=show_status_bar,
         )
 
-    def get_tensor(self):
+    def get_tensor(self, transformer: DataTransformer = DataTransformer([])):
         """
         This method returns a tensor that contains the data of this sample
 
         :return tensor: which contains the data points
         """
 
-        # Check if sample has been preprocessed
-        if not self.loaded:
-            raise Exception("ERROR: Data sample has not been preprocessed yet")
+        # Inject the center position
+        transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+
+        # Get the tensor with the transformers
+        tensor = self.sample.get_tensor(transformer=transformer)
 
         # Return the sample (which is a tensor)
-        return self.sample.get_tensor()
+        return tensor
 
-    def get_labels(self):
+    def get_labels(self, label_structure: list, transformer: DataTransformer = DataTransformer([])):
         """
         This method returns the list of labels associated with this sample
 
         :return labels: list of tensors that are the labels
-        TODO: not used?
         """
 
-        # Check if sample has been preprocessed
-        if not self.loaded:
-            raise Exception("ERROR: Data sample has not been preprocessed yet")
+        # Inject the center position
+        transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+
+        # Check whether the passed label order is there
+        if len(label_structure) == 0:
+
+            # Stop the process as the order of labels is unknown
+            raise ValueError("Labeled data object received an empty label order list, stopping")
 
         # Initialize a list of labels
         tensors = []
-        labels = []
 
-        # Iterate through the labels and get tensors of each
-        for label in self.labels:
-            # Append a tensor
-            tensors.append(label.get_tensor())
-            labels.append(label.name)
+        # Iterate through the labels and create
+        for wanted_label in label_structure:
 
-        # return label data
-        label_data = {"features": tensors, "label": labels}
+            # Iterate through the labels and find it
+            data = None
+            for label in self.labels:
+                if label.name == wanted_label:
+                    data = label.get_tensor(transformer=transformer, dtype=torch.int8)
+                    break
 
-        # Return the list of labels
-        return label_data
+            # Check if label exists
+            if data is None:
+                # Create zero sample
+                if len(tensors) > 0:
+                    # Use an existing label tensor as reference
+                    data = torch.zeros_like(tensors[0], dtype=torch.int8)
+                else:
+                    # Have to obtain sample tensor (much more inefficient)
+                    data = torch.zeros_like(self.get_tensor(transformer=transformer), dtype=torch.int8)
 
-    def load(self, transformer: DataTransformer, label_structure: list):
+            # Append the transformed label to it
+            tensors.append(data)
+
+        # Compute a "background label" and append it to the labels
+        if len(tensors) > 0:
+
+            # Create background slice
+            label_mask = torch.ones_like(tensors[0], dtype=torch.int8)
+            for i, label in enumerate(tensors):
+                label_mask = torch.where(label > torch.tensor(0, dtype=torch.int8), torch.tensor(0, dtype=torch.int8), label_mask)
+            tensors.append(label_mask)
+
+            # Return the list of label tensors
+            return torch.cat(tensors, 0)
+        else:
+
+            # Warn about no tensors
+            raise ValueError("Labeled data object does not contain any labels, stopping")
+
+    def load(self, sample_transformer: DataTransformer, label_transformer: DataTransformer):
         """
         This method checks the dimensions of the labels and the sample data
 
-        :param transformer: the transformer that is applied to every data sample
-        :param label_structure: the structure of labels to go with
+        :param sample_transformer: transformer for the sample
+        :param label_transformer: transformer for the labels
         :raise ValueError: when dimensions of labels and sample don't match
         """
         # Preprocess only if that did not happen yet
         if not self.loaded:
 
+            # Inject the center position
+            sample_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+            label_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+
             # Load sample
-            self.sample.load(transformer=transformer)
+            self.sample.load(transformer=sample_transformer)
 
             # Load labels
             for label in self.labels:
-                label.load(transformer=transformer)
+                label.load(transformer=label_transformer)
 
-            # Get the transformed tensor from the sample
-            transformed_sample = self.sample.get_tensor()
-
-            # Change the depth and x dimension
-            self.sample = transformed_sample.unsqueeze(0)
-
-            # Initiate transformed labels
-            transformed_labels = []
-
-            # Iterate through the labels and create
-            for wanted_label in label_structure:
-
-                # Iterate through the labels and find it
-                data = None
-                for label in self.labels:
-                    if label.name == wanted_label:
-                        data = label.get_tensor().unsqueeze(0)
-                        break
-
-                # Check if label exists
-                if data is None:
-                    # Create zero sample
-                    data = torch.zeros(transformed_sample.size())
-                    data = transformer(data).unsqueeze(0)
-
-                # Append the transformed label to it
-                transformed_labels.append(data)
-
-            # Replace the labels with transformed ones
-            self.labels = transformed_labels
-
-            # TODO: The following could maybe get some more improvements
-
-            # By default choose entire image
-            label_mask = torch.zeros_like(self.sample, dtype=torch.bool)
-            background_voxel_value = self.sample.min()
-
-            # Iterate through the transformed labels
-            for label in self.labels:
-                label_threshold = label.mean()
-                current_label_mask = label > label_threshold  # Choose volume under the organ
-                label_mask = label_mask | current_label_mask  # Select it
-
-            background = deepcopy(self.sample)
-            background[label_mask] = background_voxel_value
-            self.labels.append(background)
-
-        # Remember that this sample has been checked
-        self.loaded = True
+            # Remember that this sample has been checked
+            self.loaded = True
 
     def drop(self):
+        """
+        TODO: implement
+        """
         a = 0
+
+    def _get_brain_stem_center(self):
+        """
+        This function computes the brain stem center for this sample and saves and returns it
+
+        :return: 3D center of brain stem
+        """
+        if self.brain_stem_center is None:
+            for label in self.labels:
+                if label.name == 'BrainStem':
+                    bs = label.get_tensor()
+                    center_of_gravity = ndimage.center_of_mass(np.array((bs.transpose(1, -1))[0, :, :, :]))
+                    self.brain_stem_center = center_of_gravity
+                    return self.brain_stem_center
+            Logger.log("Brain stem not contained in data sample " + str(self.id), type="ERROR", in_cli=True)
+            return None
+        else:
+            return self.brain_stem_center
