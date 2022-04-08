@@ -215,17 +215,17 @@ class Runner:
                     # Print CLI message
                     Logger.log("Inference is not implemented yet", "ERROR", self.debug)
 
-                # Save the log file for this job
-                if self.job["wandb_api_key"]:
-                    # Check if a log file exists
-                    if not os.path.isfile(Logger.path):
-                        # Save this log file to wandb
-                        self.wandb_worker.save(Logger.path)
-
             except Exception as error:
 
                 # print error message that this job failed
                 print(bcolors.FAIL + "Fatal error occured in job: " + str(error) + bcolors.ENDC)
+
+            # Save the log file for this job
+            if self.job["wandb_api_key"]:
+                # Check if a log file exists
+                if not os.path.isfile(Logger.path):
+                    # Save this log file to wandb
+                    self.wandb_worker.save(Logger.path)
 
         # Print done running message
         print(bcolors.OKGREEN + "Runner finished!" + bcolors.ENDC)
