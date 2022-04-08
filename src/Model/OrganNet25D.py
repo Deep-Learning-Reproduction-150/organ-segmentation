@@ -148,7 +148,7 @@ class OrganNet25D(nn.Module):
         # Call torch superclass constructor
         super().__init__()
         if activations["one_d_3"] not in ["sigmoid", "softmax"]:
-            raise ValueError("one_d_3 activation needs to be either 'softmax' or 'softmax'")
+            raise ValueError("one_d_3 activation needs to be either 'softmax' or 'sigmoid'")
         activations = {k: activation_mapper(v) for k, v in activations.items()}
         allowed_padding_values = ["yes", "no"]
         if type(padding) is not dict and padding not in allowed_padding_values:
