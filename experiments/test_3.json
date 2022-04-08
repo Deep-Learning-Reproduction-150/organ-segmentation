@@ -15,11 +15,11 @@
             "2d": "relu",
             "one_d_1": "relu",
             "one_d_2": "relu",
-            "one_d_3": "sigmoid"
+            "one_d_3": "softmax"
         },
         "hdc_out_channels": [
             128,
-            256,
+            128,
             128
         ],
         "hdc_dilations": [
@@ -45,7 +45,7 @@
     },
     "training": {
         "early_stopping_patience": 40,
-        "epochs": 120,
+        "epochs": 140,
         "detect_bad_gradients": false,
         "grad_norm_clip": 1,
         "split_ratio": 0.77,
