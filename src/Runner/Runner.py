@@ -456,25 +456,12 @@ class Runner:
                     eval_running_loss += eval_loss.detach().cpu().numpy()
 
                     # Iterate through channels and compute dice coefficients for metric logging
-                    if batch == len(self.eval_data) - 1:
-                        for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
-                            sub_tensor = model_output[:, i, :, :, :]
-                            sub_label = labels[:, i, :, :, :]
-                            if organ not in organ_dice_coefficients.keys():
-                                organ_dice_coefficients[organ] = []
-                            current_organ_dice_coeff = float(dice_loss_fn(sub_tensor, sub_label))
-                            total_organ_dice.append(current_organ_dice_coeff)
-                            organ_dice_coefficients[organ].append(current_organ_dice_coeff)
-                        if "Background" not in organ_dice_coefficients.keys():
-                            organ_dice_coefficients["Background"] = []
-                        organ_dice_coefficients["Background"].append(
-                            float(
-                                dice_loss_fn(
-                                    model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :],
-                                    labels[:, len(self.job["training"]["dataset"]["labels"]), :, :, :],
-                                )
-                            )
-                        )
+                    dice_data = dice_loss_fn(model_output, labels, return_per_channel=True)
+                    total_organ_dice.append(float(dice_data[0]))
+                    for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
+                        current_organ_dice_coeff = float(dice_data[1][i])
+                        organ_dice_coefficients[organ].append(current_organ_dice_coeff)
+                    organ_dice_coefficients['Background'].append(float(dice_data[1][len(self.job["training"]["dataset"]["labels"])]))
 
                     # Get the current running los
                     current_eval_loss = eval_running_loss / (batch + 1)
