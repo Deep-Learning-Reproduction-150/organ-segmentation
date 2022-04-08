@@ -7,6 +7,7 @@ Group: 150
 """
 
 from src.Data.transforms import CropAroundBrainStem
+from src.utils import Logger
 
 
 class DataTransformer(object):
@@ -26,6 +27,8 @@ class DataTransformer(object):
             a = 0
             # Check if transform is the special brain stem transformation
             if type(t) is CropAroundBrainStem:
+                if 'BrainStem' not in self.organ_centers:
+                    Logger.log("The transformation CropAroundBrainStem can not be applied")
                 img = t(img, self.organ_centers['BrainStem'])
             else:
                 img = t(img)

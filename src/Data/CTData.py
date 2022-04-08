@@ -49,13 +49,16 @@ class CTData:
         data = params.get('data', None)
         name = params.get('name', None)
 
+        # Set loaded
+        self.loaded = params.get('loaded', False)
+
         # Save the path of the datafile
         if path is not None:
 
             # Check if this file exists
             if not os.path.exists(path):
                 # Raise an exception for this issue
-                raise ValueError(bcolors.FAIL + "ERROR: Given path does not lead to a nrrd file" + bcolors.ENDC)
+                raise ValueError(bcolors.FAIL + "ERROR: No data found at " + str(path) + bcolors.ENDC)
 
             # Save path for later operations
             self.path = path
@@ -97,7 +100,8 @@ class CTData:
             try:
 
                 # Save the as attributes for this instance
-                self.data = self._get_from_file(dtype)
+                if self.data is None:
+                    self.data = self._get_from_file(dtype)
 
                 # Check if the data has three dimensions
                 if self.data.ndim != 3:

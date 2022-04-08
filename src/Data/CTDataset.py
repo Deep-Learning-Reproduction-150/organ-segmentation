@@ -93,7 +93,8 @@ class CTDataset(Dataset):
                 # Create a new instance of a labeled sample
                 new_sample = LabeledSample(
                     path=element.path,
-                    labels_folder_path=label_folder_name
+                    label_transformer=self.get_data_transformer('labels'),
+                    sample_transformer=self.get_data_transformer('sample')
                 )
 
                 # Append a labeled sample object
@@ -130,10 +131,7 @@ class CTDataset(Dataset):
             for i, sample in enumerate(self.samples):
 
                 # Load data for this sample and transform it
-                sample.load(
-                    sample_transformer=self.get_data_transformer('sample'),
-                    label_transformer=self.get_data_transformer('labels')
-                )
+                sample.load()
 
                 # Print the changing import status line
                 if not no_logging:
@@ -160,8 +158,8 @@ class CTDataset(Dataset):
         sample_instance = self.samples[index]
 
         # Create sample data (squeeze the dummy channel in there as well)
-        sample = sample_instance.get_tensor(self.get_data_transformer('sample'))
-        labels = sample_instance.get_labels(self.label_structure, self.get_data_transformer('label'))
+        sample = sample_instance.get_tensor()
+        labels = sample_instance.get_labels(self.label_structure)
 
         # Return (data tensor, label tensor)
         return sample, labels
