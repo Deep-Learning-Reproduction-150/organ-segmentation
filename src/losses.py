@@ -6,6 +6,7 @@ Date: 03.04.2022
 Group: 150
 """
 import copy
+from multiprocessing.sharedctypes import Value
 
 import torch
 from torch import nn
@@ -48,19 +49,24 @@ class CombinedLoss(nn.Module):
         super(CombinedLoss, self).__init__()
         self.input_dim = None
         self.alpha_vals = None
-        self.dice = DiceLoss()
+        self.dice = DiceCoefficient()
         self.focal = FocalLoss()
         self.alpha = alpha
 
-    def forward(self, inputs, targets, l=1.0, gamma=2):
+    def forward(self, inputs, targets, l=1.0, gamma=2, dsc_reduce="mean", return_per_channel_dsc=False):
 
         # Get dice and focal loss
-        dice = self.dice(inputs, targets)
+        dice, dice_per_channel = self.dice(
+            inputs, targets, reduce_method=dsc_reduce, return_per_channel_dsc=return_per_channel_dsc
+        )
         focal = self.focal(inputs, targets, alpha=self.get_alpha(inputs), gamma=gamma)
 
         # Stich them together and return
-        combined = focal + l * dice
-        return combined
+        loss = focal + l * (1 - dice)
+
+        if return_per_channel_dsc:
+            return loss, dice_per_channel
+        return loss
 
     def get_alpha(self, inputs):
         if self.alpha_vals is None:
@@ -75,7 +81,7 @@ class DiceCoefficient(nn.Module):
     def __init__(self, **params):
         super().__init__()
 
-    def forward(self, inputs, targets, reduce_method="mean", return_per_channel=False):
+    def forward(self, inputs, targets, reduce_method="mean", return_per_channel_dsc=False):
         # Compute the dice coefficient
         # channels = inputs.size()[1]
         # inputs = inputs[:].contiguous().view(-1)
@@ -91,10 +97,12 @@ class DiceCoefficient(nn.Module):
             dsc_per_channel = dice.mean(dim=(0, 3, 2, 4))
         elif reduce_method == "sum":
             dsc_per_channel = dice.sum(dim=(0, 3, 2, 4))
+        else:
+            raise ValueError("Unrecognized reduce_method")
 
         dsc_avg = dsc_per_channel.mean()
 
-        if return_per_channel:
+        if return_per_channel_dsc:
             return dsc_avg, dsc_per_channel
 
         return dsc_avg
@@ -104,9 +112,15 @@ class DiceLoss(nn.Module):
     def __init__(self, **params):
         super().__init__()
 
-    def forward(self, inputs, targets):
-        dice = DiceCoefficient()(inputs, targets)
-        return 1 - dice
+    def forward(self, inputs, targets, dsc_reduce_method="mean", return_per_channel_dsc=False):
+        dice = DiceCoefficient()(
+            inputs, targets, reduce_method=dsc_reduce_method, return_per_channel_dsc=return_per_channel_dsc
+        )
+        if return_per_channel_dsc:
+            loss, per_channel = dice
+            return 1 - loss, per_channel
+
+        return 1 - loss
 
 
 class FocalLoss(nn.Module):
