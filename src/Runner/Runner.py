@@ -789,7 +789,7 @@ class Runner:
         except:
             pass
 
-        path = Path("data") / "examples" / f"{filename}.csv"
+        path = Path(".") / Path("data") / "examples" / f"{filename}.csv"
         # Append this slice to the predictions
         pd.concat(organ_data).to_csv(path)
 
