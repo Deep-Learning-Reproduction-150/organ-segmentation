@@ -13,10 +13,12 @@ TODO:
 import torch
 from torch import nn
 
-
-from .utils import activation_mapper
-from .HDC import *
-
+try:
+    from .utils import activation_mapper
+    from .HDC import *
+except ImportError:
+    from utils import activation_mapper
+    from HDC import *
 # from src.Dataloader.CTData import CTData
 
 
@@ -34,6 +36,7 @@ class OrganNet25D(nn.Module):
     def __init__(
         self,
         hdc_dilations=(1, 2, 3),
+        hdc_out_channels=[128, 256, 128],
         out_channels=10,
         activations={
             "coarse_resse": "sigmoid",
@@ -159,23 +162,23 @@ class OrganNet25D(nn.Module):
         self.fine_3d_1 = HDCResSE(
             hdc=ResHDCModule,
             in_channels=64,
-            out_channels=128,
+            out_channels=hdc_out_channels[0],
             padding=padding["hdc_1"],
             activation=activations["fine_resse"],
             dilation=hdc_dilations[0],
         )
         self.fine_3d_2 = HDCResSE(
             hdc=ResHDCModule,
-            in_channels=128,
-            out_channels=256,
+            in_channels=hdc_out_channels[0],
+            out_channels=hdc_out_channels[1],
             padding=padding["hdc_2"],
             activation=activations["fine_resse"],
             dilation=hdc_dilations[1],
         )
         self.fine_3d_3 = HDCResSE(
             hdc=ResHDCModule,
-            in_channels=256,
-            out_channels=128,
+            in_channels=2 * hdc_out_channels[1],
+            out_channels=hdc_out_channels[2],
             padding=padding["hdc_3"],
             activation=activations["fine_resse"],
             dilation=hdc_dilations[2],
@@ -205,8 +208,8 @@ class OrganNet25D(nn.Module):
 
         temp = [
             nn.Conv3d(
-                in_channels=256,
-                out_channels=128,
+                in_channels=hdc_out_channels[1],
+                out_channels=hdc_out_channels[0],
                 groups=1,
                 kernel_size=(1, 1, 1),
                 padding=padding["one_d_1"],
@@ -219,7 +222,7 @@ class OrganNet25D(nn.Module):
 
         temp = [
             nn.Conv3d(
-                in_channels=128,
+                in_channels=hdc_out_channels[2],
                 out_channels=64,
                 groups=1,
                 kernel_size=(1, 1, 1),
@@ -397,8 +400,8 @@ def main():
     channels_in = 1
     channels_out = 10
 
-    # width = height = 48  # * 2
-    # depth = 36
+    width = height = 64  # * 2
+    depth = 24
 
     # Batch x Channels x Depth x Height x Width
     input_shape = (batch, channels_in, depth, height, width)
@@ -407,22 +410,24 @@ def main():
     input = torch.rand(input_shape)
 
     dilations = [[1, 2, 5, 9], [1, 2, 5, 9], [1, 2, 5, 9]]
-    model = OrganNet25D(hdc_dilations=dilations, padding="yes")
+    # hdc_out_channels = [128, 256, 128]
+    # hdc_out_channels = [64, 128, 64]
+    hdc_out_channels = [64, 64, 64]
+    model = OrganNet25D(hdc_dilations=dilations, hdc_out_channels=hdc_out_channels, padding="yes")
     # model = ToyOrganNet25D()
 
-    output = model(input, verbose=True)
+    # output = model(input, verbose=True)
 
-    msg = f"""
-    Input shape: {input.shape}\n
-    Output shape: {output.shape}\n
-    Output shape correct: {output.shape == expected_output_shape} (expected: {expected_output_shape}).
-    """
-    print(msg)
+    # msg = f"""
+    # Input shape: {input.shape}\n
+    # Output shape: {output.shape}\n
+    # Output shape correct: {output.shape == expected_output_shape} (expected: {expected_output_shape}).
+    # """
+    # print(msg)
 
-    from torchsummary import summary
     from torchinfo import summary
 
-    summary(model, input_size=input_shape[1:], batch_size=2)
+    summary(model, input_size=input_shape)
 
 
 if __name__ == "__main__":
