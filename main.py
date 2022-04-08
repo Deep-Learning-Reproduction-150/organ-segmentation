@@ -13,12 +13,7 @@ from src.Runner.Runner import Runner
 
 # Add all the jobs, that you want to run, here
 jobs = [
-    "config/activation-testing-3-Cross.json",
-    "config/activation-testing-3-MSE.json",
-    "config/activation-testing-2-Cross.json",
-    "config/activation-testing-2-MSE.json",
-    "config/activation-testing-1-Cross.json",
-    "config/activation-testing-1-MSE.json",
+    "config/testing.json",
 ]
 
 # Main guard for multithreading the runner "below"

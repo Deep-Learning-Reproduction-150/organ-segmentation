@@ -954,9 +954,7 @@ class Runner:
 
     def _get_optimizer(self, optimizer_setup: dict, **params):
         if optimizer_setup["name"] == "Adam":
-            optimizer = torch.optim.Adam(
-                self.model.parameters(), lr=optimizer_setup["learning_rate"], betas=optimizer_setup["betas"], **params
-            )
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=optimizer_setup["learning_rate"])
             if self.checkpoint is not None:
                 Logger.log("Recovering optimizer from the last checkpoint", type="WARNING", in_cli=True)
                 try:
