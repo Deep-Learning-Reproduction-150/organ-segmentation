@@ -115,7 +115,6 @@ class OrganNet25D(nn.Module):
         self.two_d_1 = conv_2x2d(
             in_channels=1,
             out_channels=16,
-            groups=1,
             kernel_size=(1, 3, 3),
             stride=1,
             activation=activations["2d"],
@@ -125,7 +124,6 @@ class OrganNet25D(nn.Module):
         self.two_d_2 = conv_2x2d(
             in_channels=32,
             out_channels=32,
-            groups=1,
             kernel_size=(1, 3, 3),
             stride=1,
             activation=activations["2d"],
