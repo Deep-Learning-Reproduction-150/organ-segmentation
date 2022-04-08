@@ -112,7 +112,7 @@
             ],
             "output_transforms": [
                 {
-                    "name": "SubCubeBuilder",
+                    "name": "GenerateSubCube",
                     "width": 128,
                     "height": 128,
                     "depth": 36
