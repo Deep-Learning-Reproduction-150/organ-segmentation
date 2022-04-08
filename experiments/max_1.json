@@ -1,5 +1,5 @@
 {
-    "name": "Test MAX 1",
+    "name": "Max 1 (Cubes)",
     "resume": false,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
@@ -10,13 +10,19 @@
         "name": "OrganNet25D",
         "padding": "yes",
         "activations": {
-            "coarse_resse": "relu",
-            "fine_resse": "relu",
+            "coarse_resse": "sigmoid",
+            "fine_resse": "sigmoid",
             "2d": "relu",
             "one_d_1": "relu",
             "one_d_2": "relu",
-            "one_d_3": "softmax"
+            "one_d_3": "relu",
+            "output_activation": "sigmoid"
         },
+        "hdc_out_channels": [
+            128,
+            256,
+            128
+        ],
         "hdc_dilations": [
             [
                 1,
@@ -40,14 +46,14 @@
         ]
     },
     "training": {
-        "early_stopping_patience": 40,
+        "early_stopping_patience": 50,
         "epochs": 200,
         "detect_bad_gradients": false,
         "grad_norm_clip": 1,
         "split_ratio": 0.77,
         "batch_size": 2,
         "loss": {
-            "name": "DiceLoss",
+            "name": "CombinedLoss",
             "alpha": [
                 1.0,
                 4.0,
@@ -92,18 +98,6 @@
                     "name": "Transpose",
                     "dim_1": 0,
                     "dim_2": -1
-                },
-                {
-                    "name": "CropAroundBrainStem",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
-                },
-                {
-                    "name": "EasyResize",
-                    "width": 128,
-                    "height": 128,
-                    "depth": 36
                 }
             ],
             "sample_transforms": [
@@ -113,22 +107,17 @@
                     "dim_2": -1
                 },
                 {
-                    "name": "CropAroundBrainStem",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
-                },
-                {
-                    "name": "EasyResize",
-                    "width": 128,
-                    "height": 128,
-                    "depth": 36
-                },
-                {
                     "name": "StandardScaleTensor"
                 }
             ],
-            "output_transforms": []
+            "output_transforms": [
+                {
+                    "name": "SubCubeBuilder",
+                    "width": 128,
+                    "height": 128,
+                    "depth": 36
+                }
+            ]
         }
     }
 }

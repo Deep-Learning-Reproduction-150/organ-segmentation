@@ -1,5 +1,5 @@
 {
-    "name": "Test 5",
+    "name": "Test 5 (Cubes)",
     "resume": false,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
@@ -17,6 +17,11 @@
             "one_d_2": "relu",
             "one_d_3": "softmax"
         },
+        "hdc_out_channels": [
+            128,
+            256,
+            128
+        ],
         "hdc_dilations": [
             [1, 2, 5, 7],
             [3, 9, 12],
@@ -47,7 +52,7 @@
             ]
         },
         "dataset": {
-            "root": "./data/train",
+            "root": "./data/cool_train",
             "num_workers": 0,
             "labels": [
                 "BrainStem",
@@ -65,18 +70,6 @@
                     "name": "Transpose",
                     "dim_1": 0,
                     "dim_2": -1
-                },
-                {
-                    "name": "CropAroundBrainStem",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
-                },
-                {
-                    "name": "EasyResize",
-                    "width": 96,
-                    "height": 96,
-                    "depth": 36
                 }
             ],
             "sample_transforms": [
@@ -86,22 +79,17 @@
                     "dim_2": -1
                 },
                 {
-                    "name": "CropAroundBrainStem",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
-                },
-                {
-                    "name": "EasyResize",
-                    "width": 96,
-                    "height": 96,
-                    "depth": 36
-                },
-                {
                     "name": "StandardScaleTensor"
                 }
             ],
-            "output_transforms": []
+            "output_transforms": [
+                {
+                    "name": "SubCubeBuilder",
+                    "width": 96,
+                    "height": 96,
+                    "depth": 36
+                }
+            ]
         }
     }
 }
