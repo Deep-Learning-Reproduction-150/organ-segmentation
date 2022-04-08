@@ -277,9 +277,6 @@ class LabeledSample:
             # Load the organ configuration
             if 'resampled' in voxel_description and 'labels_oars' in voxel_description['resampled']:
 
-                # MHA files must preload now
-                Logger.log("Sample " + str(os.path.split(path)[-1]) + ' is mha file: preloading data ...', type="WARNING", in_cli=True)
-
                 # Load the organs at risk in the masks
                 oars = voxel_description['resampled']['labels_oars']
 
