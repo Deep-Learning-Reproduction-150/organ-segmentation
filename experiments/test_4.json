@@ -49,7 +49,7 @@
         "detect_bad_gradients": false,
         "grad_norm_clip": 1,
         "split_ratio": 0.77,
-        "batch_size": 2,
+        "batch_size": 8,
         "loss": {
             "name": "CombinedLoss",
             "alpha": [
@@ -123,8 +123,8 @@
             "output_transforms": [
                 {
                     "name": "GenerateSubCube",
-                    "width": 96,
-                    "height": 96,
+                    "width": 128,
+                    "height": 128,
                     "depth": 24
                 }
             ]

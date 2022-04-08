@@ -123,7 +123,7 @@
                     "name": "GenerateSubCube",
                     "width": 128,
                     "height": 128,
-                    "depth": 48
+                    "depth": 24
                 }
             ]
         }

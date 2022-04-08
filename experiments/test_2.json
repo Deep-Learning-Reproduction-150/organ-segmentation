@@ -120,8 +120,8 @@
             "output_transforms": [
                 {
                     "name": "GenerateSubCube",
-                    "width": 72,
-                    "height": 72,
+                    "width": 128,
+                    "height": 128,
                     "depth": 24
                 }
             ]
