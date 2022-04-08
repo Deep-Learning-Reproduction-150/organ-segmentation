@@ -789,8 +789,9 @@ class Runner:
         except:
             pass
 
+        path = Path("data") / "examples" / f"{filename}.csv"
         # Append this slice to the predictions
-        pd.concat(organ_data).to_csv(f"data/examples/{filename}.csv")
+        pd.concat(organ_data).to_csv(path)
 
     def _log_prediction_examples(self, inputs, labels, model_output):
         """
