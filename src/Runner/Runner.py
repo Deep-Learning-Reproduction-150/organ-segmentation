@@ -738,44 +738,47 @@ class Runner:
             Logger.log("No prediction examples could be logged, as there is no model output", in_cli=True)
 
     def _export_prediction_examples(self, inputs, labels, model_output):
-        import pandas as pd
+        try:
+            import pandas as pd
 
-        organ_data = []
+            organ_data = []
 
-        batch_no = random.randint(0, inputs.size()[0] - 1)
-        # Obtain the actual image
-        sample_image = inputs[batch_no, 0, :, :, :]
+            batch_no = random.randint(0, inputs.size()[0] - 1)
+            # Obtain the actual image
+            sample_image = inputs[batch_no, 0, :, :, :]
 
-        # Create raw prediction and label masks
-        prediction_mask_data = torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"]) + 1
-        label_mask_data = torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"])
+            # Create raw prediction and label masks
+            prediction_mask_data = torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"]) + 1
+            label_mask_data = torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"])
 
-        # Iterate through all organs and add them to it
-        for organ_slice, organ in enumerate(self.job["training"]["dataset"]["labels"]):
-            raw_prediction = model_output[batch_no, organ_slice, :, :, :]
-            raw_label = labels[batch_no, organ_slice, :, :, :]
+            # Iterate through all organs and add them to it
+            for organ_slice, organ in enumerate(self.job["training"]["dataset"]["labels"]):
+                raw_prediction = model_output[batch_no, organ_slice, :, :, :]
+                raw_label = labels[batch_no, organ_slice, :, :, :]
 
-            prediction_mask_data = torch.where(raw_prediction > 0.5, 1, 0).nonzero(as_tuple=False).detach().numpy()
+                prediction_mask_data = torch.where(raw_prediction > 0.5, 1, 0).nonzero(as_tuple=False).detach().numpy()
 
-            label_mask_data = torch.where(raw_label > 0.5, 1, 0).nonzero(as_tuple=False).detach().numpy()
+                label_mask_data = torch.where(raw_label > 0.5, 1, 0).nonzero(as_tuple=False).detach().numpy()
 
-            prediction_df = pd.DataFrame(data=prediction_mask_data, columns=["x", "y", "z"])
-            organ_df = pd.DataFrame(data=label_mask_data, columns=["x", "y", "z"])
-            organ_df["facecolor"] = "rgb(0,169,0)"
-            prediction_df["facecolor"] = "rgb(35,169,131)"
-            organ_df["organ_names"] = organ
-            prediction_df["organ_names"] = organ + "Pred"
+                prediction_df = pd.DataFrame(data=prediction_mask_data, columns=["x", "y", "z"])
+                organ_df = pd.DataFrame(data=label_mask_data, columns=["x", "y", "z"])
+                organ_df["facecolor"] = "rgb(0,169,0)"
+                prediction_df["facecolor"] = "rgb(35,169,131)"
+                organ_df["organ_names"] = organ
+                prediction_df["organ_names"] = organ + "Pred"
 
-            organ_data.append(organ_df)
-            organ_data.append(prediction_df)
-        from datetime import datetime
+                organ_data.append(organ_df)
+                organ_data.append(prediction_df)
+            from datetime import datetime
 
-        datetime_str = datetime.now()
+            datetime_str = datetime.now()
 
-        datetime_object = datetime.strftime(datetime_str, "%m-%d-%H:%M:%S")
+            filename = self.job["name"] + datetime.strftime(datetime_str, "%m-%d-%H:%M:%S")
+        except:
+            pass
 
         # Append this slice to the predictions
-        pd.concat(organ_data).to_csv(f"data/examples/{datetime_object}.csv")
+        pd.concat(organ_data).to_csv(f"data/examples/{filename}.csv")
 
     def _log_prediction_examples(self, inputs, labels, model_output):
         """
