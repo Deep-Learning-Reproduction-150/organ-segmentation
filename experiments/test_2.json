@@ -37,7 +37,7 @@
     },
     "training": {
         "early_stopping_patience": 40,
-        "epochs": 200,
+        "epochs": 120,
         "detect_bad_gradients": false,
         "grad_norm_clip": 1,
         "split_ratio": 0.77,
@@ -97,8 +97,8 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 128,
-                    "height": 128,
+                    "width": 72,
+                    "height": 72,
                     "depth": 24
                 }
             ],
@@ -116,8 +116,8 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 128,
-                    "height": 128,
+                    "width": 72,
+                    "height": 72,
                     "depth": 24
                 },
                 {

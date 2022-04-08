@@ -4,7 +4,7 @@
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
     "wandb_prediction_examples": 8,
-    "wandb_api_key": null,
+    "wandb_api_key": "95ed858952b08bd94a4727a73c4cd889dff22a19",
     "log_3d_csv": true,
     "model": {
         "name": "OrganNet25D",
@@ -37,7 +37,7 @@
     },
     "training": {
         "early_stopping_patience": 40,
-        "epochs": 200,
+        "epochs": 120,
         "detect_bad_gradients": false,
         "grad_norm_clip": 1,
         "split_ratio": 0.77,
