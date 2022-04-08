@@ -98,6 +98,12 @@
                     "name": "Transpose",
                     "dim_1": 0,
                     "dim_2": -1
+                },
+                {
+                    "name": "EasyResize",
+                    "width": 256,
+                    "height": 256,
+                    "depth": 48
                 }
             ],
             "sample_transforms": [
@@ -105,6 +111,12 @@
                     "name": "Transpose",
                     "dim_1": 0,
                     "dim_2": -1
+                },
+                {
+                    "name": "EasyResize",
+                    "width": 256,
+                    "height": 256,
+                    "depth": 48
                 },
                 {
                     "name": "StandardScaleTensor"
