@@ -1,10 +1,10 @@
 {
-    "name": "Test 1",
+    "name": "Test 6",
     "resume": false,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
     "wandb_prediction_examples": 8,
-    "wandb_api_key": null,
+    "wandb_api_key": "fc5956d0fca9948179775b93d897216829180ad5",
     "log_3d_csv": true,
     "model": {
         "name": "OrganNet25D",
@@ -19,19 +19,19 @@
         },
         "hdc_dilations": [
             [1, 2, 5, 7],
-            [1, 2, 5, 7],
-            [1, 2, 5, 7]
+            [1, 5, 13],
+            [2, 7, 9]
         ]
     },
     "training": {
         "early_stopping_patience": 40,
-        "epochs": 200,
+        "epochs": 120,
         "detect_bad_gradients": false,
         "grad_norm_clip": 1,
         "split_ratio": 0.77,
         "batch_size": 2,
         "loss": {
-            "name": "CombinedLoss",
+            "name": "DiceLoss",
             "alpha": [1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0, 0.5]
         },
         "optimizer": {
@@ -42,8 +42,8 @@
             "name": "MultiStepLR",
             "gamma": 0.1,
             "milestones": [
-                50,
-                100
+                60,
+                90
             ]
         },
         "dataset": {
@@ -74,9 +74,9 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 96,
+                    "height": 96,
+                    "depth": 24
                 }
             ],
             "sample_transforms": [
@@ -93,9 +93,9 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 96,
+                    "height": 96,
+                    "depth": 24
                 },
                 {
                     "name": "StandardScaleTensor"
