@@ -194,7 +194,7 @@ class LabeledSample:
         if len(tensors) > 0:
 
             # Create background slice
-            label_mask = torch.zeros_like(tensors[0], dtype=torch.int8)
+            label_mask = torch.ones_like(tensors[0], dtype=torch.int8)
             for i, label in enumerate(tensors):
                 label_mask = torch.where(label > torch.tensor(0, dtype=torch.int8), torch.tensor(0, dtype=torch.int8), label_mask)
             tensors.append(label_mask)
