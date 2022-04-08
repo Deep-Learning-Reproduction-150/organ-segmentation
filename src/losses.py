@@ -75,14 +75,29 @@ class DiceCoefficient(nn.Module):
     def __init__(self, **params):
         super().__init__()
 
-    def forward(self, inputs, targets):
+    def forward(self, inputs, targets, reduce_method="mean", return_per_channel=False):
         # Compute the dice coefficient
-        channels = inputs.size()[1]
-        inputs = inputs[:].contiguous().view(-1)
-        targets = targets[:].contiguous().view(-1)
-        intersection = (inputs * targets).sum()
-        dice = ((2.0 * intersection) / (inputs.sum() + targets.sum())) / channels
-        return dice
+        # channels = inputs.size()[1]
+        # inputs = inputs[:].contiguous().view(-1)
+        # targets = targets[:].contiguous().view(-1)
+        # intersection = (inputs * targets).sum()
+        # dice = ((2.0 * intersection) / (inputs.sum() + targets.sum())) / channels
+        # return dice
+        # Compute the elementwise operations p * y and p + y
+        dice_top = 2 * inputs * targets + 1e-4
+        dice_bottom = inputs + targets + 1e-4
+        dice = dice_top / dice_bottom
+        if reduce_method == "mean":
+            dsc_per_channel = dice.mean(dim=(0, 3, 2, 4))
+        elif reduce_method == "sum":
+            dsc_per_channel = dice.sum(dim=(0, 3, 2, 4))
+
+        dsc_avg = dsc_per_channel.mean()
+
+        if return_per_channel:
+            return dsc_avg, dsc_per_channel
+
+        return dsc_avg
 
 
 class DiceLoss(nn.Module):
