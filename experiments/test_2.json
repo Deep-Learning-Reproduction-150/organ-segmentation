@@ -18,9 +18,9 @@
             "one_d_3": "softmax"
         },
         "hdc_out_channels": [
+            64,
             128,
-            128,
-            128
+            64
         ],
         "hdc_dilations": [
             [
