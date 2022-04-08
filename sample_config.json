@@ -100,6 +100,14 @@
                 {
                     "name": "StandardScaleTensor"
                 }
+            ],
+            "output_transforms": [
+                {
+                    "name": "SubCubeBuilder",
+                    "width": 140,
+                    "height": 140,
+                    "depth": 20
+                }
             ]
         }
     }

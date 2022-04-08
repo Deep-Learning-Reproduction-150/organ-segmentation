@@ -34,8 +34,8 @@ class CTDataset(Dataset):
     label_transforms = None
     sample_transforms = None
 
-    def __init__(self, root, label_folder_name: str = "structures", preload: bool = True, label_transforms: list = [],
-                 sample_transforms: list = [], no_logging: bool = True, label_structure: list = None):
+    def __init__(self, root, preload: bool = True, label_transforms: list = None, output_transforms: list = None,
+                 sample_transforms: list = None, no_logging: bool = True, label_structure: list = None):
         """
         Constructor method of the dataloader. First parameter specifies directories that contain labels to the files
         provided. The dataloader is designed to work with nrrd files only at the moment. n-dimensional numpy arrays
@@ -54,6 +54,7 @@ class CTDataset(Dataset):
         # Save the transform
         self.label_transforms = label_transforms
         self.sample_transforms = sample_transforms
+        self.output_transforms = output_transforms
 
         # Save the label structure
         self.label_structure = label_structure
@@ -161,6 +162,12 @@ class CTDataset(Dataset):
         sample = sample_instance.get_tensor()
         labels = sample_instance.get_labels(self.label_structure)
 
+        # Check if there are any output transforms to apply
+        if self.output_transforms is not None:
+            output_transformer = self.get_data_transformer('output')
+            sample = output_transformer(sample)
+            labels = output_transformer(labels)
+
         # Return (data tensor, label tensor)
         return sample, labels
 
@@ -216,6 +223,8 @@ class CTDataset(Dataset):
         # Create transform set
         if destination == 'sample':
             transforms = self.sample_transforms
+        elif destination == 'output':
+            transforms = self.output_transforms
         else:
             transforms = self.label_transforms
         # Create a data transformer

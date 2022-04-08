@@ -220,3 +220,58 @@ class ZeroOneScaleTensor(object):
         scaled_tensor = ((tensor - tensor.min()) / (tensor.max() - tensor.min() + 1e-6)).to(tensor.dtype)
 
         return scaled_tensor
+
+
+class GenerateSubCube(object):
+    def __init__(self, depth=1, width=1, height=1):
+        self.depth = depth
+        self.width = width
+        self.height = height
+
+    def __call__(self, vol, center):
+
+        # Get the tensors dimensions for further computation
+        dims = list(vol[:, :, :].size())
+        wanted_dims = [self.depth, self.width, self.height]
+
+        # Check the desired dimensions
+        if len(dims) != len(wanted_dims) + 1:
+            raise ValueError("Dimensions mismatch in GenerateSubCube transformation")
+
+        # Check if it is possible
+        for i, w in enumerate(wanted_dims):
+            if w > dims[i + 1]:
+                raise Exception("Dimension " + str(i + 1) + " of the data is " + str(dims[i + 1]) +
+                                ". Can not create Cube with size " + str(w))
+
+        # Iterate through the dimensions of gravity center
+        for i, c in enumerate(center):
+
+            # Transform the center in a real coordinate
+            random_cors = int(dims[i + 1] * c)
+
+            # Compute the max and min crop bound
+            crop_max = int(random_cors + wanted_dims[i] / 2)
+            crop_min = crop_max - wanted_dims[i]
+
+            if crop_max > dims[i + 1]:
+                # Correct downwards
+                diff = crop_max - dims[i + 1]
+                crop_max -= diff
+                crop_min -= diff
+
+            if crop_min < 0:
+                # Correct upwards
+                diff = -crop_min
+                crop_max += diff
+                crop_min += diff
+
+            # Depending on the dimension, cut tensor
+            if i == 0:
+                vol = vol[:, crop_min:crop_max, :, :]
+            if i == 1:
+                vol = vol[:, :, crop_min:crop_max, :]
+            if i == 2:
+                vol = vol[:, :, :, crop_min:crop_max]
+
+        return vol

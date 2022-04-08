@@ -1059,6 +1059,7 @@ class Runner:
             preload=preload,
             label_transforms=data["label_transforms"],
             sample_transforms=data["sample_transforms"],
+            output_transforms=data["output_transforms"],
             label_structure=data["labels"],
             no_logging=False,
         )

@@ -124,7 +124,8 @@
                 {
                     "name": "StandardScaleTensor"
                 }
-            ]
+            ],
+            "output_transforms": []
         }
     }
 }
