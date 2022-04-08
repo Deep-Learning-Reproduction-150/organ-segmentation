@@ -853,53 +853,16 @@ class Runner:
             # Do 5 random slices to show what is happening
             for slice_no in good_slices:
 
-                # Obtain the actual image
+                # Obtain a sample image
                 sample_image = inputs[batch_no, 0, slice_no, :, :]
 
-                # Create raw prediction and label masks
-                prediction_mask_data = (
-                    torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"]) + 1
-                )
-                label_mask_data = torch.ones_like(sample_image) * len(self.job["training"]["dataset"]["labels"])
-
-                # Iterate through all organs and add them to it
-                for organ_slice, organ in enumerate(self.job["training"]["dataset"]["labels"]):
-                    raw_prediction = model_output[batch_no, organ_slice, slice_no, :, :]
-                    raw_label = labels[batch_no, organ_slice, slice_no, :, :]
-
-                    # Label threshold
-                    label_threshold = float(
-                        (raw_label.min() + (raw_label.max() - raw_label.min()) / 2) if raw_label.min() > 0 else 0
-                    )
-
-                    # Create a dynamic threshold based on the median
-                    prediction_threshold = float(
-                        raw_prediction.min() + ((raw_prediction.max() - raw_prediction.min()) / 2)
-                    )
-
-                    prediction_mask_data = torch.where(
-                        raw_prediction > prediction_threshold,
-                        torch.tensor(organ_slice, dtype=torch.float32),
-                        prediction_mask_data,
-                    )
-                    label_mask_data = torch.where(
-                        raw_label > label_threshold, torch.tensor(organ_slice, dtype=torch.float32), label_mask_data
-                    )
-
-                # Do the same for the background
-                background_prediction = model_output[
-                    batch_no, len(self.job["training"]["dataset"]["labels"]), slice_no, :, :
-                ]
-                prediction_mask_data = torch.where(
-                    background_prediction > float(background_prediction.median()),
-                    torch.tensor(len(self.job["training"]["dataset"]["labels"]), dtype=torch.float32),
-                    prediction_mask_data,
-                )
+                # Obtain the actual image
+                predictions_mask = torch.argmax(model_output[batch_no, :, slice_no, :, :], dim=0)
+                labels_mask = torch.argmax(labels[batch_no, :, slice_no, :, :], dim=0)
 
                 # Prepare class labels
                 class_labels = {
                     len(self.job["training"]["dataset"]["labels"]): "Background",
-                    len(self.job["training"]["dataset"]["labels"]) + 1: "No Prediction",
                 }
                 for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
                     class_labels[i] = organ
@@ -915,11 +878,11 @@ class Runner:
                         masks={
                             "predictions": {
                                 "class_labels": class_labels,
-                                "mask_data": prediction_mask_data.cpu().detach().numpy(),
+                                "mask_data": predictions_mask.cpu().detach().numpy(),
                             },
                             "ground_truth": {
                                 "class_labels": class_labels,
-                                "mask_data": label_mask_data.cpu().detach().numpy(),
+                                "mask_data": labels_mask.cpu().detach().numpy(),
                             },
                         },
                     )
