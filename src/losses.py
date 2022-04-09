@@ -39,7 +39,7 @@ class L1Loss(L1Loss):
 
 
 class CombinedLoss(nn.Module):
-    def __init__(self, alpha, **kwargs):
+    def __init__(self, alpha, eps=1e-4, **kwargs):
         """
         TODO: Implement weights["focal"] as
         0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, and 3.0
@@ -49,8 +49,8 @@ class CombinedLoss(nn.Module):
         super(CombinedLoss, self).__init__()
         self.input_dim = None
         self.alpha_vals = None
-        self.dice = DiceLoss()
-        self.focal = FocalLoss()
+        self.dice = DiceLoss(eps=eps)
+        self.focal = FocalLoss(eps=eps)
         self.alpha = alpha
 
     def forward(self, inputs, targets, l=1.0, gamma=2, dsc_reduce="mean", return_per_channel_dsc=False):
@@ -81,7 +81,7 @@ class CombinedLoss(nn.Module):
 
 
 class DiceCoefficient(nn.Module):
-    def __init__(self, **params):
+    def __init__(self, eps=1e-4, **params):
         super().__init__()
 
     def forward(self, inputs, targets, reduce_method="mean", return_per_channel_dsc=False):
@@ -93,8 +93,8 @@ class DiceCoefficient(nn.Module):
         # dice = ((2.0 * intersection) / (inputs.sum() + targets.sum())) / channels
         # return dice
         # Compute the elementwise operations p * y and p + y
-        dice_top = 2 * inputs * targets + 1e-4
-        dice_bottom = inputs + targets + 1e-4
+        dice_top = 2 * inputs * targets + self.eps
+        dice_bottom = inputs + targets + self.eps
         dice = dice_top / dice_bottom
         if reduce_method == "mean":
             dsc_per_channel = dice.mean(dim=(0, 3, 2, 4))
@@ -112,11 +112,11 @@ class DiceCoefficient(nn.Module):
 
 
 class DiceLoss(nn.Module):
-    def __init__(self, **params):
+    def __init__(self, eps=1e-4, **params):
         super().__init__()
 
     def forward(self, inputs, targets, reduce_method="mean", return_per_channel_dsc=False):
-        dice = DiceCoefficient()(
+        dice = DiceCoefficient(eps=self.eps)(
             inputs, targets, reduce_method=reduce_method, return_per_channel_dsc=return_per_channel_dsc
         )
         if return_per_channel_dsc:
@@ -127,7 +127,7 @@ class DiceLoss(nn.Module):
 
 
 class FocalLoss(nn.Module):
-    def __init__(self, **params):
+    def __init__(self, eps=1e-4, **params):
         super().__init__()
 
     def forward(self, inputs, targets, alpha, gamma=2.0):
@@ -147,8 +147,7 @@ class FocalLoss(nn.Module):
         # return focal_loss
         inputs = inputs.view(-1)
         targets = targets.view(-1)
-        eps = 1e-7
-        focal_loss = -alpha[: inputs.shape[0]] * (1 - inputs) ** gamma * targets * (inputs + eps).log()
+        focal_loss = -alpha[: inputs.shape[0]] * (1 - inputs) ** gamma * targets * (inputs + self.eps).log()
 
         return focal_loss.mean()
 

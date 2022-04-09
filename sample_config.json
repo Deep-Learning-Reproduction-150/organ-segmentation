@@ -52,6 +52,7 @@
         "batch_size": 2,
         "loss": {
             "name": "CombinedLoss",
+            "eps": 1e-4,
             "alpha": [
                 1.0,
                 4.0,
