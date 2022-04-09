@@ -10,6 +10,7 @@ import os
 import torch
 import nrrd
 import imageio
+from medpy.io import load
 import matplotlib.pyplot as plt
 from torch import from_numpy
 from src.utils import bcolors, Logger
@@ -51,6 +52,7 @@ class CTData:
 
         # Set loaded
         self.loaded = params.get('loaded', False)
+        self.data_channel = params.get('data_channel', None)
 
         # Save the path of the datafile
         if path is not None:
@@ -114,6 +116,10 @@ class CTData:
                 # Apply transformations
                 if transformer is not None:
 
+                    # Set the transformer in loading state
+                    transformer.set_loading(True)
+                    transformer.set_on_the_fly(False)
+
                     # Apply the transformer to the data in place
                     self.data = transformer(self.data)
 
@@ -121,7 +127,7 @@ class CTData:
 
                 # Raise exception that file could not be loaded
                 raise ValueError(
-                    bcolors.FAIL + "ERROR: could not read nrrd file at " + self.path + "(" + str(error) + ")" + bcolors.ENDC)
+                    bcolors.FAIL + "ERROR: could not read or transform data at " + self.path + "(" + str(error) + ")" + bcolors.ENDC)
 
     def get_tensor(self, transformer=DataTransformer([]), dtype: torch.dtype = torch.float32):
         """
@@ -139,10 +145,18 @@ class CTData:
             if self.data.ndim == 3:
                 return self.data.unsqueeze(0)
 
+            # Set the transformer in loading state
+            transformer.set_loading(False)
+            transformer.set_on_the_fly(True)
+
             # Return the transformed data stored in instance
-            return self.data
+            return transformer(self.data)
 
         else:
+
+            # Set the transformer in loading state
+            transformer.set_loading(True)
+            transformer.set_on_the_fly(True)
 
             # Get transformed data
             data = transformer(self._get_from_file(dtype))
@@ -295,8 +309,26 @@ class CTData:
         if self.data is not None:
             raise ValueError("ERROR while reading data from file: CTData object already has data assigned")
 
-        # Load the data and throw it into an ndarray
-        extracted_data, header = nrrd.read(self.path)
+        # Extract the file type
+        file_type = (os.path.split(self.path)[-1]).split('.')[-1]
 
-        # Save the as attributes for this instance
-        return from_numpy(extracted_data).to(dtype)
+        if file_type == 'nrrd':
+
+            # Load the data and throw it into an ndarray
+            extracted_data, header = nrrd.read(self.path)
+
+            # Save the as attributes for this instance
+            return from_numpy(extracted_data).to(dtype)
+
+        else:
+
+            if self.data_channel is not None:
+                # extract the organ data from
+                data_tensor = torch.from_numpy(load(os.path.join(self.path))[0])
+                organ_mask = torch.where(data_tensor == self.data_channel, 1., 0.).to(torch.uint8)
+                return organ_mask
+
+            else:
+                # extract the data from mha file
+                data_tensor = torch.from_numpy(load(os.path.join(self.path))[0]).to(torch.float32)
+                return data_tensor

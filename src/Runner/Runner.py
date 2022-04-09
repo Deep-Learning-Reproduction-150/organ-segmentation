@@ -373,6 +373,8 @@ class Runner:
             # Run through batches and perform model training
             for batch, batch_input in enumerate(self.train_data):
 
+                Logger.log("Runner : run training loop", in_cli=True)
+
                 # Extract inputs and labels from the batch input
                 inputs, labels = batch_input
 

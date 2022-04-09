@@ -11,7 +11,7 @@ import importlib
 import torch.nn as nn
 from torch.utils.data import Dataset
 from src.utils import bcolors, Logger
-from src.Data.LabeledSample import LabeledSample
+from src.Data.AdvancedSample import AdvancedSample
 from src.Data.utils import DataTransformer
 
 
@@ -92,8 +92,9 @@ class CTDataset(Dataset):
             if element.is_dir():
 
                 # Create a new instance of a labeled sample
-                new_sample = LabeledSample(
+                new_sample = AdvancedSample(
                     path=element.path,
+                    label_structure=self.label_structure,
                     label_transformer=self.get_data_transformer('labels'),
                     sample_transformer=self.get_data_transformer('sample')
                 )
@@ -160,7 +161,7 @@ class CTDataset(Dataset):
 
         # Create sample data (squeeze the dummy channel in there as well)
         sample = sample_instance.get_tensor()
-        labels = sample_instance.get_labels(self.label_structure)
+        labels = sample_instance.get_labels()
 
         # Check if there are any output transforms to apply
         if self.output_transforms is not None:
