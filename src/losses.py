@@ -49,7 +49,7 @@ class CombinedLoss(nn.Module):
         super(CombinedLoss, self).__init__()
         self.input_dim = None
         self.alpha_vals = None
-        self.dice = DiceCoefficient()
+        self.dice = DiceLoss()
         self.focal = FocalLoss()
         self.alpha = alpha
 
@@ -57,13 +57,15 @@ class CombinedLoss(nn.Module):
 
         # Get dice and focal loss
         if return_per_channel_dsc:
-            dice, dice_per_channel = self.dice(inputs, targets, reduce_method=dsc_reduce, return_per_channel_dsc=True)
+            diceloss, dice_per_channel = self.dice(
+                inputs, targets, reduce_method=dsc_reduce, return_per_channel_dsc=True
+            )
         else:
-            dice = self.dice(inputs, targets, reduce_method=dsc_reduce, return_per_channel_dsc=False)
+            diceloss = self.dice(inputs, targets, reduce_method=dsc_reduce, return_per_channel_dsc=False)
         focal = self.focal(inputs, targets, alpha=self.get_alpha(inputs), gamma=gamma)
 
         # Stich them together and return
-        loss = focal + l * (1 - dice)
+        loss = focal + l * diceloss
 
         if return_per_channel_dsc:
             return loss, dice_per_channel
@@ -113,9 +115,9 @@ class DiceLoss(nn.Module):
     def __init__(self, **params):
         super().__init__()
 
-    def forward(self, inputs, targets, dsc_reduce_method="mean", return_per_channel_dsc=False):
+    def forward(self, inputs, targets, reduce_method="mean", return_per_channel_dsc=False):
         dice = DiceCoefficient()(
-            inputs, targets, reduce_method=dsc_reduce_method, return_per_channel_dsc=return_per_channel_dsc
+            inputs, targets, reduce_method=reduce_method, return_per_channel_dsc=return_per_channel_dsc
         )
         if return_per_channel_dsc:
             loss, per_channel = dice
@@ -145,11 +147,10 @@ class FocalLoss(nn.Module):
         # return focal_loss
         inputs = inputs.view(-1)
         targets = targets.view(-1)
+        eps = 1e-7
+        focal_loss = -alpha[: inputs.shape[0]] * (1 - targets) ** gamma * targets * (inputs + eps).log()
 
-        # first compute binary cross-entropy
-        weight = alpha[: inputs.shape[0]] * (1 - targets) ** gamma
-        focal_loss = F.binary_cross_entropy(inputs, targets, weight=weight, reduction="mean")
-        return focal_loss
+        return focal_loss.mean()
 
 
 class MSELoss(nn.Module):
