@@ -135,12 +135,15 @@ class CTData:
         # Check if data has been preloaded
         if self.loaded:
 
+            # Disable loading mode
+            transformer.loading_mode = False
+
             # Check if the channel dimension exists
             if self.data.ndim == 3:
                 return self.data.unsqueeze(0)
 
             # Return the transformed data stored in instance
-            return self.data
+            return transformer(self.data)
 
         else:
 

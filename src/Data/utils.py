@@ -23,6 +23,7 @@ class DataTransformer(object):
     organ_centers = None
 
     output_mode = None
+    loading_mode = None
 
     def __init__(self, transforms):
         """
@@ -34,6 +35,7 @@ class DataTransformer(object):
         self.transforms = transforms
 
         self.output_mode = False
+        self.loading_mode = True
 
         # For some transforms, organ centers are needed
         self.organ_centers = {}
@@ -44,15 +46,18 @@ class DataTransformer(object):
         self.organ_centers[organ] = center
 
     def __call__(self, img):
+
         for t in self.transforms:
             # Check if transform is the special brain stem transformation
             if type(t) is GenerateSubCube:
-                img = t(img, self.random_center)
-            elif type(t) is CropAroundBrainStem:
                 if self.output_mode:
+                    img = t(img, self.random_center)
+            elif type(t) is CropAroundBrainStem:
+                if self.loading_mode:
                     if 'BrainStem' not in self.organ_centers:
                         Logger.log("The transformation CropAroundBrainStem can not be applied")
                     img = t(img, self.organ_centers['BrainStem'])
             else:
-                img = t(img)
+                if self.loading_mode:
+                    img = t(img)
         return img

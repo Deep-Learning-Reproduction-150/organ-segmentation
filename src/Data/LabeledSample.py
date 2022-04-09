@@ -18,6 +18,7 @@ from src.Data.CTData import CTData
 import numpy as np
 from scipy import ndimage
 from src.Data.utils import DataTransformer
+from src.Data.transforms import CropAroundBrainStem
 
 
 class LabeledSample:
@@ -289,11 +290,25 @@ class LabeledSample:
                 mask_data = torch.from_numpy(load(os.path.join(path, mask_data_path))[0])
                 img_data = torch.from_numpy(load(os.path.join(path, image_data_path))[0]).to(torch.float32)
 
-                # Create the sample CT file instance
-                self.sample = CTData(data=self.sample_transformer(img_data), name="img", loaded=True)
-
                 # Initiate labels
                 self.labels = []
+
+                # Compute the center of gravity TODO: this is ugly - preprocessing must be rebuilt
+                for i, organ in enumerate(oars):
+                    if organ == 'BrainStem':
+                        brain_stem_tensor = torch.where(mask_data == i, 1, 0)
+                        for t in self.label_transformer.transforms:
+                            if type(t) == CropAroundBrainStem:
+                                break
+                            brain_stem_tensor = t(brain_stem_tensor)
+                        center_of_gravity = ndimage.center_of_mass(np.array(brain_stem_tensor))
+                        self.brain_stem_center = center_of_gravity
+
+                        # Inject to transformers
+                        self.sample_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+                        self.label_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+
+                        break
 
                 # Create label mask CTData instances
                 for i, organ in enumerate(oars):
@@ -309,6 +324,12 @@ class LabeledSample:
                         label = CTData(data=self.label_transformer(organ_mask), name=organ, loaded=True)
                         # Store the label in the labels attribute
                         self.labels.append(label)
+
+                # Create the sample CT file instance
+                self.sample = CTData(data=self.sample_transformer(img_data), name="img", loaded=True)
+
+                # Set loaded true
+                self.loaded = True
 
             else:
 
