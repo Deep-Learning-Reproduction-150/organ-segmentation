@@ -87,10 +87,6 @@ class LabeledSample:
         else:
             self._read_nrrd(path)
 
-        # Inject transformer insights
-        self.sample_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
-        self.label_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
-
     def visualize(
         self,
         show: bool = False,
@@ -129,6 +125,10 @@ class LabeledSample:
         :return tensor: which contains the data points
         """
 
+        # Inject transformer insights
+        self.sample_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+        self.sample_transformer.output_mode = True
+
         # Get the tensor with the transformers
         tensor = self.sample.get_tensor(transformer=self.sample_transformer)
 
@@ -143,6 +143,9 @@ class LabeledSample:
 
         :return labels: list of tensors that are the labels
         """
+
+        self.label_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+        self.label_transformer.output_mode = True
 
         # Check whether the passed label order is there
         if len(label_structure) == 0:

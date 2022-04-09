@@ -179,7 +179,7 @@ class CTDataset(Dataset):
         """
 
         # Return count of samples
-        return len(self.samples)
+        return len(self.samples) * 8
 
     def create_all_visualizations(self, direction: str = "vertical"):
         """
