@@ -52,6 +52,7 @@ class CombinedLoss(nn.Module):
         self.dice = DiceLoss(eps=eps)
         self.focal = FocalLoss(eps=eps)
         self.alpha = alpha
+        self.eps = eps
 
     def forward(self, inputs, targets, l=1.0, gamma=2, dsc_reduce="mean", return_per_channel_dsc=False):
 
@@ -82,6 +83,7 @@ class CombinedLoss(nn.Module):
 
 class DiceCoefficient(nn.Module):
     def __init__(self, eps=1e-4, **params):
+        self.eps = eps
         super().__init__()
 
     def forward(self, inputs, targets, reduce_method="mean", return_per_channel_dsc=False):
@@ -113,6 +115,7 @@ class DiceCoefficient(nn.Module):
 
 class DiceLoss(nn.Module):
     def __init__(self, eps=1e-4, **params):
+        self.eps = eps
         super().__init__()
 
     def forward(self, inputs, targets, reduce_method="mean", return_per_channel_dsc=False):
@@ -128,6 +131,7 @@ class DiceLoss(nn.Module):
 
 class FocalLoss(nn.Module):
     def __init__(self, eps=1e-4, **params):
+        self.eps = eps
         super().__init__()
 
     def forward(self, inputs, targets, alpha, gamma=2.0):
