@@ -76,7 +76,7 @@
             ]
         },
         "dataset": {
-            "root": "./data/train",
+            "root": "./data/cool_train",
             "num_workers": 0,
             "labels": [
                 "BrainStem",
