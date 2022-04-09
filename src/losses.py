@@ -121,7 +121,7 @@ class DiceLoss(nn.Module):
             loss, per_channel = dice
             return 1 - loss, per_channel
 
-        return 1 - loss
+        return 1 - dice
 
 
 class FocalLoss(nn.Module):
