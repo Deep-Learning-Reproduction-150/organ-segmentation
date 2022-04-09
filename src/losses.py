@@ -148,7 +148,7 @@ class FocalLoss(nn.Module):
         inputs = inputs.view(-1)
         targets = targets.view(-1)
         eps = 1e-7
-        focal_loss = -alpha[: inputs.shape[0]] * (1 - targets) ** gamma * targets * (inputs + eps).log()
+        focal_loss = -alpha[: inputs.shape[0]] * (1 - inputs) ** gamma * targets * (inputs + eps).log()
 
         return focal_loss.mean()
 
