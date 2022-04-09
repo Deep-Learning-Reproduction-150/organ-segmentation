@@ -22,6 +22,8 @@ class DataTransformer(object):
     # Dict containing injected organ centers
     organ_centers = None
 
+    output_mode = None
+
     def __init__(self, transforms):
         """
         Constructor of the data transformer
@@ -30,6 +32,8 @@ class DataTransformer(object):
         """
 
         self.transforms = transforms
+
+        self.output_mode = False
 
         # For some transforms, organ centers are needed
         self.organ_centers = {}
@@ -45,9 +49,10 @@ class DataTransformer(object):
             if type(t) is GenerateSubCube:
                 img = t(img, self.random_center)
             elif type(t) is CropAroundBrainStem:
-                if 'BrainStem' not in self.organ_centers:
-                    Logger.log("The transformation CropAroundBrainStem can not be applied")
-                img = t(img, self.organ_centers['BrainStem'])
+                if self.output_mode:
+                    if 'BrainStem' not in self.organ_centers:
+                        Logger.log("The transformation CropAroundBrainStem can not be applied")
+                    img = t(img, self.organ_centers['BrainStem'])
             else:
                 img = t(img)
         return img
