@@ -1,5 +1,5 @@
 {
-    "name": "Test 1 (Cubes)",
+    "name": "Test 1 (New)",
     "resume": false,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
@@ -132,8 +132,8 @@
             "output_transforms": [
                 {
                     "name": "GenerateSubCube",
-                    "width": 64,
-                    "height": 64,
+                    "width": 96,
+                    "height": 96,
                     "depth": 24
                 }
             ]

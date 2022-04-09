@@ -157,7 +157,7 @@ class CTDataset(Dataset):
 
         # TODO: dirty but just works for now
         batch_factor = 1
-        if len(self.output_transforms) > 0:
+        if len(self.output_transforms) > 0 and self.samples[0].sample.data is not None:
             data_sizes = self.samples[0].sample.data.size()
             depth_parts = data_sizes[0] / self.output_transforms[0]['depth']
             width_parts = data_sizes[1] / self.output_transforms[0]['width']
@@ -173,6 +173,7 @@ class CTDataset(Dataset):
         # Check if there are any output transforms to apply
         if self.output_transforms is not None:
             output_transformer = self.get_data_transformer('output')
+            output_transformer.output_mode = True
             sample = output_transformer(sample)
             labels = output_transformer(labels)
 
@@ -188,7 +189,7 @@ class CTDataset(Dataset):
 
         # TODO: dirty but just works for now
         batch_factor = 1
-        if len(self.output_transforms) > 0:
+        if len(self.output_transforms) > 0 and self.samples[0].sample.data is not None:
             data_sizes = self.samples[0].sample.data.size()
             depth_parts = data_sizes[0] / self.output_transforms[0]['depth']
             width_parts = data_sizes[1] / self.output_transforms[0]['width']
