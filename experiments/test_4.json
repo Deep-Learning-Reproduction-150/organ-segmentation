@@ -99,9 +99,15 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 500,
+                    "height": 500,
+                    "depth": 100
+                },
+                {
+                    "name": "CropAroundBrainStem",
+                    "width": 215,
+                    "height": 215,
+                    "depth": 50
                 }
             ],
             "sample_transforms": [
@@ -112,9 +118,15 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 500,
+                    "height": 500,
+                    "depth": 100
+                },
+                {
+                    "name": "CropAroundBrainStem",
+                    "width": 215,
+                    "height": 215,
+                    "depth": 50
                 },
                 {
                     "name": "StandardScaleTensor"

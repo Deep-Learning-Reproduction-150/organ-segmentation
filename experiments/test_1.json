@@ -99,6 +99,12 @@
                     "width": 256,
                     "height": 256,
                     "depth": 48
+                },
+                {
+                    "name": "CropAroundBrainStem",
+                    "width": 110,
+                    "height": 110,
+                    "depth": 24
                 }
             ],
             "sample_transforms": [
@@ -114,14 +120,20 @@
                     "depth": 48
                 },
                 {
+                    "name": "CropAroundBrainStem",
+                    "width": 110,
+                    "height": 110,
+                    "depth": 24
+                },
+                {
                     "name": "StandardScaleTensor"
                 }
             ],
             "output_transforms": [
                 {
                     "name": "GenerateSubCube",
-                    "width": 128,
-                    "height": 128,
+                    "width": 64,
+                    "height": 64,
                     "depth": 24
                 }
             ]

@@ -7,6 +7,10 @@ config/*
 jobs
 data/*
 
+hidden_main.py
+hidden_experiments_1.py
+hidden_experiments_2.py
+
 wandb
 
 # Exclude macOS files
