@@ -1,5 +1,5 @@
 {
-    "name": "Test 3 (New)",
+    "name": "Test 3 (v3)",
     "resume": false,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
