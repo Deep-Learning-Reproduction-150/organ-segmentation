@@ -19,7 +19,7 @@
         },
         "hdc_out_channels": [
             128,
-            256,
+            128,
             128
         ],
         "hdc_dilations": [
