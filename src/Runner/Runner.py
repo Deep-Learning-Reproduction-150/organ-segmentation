@@ -14,7 +14,7 @@ import wandb
 import os
 import numpy as np
 from src.utils import Logger, Timer, bcolors
-from src.losses import DiceCoefficient
+from src.losses import DiceCoefficient, FocalLoss, CombinedLoss
 from pathlib import Path
 from torch.utils.data import random_split, DataLoader
 from src.Model.OrganNet25D import OrganNet25D
@@ -459,6 +459,10 @@ class Runner:
 
                     # Iterate through channels and compute dice coefficients for metric logging
                     dice_data = dice_loss_fn(model_output, labels, return_per_channel_dsc=True)
+                    alphavec = CombinedLoss(alpha=self.job["training"]["loss"].get("alpha", [1.0] * 10)).get_alpha(
+                        model_output
+                    )
+                    focal_loss = FocalLoss()(model_output, labels, alpha=alphavec)  # Log focal loss
                     total_organ_dice.append(float(dice_data[0]))
                     for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
 
@@ -473,15 +477,21 @@ class Runner:
                         if organ not in organ_dice_coefficients:
                             organ_dice_coefficients[organ] = []
                         organ_dice_coefficients[organ].append(float(dice_data[1][i]))
-                    if 'Background' not in organ_dice_coefficients:
-                        organ_dice_coefficients['Background'] = []
-                    if 'Background' not in pixel_presence_true:
-                        pixel_presence_true['Background'] = []
-                    if 'Background' not in pixel_presence_prediction:
-                        pixel_presence_prediction['Background'] = []
-                    organ_dice_coefficients['Background'].append(float(dice_data[1][len(self.job["training"]["dataset"]["labels"])]))
-                    pixel_presence_true['Background'].append(model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :].sum())
-                    pixel_presence_prediction['Background'].append(model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :].sum())
+                    if "Background" not in organ_dice_coefficients:
+                        organ_dice_coefficients["Background"] = []
+                    if "Background" not in pixel_presence_true:
+                        pixel_presence_true["Background"] = []
+                    if "Background" not in pixel_presence_prediction:
+                        pixel_presence_prediction["Background"] = []
+                    organ_dice_coefficients["Background"].append(
+                        float(dice_data[1][len(self.job["training"]["dataset"]["labels"])])
+                    )
+                    pixel_presence_true["Background"].append(
+                        model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :].sum()
+                    )
+                    pixel_presence_prediction["Background"].append(
+                        model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :].sum()
+                    )
 
                     # Get the current running los
                     current_eval_loss = eval_running_loss / (batch + 1)
@@ -511,7 +521,7 @@ class Runner:
 
                 # Mean over the dice losses
                 for key, val in organ_dice_coefficients.items():
-                    organ_dice_coefficients[key] = sum(val)/len(val)
+                    organ_dice_coefficients[key] = sum(val) / len(val)
 
                 for key, val in pixel_presence_true.items():
                     average_true = sum(val) / len(val)
@@ -570,6 +580,7 @@ class Runner:
                         "Epoch": epoch + 1,
                         "DSC per channel": organ_dice_coefficients,
                         "Dice Score (average)": average_dice_coefficient,
+                        "Focal loss": focal_loss,
                     },
                     commit=False,
                 )
