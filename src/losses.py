@@ -146,7 +146,7 @@ class FocalLoss(nn.Module):
         targets = targets.view(-1)
         focal_loss = -alpha[: inputs.shape[0]] * (1 - inputs) ** gamma * targets * (inputs + self.eps).log()
 
-        return focal_loss.mean()
+        return focal_loss.sum() / targets.shape[1]
 
 
 class MSELoss(nn.Module):
