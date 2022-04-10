@@ -88,22 +88,15 @@ class DiceCoefficient(nn.Module):
 
     def forward(self, inputs, targets, reduce_method="mean", return_per_channel_dsc=False):
         # Compute the dice coefficient
-        # channels = inputs.size()[1]
-        # inputs = inputs[:].contiguous().view(-1)
-        # targets = targets[:].contiguous().view(-1)
-        # intersection = (inputs * targets).sum()
-        # dice = ((2.0 * intersection) / (inputs.sum() + targets.sum())) / channels
-        # return dice
-        # Compute the elementwise operations p * y and p + y
+
         dice_top = 2 * inputs * targets
         dice_bottom = inputs + targets + self.eps
         dice = dice_top / dice_bottom
-        if reduce_method == "mean":
-            dsc_per_channel = dice.mean(dim=(0, 3, 2, 4))
-        elif reduce_method == "sum":
-            dsc_per_channel = dice.sum(dim=(0, 3, 2, 4))
-        else:
-            raise ValueError("Unrecognized reduce_method")
+
+        dsc_per_channel = dice.sum(dim=(0, 3, 2, 4))
+
+        organ_sizes = (targets == 1).sum(dim=(0, 3, 2, 4))
+        dsc_per_channel = torch.divide(dsc_per_channel, organ_sizes + self.eps)
 
         dsc_avg = dsc_per_channel.mean()
 
