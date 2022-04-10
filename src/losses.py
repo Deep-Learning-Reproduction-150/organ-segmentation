@@ -95,7 +95,7 @@ class DiceCoefficient(nn.Module):
         # dice = ((2.0 * intersection) / (inputs.sum() + targets.sum())) / channels
         # return dice
         # Compute the elementwise operations p * y and p + y
-        dice_top = 2 * inputs * targets + self.eps
+        dice_top = 2 * inputs * targets
         dice_bottom = inputs + targets + self.eps
         dice = dice_top / dice_bottom
         if reduce_method == "mean":
