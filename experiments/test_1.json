@@ -79,7 +79,7 @@
             ]
         },
         "dataset": {
-            "root": "./data/cool_debug",
+            "root": "./data/cool_train",
             "num_workers": 0,
             "labels": [
                 "BrainStem",
