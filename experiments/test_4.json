@@ -1,6 +1,6 @@
 {
-    "name": "Test 4 (New)",
-    "resume": false,
+    "name": "Test 4 (Fixed Dice, Small dataset)",
+    "resume": true,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
     "wandb_prediction_examples": 8,
@@ -27,19 +27,25 @@
                 1,
                 2,
                 5,
-                9
+                9,
+                13,
+                17
             ],
             [
                 1,
                 2,
                 5,
-                9
+                9,
+                13,
+                17
             ],
             [
                 1,
                 2,
                 5,
-                9
+                9,
+                13,
+                17
             ]
         ]
     },
@@ -51,7 +57,7 @@
         "split_ratio": 0.77,
         "batch_size": 8,
         "loss": {
-            "name": "CombinedLoss",
+            "name": "DiceLoss",
             "alpha": [
                 1.0,
                 4.0,
@@ -78,7 +84,7 @@
             ]
         },
         "dataset": {
-            "root": "./data/cool_train",
+            "root": "./data/cool_debug",
             "num_workers": 0,
             "labels": [
                 "BrainStem",
