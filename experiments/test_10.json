@@ -1,5 +1,5 @@
 {
-    "name": "Test 7 (v3)",
+    "name": "Test 10 (v3)",
     "resume": false,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
@@ -10,8 +10,8 @@
         "name": "OrganNet25D",
         "padding": "yes",
         "activations": {
-            "coarse_resse": "sigmoid",
-            "fine_resse": "sigmoid",
+            "coarse_resse": "relu",
+            "fine_resse": "relu",
             "2d": "relu",
             "one_d_1": "relu",
             "one_d_2": "relu",
@@ -30,13 +30,14 @@
                 7
             ],
             [
-                1,
-                5
-            ],
-            [
                 2,
                 7,
                 9
+            ],
+            [
+                1,
+                5,
+                13
             ]
         ]
     },
@@ -48,7 +49,7 @@
         "split_ratio": 0.77,
         "batch_size": 8,
         "loss": {
-            "name": "DiceLoss",
+            "name": "CombinedLoss",
             "alpha": [
                 1.0,
                 4.0,
@@ -59,18 +60,26 @@
                 1.0,
                 3.0,
                 3.0,
-                0.5
+                0.2
             ]
         },
         "optimizer": {
             "name": "Adam",
-            "learning_rate": 0.001
+            "learning_rate": 0.01
         },
         "lr_scheduler": {
             "name": "MultiStepLR",
-            "gamma": 0.1,
+            "gamma": 0.025,
             "milestones": [
+                10,
+                20,
+                30,
+                40,
                 50,
+                60,
+                70,
+                80,
+                90,
                 100
             ]
         },
@@ -96,15 +105,15 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 500,
+                    "height": 500,
+                    "depth": 100
                 },
                 {
                     "name": "CropAroundBrainStem",
-                    "width": 110,
-                    "height": 110,
-                    "depth": 24
+                    "width": 215,
+                    "height": 215,
+                    "depth": 50
                 }
             ],
             "sample_transforms": [
@@ -115,15 +124,15 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 500,
+                    "height": 500,
+                    "depth": 100
                 },
                 {
                     "name": "CropAroundBrainStem",
-                    "width": 110,
-                    "height": 110,
-                    "depth": 24
+                    "width": 215,
+                    "height": 215,
+                    "depth": 50
                 },
                 {
                     "name": "StandardScaleTensor"
@@ -132,9 +141,9 @@
             "output_transforms": [
                 {
                     "name": "GenerateSubCube",
-                    "width": 64,
-                    "height": 64,
-                    "depth": 24
+                    "width": 156,
+                    "height": 156,
+                    "depth": 32
                 }
             ]
         }

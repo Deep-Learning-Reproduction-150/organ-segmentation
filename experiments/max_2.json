@@ -3,7 +3,7 @@
     "resume": false,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
-    "wandb_prediction_examples": 8,
+    "wandb_prediction_examples": 12,
     "wandb_api_key": "fc5956d0fca9948179775b93d897216829180ad5",
     "log_3d_csv": true,
     "model": {
@@ -71,9 +71,10 @@
         },
         "lr_scheduler": {
             "name": "MultiStepLR",
-            "gamma": 0.1,
+            "gamma": 0.01,
             "milestones": [
                 50,
+                75,
                 100
             ]
         },
@@ -105,8 +106,8 @@
                 },
                 {
                     "name": "CropAroundBrainStem",
-                    "width": 215,
-                    "height": 215,
+                    "width": 200,
+                    "height": 200,
                     "depth": 50
                 }
             ],
@@ -124,8 +125,8 @@
                 },
                 {
                     "name": "CropAroundBrainStem",
-                    "width": 215,
-                    "height": 215,
+                    "width": 200,
+                    "height": 200,
                     "depth": 50
                 },
                 {
