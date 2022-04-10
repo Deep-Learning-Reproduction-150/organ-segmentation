@@ -127,7 +127,7 @@ class FocalLoss(nn.Module):
         self.eps = eps
         super().__init__()
 
-    def forward(self, inputs, targets, alpha, gamma=2.0):
+    def forward(self, inputs, targets, alpha=None, n_channels=10, gamma=2.0):
 
         # # Remember the number of batches
         # batches = inputs.size()[0]
@@ -146,7 +146,9 @@ class FocalLoss(nn.Module):
         targets = targets.view(-1)
         focal_loss = -alpha[: inputs.shape[0]] * (1 - inputs) ** gamma * targets * (inputs + self.eps).log()
 
-        return focal_loss.sum() / targets.shape[1]
+        return (
+            focal_loss.mean() * n_channels
+        )  # n_channels factor removes the averaging over channels -> average over samples but sum over channels
 
 
 class MSELoss(nn.Module):
