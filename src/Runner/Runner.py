@@ -459,10 +459,9 @@ class Runner:
                     dice_data = dice_loss_fn(model_output, labels, return_per_channel_dsc=True)
                     total_organ_dice.append(float(dice_data[0]))
                     for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
-                        current_organ_dice_coeff = float(dice_data[1][i])
                         if organ not in organ_dice_coefficients:
                             organ_dice_coefficients[organ] = []
-                        organ_dice_coefficients[organ].append(current_organ_dice_coeff)
+                        organ_dice_coefficients[organ].append(float(dice_data[1][i]))
                     if 'Background' not in organ_dice_coefficients:
                         organ_dice_coefficients['Background'] = []
                     organ_dice_coefficients['Background'].append(float(dice_data[1][len(self.job["training"]["dataset"]["labels"])]))
@@ -495,7 +494,7 @@ class Runner:
 
                 # Mean over the dice losses
                 for key, val in organ_dice_coefficients.items():
-                    organ_dice_coefficients[key] = sum(organ_dice_coefficients[key]) / len(organ_dice_coefficients[key])
+                    organ_dice_coefficients[key] = sum(val)/len(val)
 
                 # Compute an average dice coefficient
                 average_dice_coefficient = sum(total_organ_dice) / len(total_organ_dice)
