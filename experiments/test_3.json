@@ -67,14 +67,15 @@
         },
         "optimizer": {
             "name": "Adam",
-            "learning_rate": 0.001
+            "learning_rate": 0.01
         },
         "lr_scheduler": {
             "name": "MultiStepLR",
             "gamma": 0.1,
             "milestones": [
-                50,
-                75
+                25,
+                75,
+                100
             ]
         },
         "dataset": {
