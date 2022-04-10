@@ -1,5 +1,5 @@
 {
-    "name": "Test 4 (Fixed Dice, Small dataset)",
+    "name": "Test 4 (v3)",
     "resume": true,
     "preload": true,
     "wandb_project_name": "Parameter Sweep",
