@@ -422,6 +422,8 @@ class Runner:
 
             # Initiate dice loss per organ and total
             organ_dice_coefficients = {}
+            pixel_presence_true = {}
+            pixel_presence_prediction = {}
             total_organ_dice = []
             average_dice_coefficient = 0
             dice_loss_fn = DiceCoefficient()
@@ -459,6 +461,15 @@ class Runner:
                     dice_data = dice_loss_fn(model_output, labels, return_per_channel_dsc=True)
                     total_organ_dice.append(float(dice_data[0]))
                     for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
+
+                        # Handle pixel presence
+                        if organ not in pixel_presence_true:
+                            pixel_presence_true[organ] = []
+                        if organ not in pixel_presence_prediction:
+                            pixel_presence_prediction[organ] = []
+                        pixel_presence_true[organ].append(labels[:, i, :, :, :].sum())
+                        pixel_presence_prediction[organ].append(model_output[:, i, :, :, :].sum())
+
                         if organ not in organ_dice_coefficients:
                             organ_dice_coefficients[organ] = []
                         organ_dice_coefficients[organ].append(float(dice_data[1][i]))
@@ -495,6 +506,11 @@ class Runner:
                 # Mean over the dice losses
                 for key, val in organ_dice_coefficients.items():
                     organ_dice_coefficients[key] = sum(val)/len(val)
+
+                for key, val in pixel_presence_true.items():
+                    pixel_presence_true[key] = sum(val) / len(val)
+                for key, val in pixel_presence_prediction.items():
+                    pixel_presence_prediction[key] = sum(val) / len(val)
 
                 # Compute an average dice coefficient
                 average_dice_coefficient = sum(total_organ_dice) / len(total_organ_dice)
@@ -544,6 +560,8 @@ class Runner:
                         "Evaluation Loss": epoch_evaluation_loss,
                         "Learning Rate": current_lr,
                         "Epoch (Duration)": epoch_time,
+                        "Pixel Presence (True)": pixel_presence_true,
+                        "Pixel Presence (Prediction)": pixel_presence_prediction,
                         "Epoch": epoch + 1,
                         "DSC per channel": organ_dice_coefficients,
                         "Dice Score (average)": average_dice_coefficient,
