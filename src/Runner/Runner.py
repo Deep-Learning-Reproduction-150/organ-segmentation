@@ -475,7 +475,13 @@ class Runner:
                         organ_dice_coefficients[organ].append(float(dice_data[1][i]))
                     if 'Background' not in organ_dice_coefficients:
                         organ_dice_coefficients['Background'] = []
+                    if 'Background' not in pixel_presence_true:
+                        pixel_presence_true['Background'] = []
+                    if 'Background' not in pixel_presence_prediction:
+                        pixel_presence_prediction['Background'] = []
                     organ_dice_coefficients['Background'].append(float(dice_data[1][len(self.job["training"]["dataset"]["labels"])]))
+                    pixel_presence_true['Background'].append(model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :].sum())
+                    pixel_presence_prediction['Background'].append(model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :].sum())
 
                     # Get the current running los
                     current_eval_loss = eval_running_loss / (batch + 1)
@@ -508,9 +514,9 @@ class Runner:
                     organ_dice_coefficients[key] = sum(val)/len(val)
 
                 for key, val in pixel_presence_true.items():
-                    pixel_presence_true[key] = sum(val) / len(val)
-                for key, val in pixel_presence_prediction.items():
-                    pixel_presence_prediction[key] = sum(val) / len(val)
+                    average_true = sum(val) / len(val)
+                    average_prediction = sum(pixel_presence_prediction[key]) / len(pixel_presence_prediction[key])
+                    pixel_presence_true[key] = (average_prediction / average_true) * 100
 
                 # Compute an average dice coefficient
                 average_dice_coefficient = sum(total_organ_dice) / len(total_organ_dice)
@@ -560,8 +566,7 @@ class Runner:
                         "Evaluation Loss": epoch_evaluation_loss,
                         "Learning Rate": current_lr,
                         "Epoch (Duration)": epoch_time,
-                        "Pixel Presence (True)": pixel_presence_true,
-                        "Pixel Presence (Prediction)": pixel_presence_prediction,
+                        "Pixel Sum-Fit (%)": pixel_presence_true,
                         "Epoch": epoch + 1,
                         "DSC per channel": organ_dice_coefficients,
                         "Dice Score (average)": average_dice_coefficient,
