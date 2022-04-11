@@ -396,6 +396,8 @@ class Runner:
                 # Get output
                 model_output = self.model(inputs)
 
+                inputs = inputs.to('cpu')
+
                 # Calculate loss TODO: the labels are int8 to save storage
                 loss = loss_function(model_output, labels.to(torch.float32))
 
