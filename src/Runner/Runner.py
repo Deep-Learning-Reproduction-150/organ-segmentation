@@ -1011,7 +1011,7 @@ class Runner:
 
         # Check whether the data set exists
         base_path = Path(__file__).parent.parent.parent.resolve()
-        set_path = ""
+        set_path = self.job['training']['dataset']['root']
         for t in self.job['training']['dataset']['sample_transforms'] \
                  + self.job['training']['dataset']['label_transforms'] \
                  + self.job['training']['dataset']['output_transforms']:

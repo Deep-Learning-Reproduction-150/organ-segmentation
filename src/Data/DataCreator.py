@@ -226,7 +226,7 @@ class DataCreator:
         raise ValueError("nrrd files are not supported yet")
 
     def _get_dataset_hash(self):
-        set_path = ""
+        set_path = self.instructions['root']
         for t in self.instructions['sample_transforms'] + self.instructions['label_transforms'] + self.instructions['output_transforms']:
             set_path += str(t)
         set_path = hashlib.md5(set_path.encode()).hexdigest()
