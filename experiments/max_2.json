@@ -1,7 +1,7 @@
 {
     "name": "Max 2 (v3)",
     "resume": false,
-    "preload": true,
+    "preload": false,
     "wandb_project_name": "Parameter Sweep",
     "wandb_prediction_examples": 12,
     "wandb_api_key": "fc5956d0fca9948179775b93d897216829180ad5",
