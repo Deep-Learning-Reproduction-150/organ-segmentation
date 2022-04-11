@@ -74,7 +74,7 @@ class CombinedLoss(nn.Module):
 
     def get_alpha(self, inputs):
         if self.alpha_vals is None:
-            device = 'cpu' if inputs.get_device() == -1 else inputs.get_device()
+            device = "cpu" if inputs.get_device() == -1 else inputs.get_device()
             alpha_tensor = torch.tensor(self.alpha, device=device)
             placeholder = torch.ones_like(inputs, device=device)
             alpha = (placeholder.transpose(1, -1) * alpha_tensor).transpose(1, -1).view(-1)
@@ -141,11 +141,6 @@ class FocalLoss(nn.Module):
         # return focal_loss
         inputs = inputs.view(-1)
         targets = targets.view(-1)
-
-        zero_mask = inputs != 0
-        inputs = inputs[zero_mask]
-        targets = targets[zero_mask]
-        alpha = alpha[zero_mask]
 
         focal_loss = -alpha[: inputs.shape[0]] * (1 - inputs) ** gamma * targets * (inputs + self.eps).log()
 
