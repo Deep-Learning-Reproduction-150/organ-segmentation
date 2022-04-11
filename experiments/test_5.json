@@ -103,9 +103,9 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 128,
+                    "height": 128,
+                    "depth": 24
                 }
             ],
             "sample_transforms": [
@@ -122,9 +122,9 @@
                 },
                 {
                     "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
+                    "width": 128,
+                    "height": 128,
+                    "depth": 24
                 },
                 {
                     "name": "StandardScaleTensor"

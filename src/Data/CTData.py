@@ -307,7 +307,7 @@ class CTData:
 
         if os.path.split(self.path)[-1].split('.')[-1] == 'pt':
 
-            extracted_data = torch.load(self.path)
+            extracted_data = torch.load(self.path).to(dtype)
 
             return extracted_data
 
