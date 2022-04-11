@@ -560,30 +560,31 @@ class Runner:
             # Report the current loss to wandb if it's set
             if self.job["wandb_api_key"]:
 
-                # Log some prediction examples (with image overlays)
-                self._log_prediction_examples(inputs, labels, model_output)
-                self._log_prediction_examples_3d(inputs, labels, model_output)
+                with torch.no_grad():
+                    # Log some prediction examples (with image overlays)
+                    self._log_prediction_examples(inputs, labels, model_output)
+                    self._log_prediction_examples_3d(inputs, labels, model_output)
 
-                if self.job.get("log_3d_csv"):
-                    self._export_prediction_examples(inputs, labels, model_output)
+                    if self.job.get("log_3d_csv"):
+                        self._export_prediction_examples(inputs, labels, model_output)
 
-                # Include max and min of predictions per organ
-                self._log_prediction_max_min(model_output)
+                    # Include max and min of predictions per organ
+                    self._log_prediction_max_min(model_output)
 
-                # Log this current status
-                self.wandb_worker.log(
-                    {
-                        "Training Loss": epoch_train_loss,
-                        "Evaluation Loss": epoch_evaluation_loss,
-                        "Learning Rate": current_lr,
-                        "Epoch (Duration)": epoch_time,
-                        "Epoch": epoch + 1,
-                        "DSC per channel": organ_dice_coefficients,
-                        "Dice Score (average)": average_dice_coefficient,
-                        "Focal loss": focal_loss,
-                    },
-                    commit=False,
-                )
+                    # Log this current status
+                    self.wandb_worker.log(
+                        {
+                            "Training Loss": epoch_train_loss,
+                            "Evaluation Loss": epoch_evaluation_loss,
+                            "Learning Rate": current_lr,
+                            "Epoch (Duration)": epoch_time,
+                            "Epoch": epoch + 1,
+                            "DSC per channel": organ_dice_coefficients,
+                            "Dice Score (average)": average_dice_coefficient,
+                            "Focal loss": focal_loss,
+                        },
+                        commit=False,
+                    )
 
                 # Log all to wandb
                 self.wandb_worker.log({})
