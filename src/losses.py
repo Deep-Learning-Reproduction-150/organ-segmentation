@@ -88,6 +88,12 @@ class DiceCoefficient(nn.Module):
 
     def forward(self, inputs, targets, reduce_method="mean", return_per_channel_dsc=False):
         # Compute the dice coefficient
+        inputs = inputs.view(-1)
+        targets = targets.view(-1)
+
+        zero_mask = inputs != 0
+        inputs = inputs[zero_mask]
+        targets = targets[zero_mask]
 
         dsc_per_channel = torch.divide((2 * inputs * targets), (inputs + targets + self.eps)).sum(dim=(0, 3, 2, 4))
 
