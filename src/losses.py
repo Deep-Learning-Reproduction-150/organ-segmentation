@@ -141,7 +141,7 @@ class FocalLoss(nn.Module):
         inputs = inputs.view(-1)
         targets = targets.view(-1)
 
-        zero_mask = inputs == 0
+        zero_mask = inputs != 0
         inputs = inputs[zero_mask]
         targets = targets[zero_mask]
         alpha = alpha[zero_mask]
