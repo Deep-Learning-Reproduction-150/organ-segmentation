@@ -1,5 +1,5 @@
 {
-    "name": "Max 1 (v3)",
+    "name": "Max 1 (v4)",
     "resume": false,
     "preload": false,
     "wandb_project_name": "Parameter Sweep",
@@ -35,14 +35,15 @@
                 2,
                 5,
                 9,
-                13
+                13,
+                17
             ],
             [
-                1,
                 2,
                 5,
                 9,
-                13
+                13,
+                17
             ]
         ]
     },
