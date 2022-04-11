@@ -22,10 +22,13 @@ class DataCreator:
     sample_transformer = None
     label_transformer = None
 
-    def __init__(self, json_path):
+    def __init__(self, json_path, base_path=None):
 
-        base_path = Path(__file__).parent.parent.parent.resolve()
-        desc_path = os.path.join(base_path, json_path)
+        if base_path is None:
+            self.base_path = Path(__file__).parent.parent.parent.resolve()
+        else:
+            self.base_path = base_path
+        desc_path = os.path.join(self.base_path, json_path)
         with open(desc_path) as file:
             description = json.load(file)
             self.instructions = description['training']['dataset']
@@ -34,9 +37,6 @@ class DataCreator:
 
         self.sample_transformer = self.get_data_transformer('sample')
         self.label_transformer = self.get_data_transformer('label')
-
-        # Get the base path of this file
-        base_path = Path(__file__).parent.parent.parent.resolve()
 
         # Initiate a counter of the samples
         sample_counter = 1
@@ -57,7 +57,7 @@ class DataCreator:
             if element.is_dir():
 
                 # Compose the path to the sample
-                sample_path = os.path.join(base_path, element.path)
+                sample_path = os.path.join(self.base_path, element.path)
 
                 # Print reading and trans
                 Logger.log("Creating transformations for sample " + str(i) + " at " + element.path, in_cli=True)
@@ -219,12 +219,11 @@ class DataCreator:
         raise ValueError("nrrd files are not supported yet")
 
     def _get_dataset_hash(self):
-        base_path = Path(__file__).parent.parent.parent.resolve()
         set_path = ""
         for t in self.instructions['sample_transforms'] + self.instructions['label_transforms'] + self.instructions['output_transforms']:
             set_path += str(t)
         set_path = hashlib.md5(set_path.encode()).hexdigest()
-        output_data_path = os.path.join(base_path, 'data', 'transformed', set_path)
+        output_data_path = os.path.join(self.base_path, 'data', 'transformed', set_path)
         return output_data_path
 
     def get_data_transformer(self, destination: str = 'sample'):
