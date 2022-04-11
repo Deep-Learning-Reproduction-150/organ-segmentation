@@ -247,11 +247,8 @@ class GenerateSubCube(object):
         # Iterate through the dimensions of gravity center
         for i, c in enumerate(center):
 
-            # Transform the center in a real coordinate
-            random_cors = int(dims[i + 1] * c)
-
             # Compute the max and min crop bound
-            crop_max = int(random_cors + wanted_dims[i] / 2)
+            crop_max = int(c + wanted_dims[i] / 2)
             crop_min = crop_max - wanted_dims[i]
 
             if crop_max > dims[i + 1]:

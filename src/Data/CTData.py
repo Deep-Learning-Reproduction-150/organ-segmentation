@@ -283,7 +283,7 @@ class CTData:
                 output_path = 'visualizations/' + (self.name if name is None else name) + '-' + str(counter) + '.gif'
                 counter += 1
 
-            if counter > 1:
+            if counter > 1 and show_status_bar:
                 Logger.log("CTData visualization: path already exist")
 
             # Save GIF file
