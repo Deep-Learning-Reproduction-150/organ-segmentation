@@ -101,17 +101,19 @@ class ConvBNReLU(nn.Module):
     ):
 
         super().__init__()
-        self.layer = nn.Sequential(  # does this speed things up?
-            nn.Conv3d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=kernel_size,
-                padding=padding,
-                dilation=dilation,
-                stride=stride,
-            ),
-            torch.nn.BatchNorm3d(out_channels),
-            activation,
+        self.layer = nn.Sequential(
+            *[  # does this speed things up?
+                nn.Conv3d(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=kernel_size,
+                    padding=padding,
+                    dilation=dilation,
+                    stride=stride,
+                ),
+                torch.nn.BatchNorm3d(out_channels),
+                activation,
+            ]
         )
 
     def forward(self, x):
@@ -140,7 +142,7 @@ class ResHDC(nn.Module):
         return self.relu(out3)
 
 
-class ResHDCModule(nn.Sequential):
+class ResHDCModule(nn.Module):
     def __init__(self, in_channels=64, out_channels=128, dilation=(1, 2, 5), kernel_size=(3, 3, 3), padding="same"):
         """
         Creates a nn.Module layer with a ResNet style skip connection.
