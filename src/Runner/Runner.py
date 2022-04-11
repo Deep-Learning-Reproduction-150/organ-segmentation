@@ -381,11 +381,12 @@ class Runner:
             # Set model to device
             self.model.to(self._get_device())
 
+            batch = -1
             # Run through batches and perform model training
-            for batch, batch_input in enumerate(self.train_data):
+            # for batch, batch_input in enumerate(self.train_data):
 
-                # Extract inputs and labels from the batch input
-                inputs, labels = batch_input
+            for inputs, labels in self.train_data:
+                batch += 1
 
                 # Move the data to desired device
                 inputs, labels = inputs.to(self._get_device()), labels.to(self._get_device())
