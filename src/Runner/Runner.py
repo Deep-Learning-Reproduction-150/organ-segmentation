@@ -686,6 +686,9 @@ class Runner:
         :param labels:
         :param model_output:
         """
+        inputs = inputs.to("cpu")
+        labels = labels.to("cpu")
+        model_output = model_output.to("cpu")
 
         # Generate a random slice as example for reconstruction
         if model_output is not None:
