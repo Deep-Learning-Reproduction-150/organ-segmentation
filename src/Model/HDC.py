@@ -101,7 +101,7 @@ class ConvBNReLU(nn.Module):
     ):
 
         super().__init__()
-        self.layer = nn.Sequential(
+        self.convbnn = nn.Sequential(
             *[  # does this speed things up?
                 nn.Conv3d(
                     in_channels=in_channels,
@@ -117,7 +117,7 @@ class ConvBNReLU(nn.Module):
         )
 
     def forward(self, x):
-        return self.layer(x)
+        return self.convbnn.forward(x)
 
 
 class ResHDC(nn.Module):
