@@ -111,7 +111,7 @@ class Runner:
                     job_description = self._check_job_data(job_data)
 
                     # Append the json path for the data creator
-                    job_description['json_path'] = job_path
+                    job_description["json_path"] = job_path
 
                     # Append the job data to the job queue
                     self.job_queue.append(job_description)
@@ -396,10 +396,10 @@ class Runner:
                 # Get output
                 model_output = self.model(inputs)
 
-                inputs = inputs.to('cpu')
+                inputs = inputs.to("cpu")
 
                 # Calculate loss TODO: the labels are int8 to save storage
-                loss = loss_function(model_output, labels.to(torch.float32))
+                loss = loss_function(model_output, labels.to(torch.int8))
 
                 if self.job["training"]["detect_bad_gradients"]:
                     from torch import autograd
@@ -482,7 +482,9 @@ class Runner:
 
                             # Compute all loss losses / metrics
                             dice_data = dice_loss_fn(model_output, labels, return_per_channel_dsc=True)
-                            alphavec = CombinedLoss(alpha=self.job["training"]["loss"].get("alpha", [1.0] * 10)).get_alpha(model_output)
+                            alphavec = CombinedLoss(
+                                alpha=self.job["training"]["loss"].get("alpha", [1.0] * 10)
+                            ).get_alpha(model_output)
                             focal_loss = FocalLoss()(model_output, labels, alpha=alphavec)  # Log focal loss
 
                             total_organ_dice.append(float(dice_data[0]))
@@ -1013,16 +1015,18 @@ class Runner:
 
         # Check whether the data set exists
         base_path = Path(__file__).parent.parent.parent.resolve()
-        set_path = self.job['training']['dataset']['root']
-        for t in self.job['training']['dataset']['sample_transforms'] \
-                 + self.job['training']['dataset']['label_transforms'] \
-                 + self.job['training']['dataset']['output_transforms']:
+        set_path = self.job["training"]["dataset"]["root"]
+        for t in (
+            self.job["training"]["dataset"]["sample_transforms"]
+            + self.job["training"]["dataset"]["label_transforms"]
+            + self.job["training"]["dataset"]["output_transforms"]
+        ):
             set_path += str(t)
         set_path = hashlib.md5(set_path.encode()).hexdigest()
-        output_data_path = os.path.join(base_path, 'data', 'transformed', set_path)
+        output_data_path = os.path.join(base_path, "data", "transformed", set_path)
         if not os.path.isdir(output_data_path):
             Logger.log("Creating transformed data set at " + output_data_path, type="INFO", in_cli=True)
-            creator = DataCreator(self.job['json_path'])
+            creator = DataCreator(self.job["json_path"])
             creator.build_dataset()
 
         # Check if there is a passed data set that shall overwrite this
@@ -1062,7 +1066,7 @@ class Runner:
         return dataset
 
     def _get_device(self):
-        return 'cuda' if torch.cuda.is_available() else 'cpu'
+        return "cuda" if torch.cuda.is_available() else "cpu"
 
     def _get_dataloader(
         self,
