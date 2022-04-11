@@ -148,7 +148,7 @@ class DataCreator:
                     sample_counter += 1
 
         # Return success
-        return True
+        return new_dataset_path
 
     def _read_mha(self, path):
 
