@@ -430,10 +430,9 @@ class Runner:
 
             # Initiate dice loss per organ and total
             organ_dice_coefficients = {}
-            pixel_presence_true = {}
-            pixel_presence_prediction = {}
             total_organ_dice = []
             average_dice_coefficient = 0
+            focal_loss = 0
             dice_loss_fn = DiceCoefficient()
 
             # Perform validation
@@ -466,40 +465,23 @@ class Runner:
                     eval_running_loss += eval_loss.detach().cpu().numpy()
 
                     # Iterate through channels and compute dice coefficients for metric logging
-                    dice_data = dice_loss_fn(model_output, labels, return_per_channel_dsc=True)
-                    alphavec = CombinedLoss(alpha=self.job["training"]["loss"].get("alpha", [1.0] * 10)).get_alpha(
-                        model_output
-                    )
-                    focal_loss = FocalLoss()(model_output, labels, alpha=alphavec)  # Log focal loss
-                    total_organ_dice.append(float(dice_data[0]))
-                    for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
+                    if batch == len(self.eval_data) - 1:
 
-                        # Handle pixel presence
-                        if organ not in pixel_presence_true:
-                            pixel_presence_true[organ] = []
-                        if organ not in pixel_presence_prediction:
-                            pixel_presence_prediction[organ] = []
-                        pixel_presence_true[organ].append(labels[:, i, :, :, :].sum())
-                        pixel_presence_prediction[organ].append(model_output[:, i, :, :, :].sum())
+                        # Compute all loss losses / metrics
+                        dice_data = dice_loss_fn(model_output, labels, return_per_channel_dsc=True)
+                        alphavec = CombinedLoss(alpha=self.job["training"]["loss"].get("alpha", [1.0] * 10)).get_alpha(model_output)
+                        focal_loss = FocalLoss()(model_output, labels, alpha=alphavec)  # Log focal loss
 
-                        if organ not in organ_dice_coefficients:
-                            organ_dice_coefficients[organ] = []
-                        organ_dice_coefficients[organ].append(float(dice_data[1][i]))
-                    if "Background" not in organ_dice_coefficients:
-                        organ_dice_coefficients["Background"] = []
-                    if "Background" not in pixel_presence_true:
-                        pixel_presence_true["Background"] = []
-                    if "Background" not in pixel_presence_prediction:
-                        pixel_presence_prediction["Background"] = []
-                    organ_dice_coefficients["Background"].append(
-                        float(dice_data[1][len(self.job["training"]["dataset"]["labels"])])
-                    )
-                    pixel_presence_true["Background"].append(
-                        model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :].sum()
-                    )
-                    pixel_presence_prediction["Background"].append(
-                        model_output[:, len(self.job["training"]["dataset"]["labels"]), :, :, :].sum()
-                    )
+                        total_organ_dice.append(float(dice_data[0]))
+                        for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
+                            if organ not in organ_dice_coefficients:
+                                organ_dice_coefficients[organ] = []
+                            organ_dice_coefficients[organ].append(float(dice_data[1][i]))
+                        if "Background" not in organ_dice_coefficients:
+                            organ_dice_coefficients["Background"] = []
+                        organ_dice_coefficients["Background"].append(
+                            float(dice_data[1][len(self.job["training"]["dataset"]["labels"])])
+                        )
 
                     # Get the current running los
                     current_eval_loss = eval_running_loss / (batch + 1)
@@ -530,11 +512,6 @@ class Runner:
                 # Mean over the dice losses
                 for key, val in organ_dice_coefficients.items():
                     organ_dice_coefficients[key] = sum(val) / len(val)
-
-                for key, val in pixel_presence_true.items():
-                    average_true = sum(val) / len(val)
-                    average_prediction = sum(pixel_presence_prediction[key]) / len(pixel_presence_prediction[key])
-                    pixel_presence_true[key] = (average_prediction / average_true) * 100
 
                 # Compute an average dice coefficient
                 average_dice_coefficient = sum(total_organ_dice) / len(total_organ_dice)
@@ -584,7 +561,6 @@ class Runner:
                         "Evaluation Loss": epoch_evaluation_loss,
                         "Learning Rate": current_lr,
                         "Epoch (Duration)": epoch_time,
-                        "Pixel Sum-Fit (%)": pixel_presence_true,
                         "Epoch": epoch + 1,
                         "DSC per channel": organ_dice_coefficients,
                         "Dice Score (average)": average_dice_coefficient,
