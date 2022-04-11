@@ -74,8 +74,9 @@ class CombinedLoss(nn.Module):
 
     def get_alpha(self, inputs):
         if self.alpha_vals is None:
-            alpha_tensor = torch.tensor(self.alpha, device=inputs.get_device())
-            placeholder = torch.ones_like(inputs, device=inputs.get_device())
+            device = 'cpu' if inputs.get_device() == -1 else inputs.get_device()
+            alpha_tensor = torch.tensor(self.alpha, device=device)
+            placeholder = torch.ones_like(inputs, device=device)
             alpha = (placeholder.transpose(1, -1) * alpha_tensor).transpose(1, -1).view(-1)
             self.alpha_vals = alpha
         return self.alpha_vals
