@@ -1,5 +1,5 @@
 {
-    "name": "Test 1 (v4 scaled down))",
+    "name": "Test 1 (v4))",
     "resume": false,
     "preload": false,
     "wandb_project_name": "Parameter Sweep",
@@ -49,7 +49,7 @@
         "epochs": 200,
         "detect_bad_gradients": false,
         "grad_norm_clip": 1,
-        "split_ratio": 0.75,
+        "split_ratio": 0.77,
         "batch_size": 2,
         "loss": {
             "name": "CombinedLoss",
