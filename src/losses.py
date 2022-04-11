@@ -23,7 +23,7 @@ from matplotlib import pyplot as plt
 # ORDERED!!!
 
 
-DEFAULT_AC = torch.Tensor(
+DEFAULT_AC = torch.tensor(
     [0.5, 1.0, 4.0, 1.0, 4.0, 4.0, 1.0, 1.0, 3.0, 3.0]
 )  # TODO: focal loss weights per channels from the paper
 
@@ -74,7 +74,7 @@ class CombinedLoss(nn.Module):
 
     def get_alpha(self, inputs):
         if self.alpha_vals is None:
-            alpha_tensor = torch.Tensor(self.alpha, device=inputs.get_device())
+            alpha_tensor = torch.tensor(self.alpha, device=inputs.get_device())
             placeholder = torch.ones_like(inputs, device=inputs.get_device())
             alpha = (placeholder.transpose(1, -1) * alpha_tensor).transpose(1, -1).view(-1)
             self.alpha_vals = alpha
@@ -89,11 +89,7 @@ class DiceCoefficient(nn.Module):
     def forward(self, inputs, targets, reduce_method="mean", return_per_channel_dsc=False):
         # Compute the dice coefficient
 
-        dice_top = 2 * inputs * targets
-        dice_bottom = inputs + targets + self.eps
-        dice = dice_top / dice_bottom
-
-        dsc_per_channel = dice.sum(dim=(0, 3, 2, 4))
+        dsc_per_channel = (2 * inputs * targets) / (inputs + targets + self.eps).sum(dim=(0, 3, 2, 4))
 
         organ_sizes = (targets == 1).sum(dim=(0, 3, 2, 4))
         dsc_per_channel = torch.divide(dsc_per_channel, organ_sizes + self.eps)
