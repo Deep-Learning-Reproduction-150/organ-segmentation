@@ -148,3 +148,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+# The mha raw data files
+*.mha
+voxelinfo.json
+*.csv
