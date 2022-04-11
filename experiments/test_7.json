@@ -95,16 +95,16 @@
                     "dim_2": -1
                 },
                 {
+                    "name": "CropAroundBrainStem",
+                    "width": 270,
+                    "height": 270,
+                    "depth": 48
+                },
+                {
                     "name": "EasyResize",
                     "width": 256,
                     "height": 256,
                     "depth": 48
-                },
-                {
-                    "name": "CropAroundBrainStem",
-                    "width": 110,
-                    "height": 110,
-                    "depth": 24
                 }
             ],
             "sample_transforms": [
@@ -114,16 +114,16 @@
                     "dim_2": -1
                 },
                 {
+                    "name": "CropAroundBrainStem",
+                    "width": 270,
+                    "height": 270,
+                    "depth": 48
+                },
+                {
                     "name": "EasyResize",
                     "width": 256,
                     "height": 256,
                     "depth": 48
-                },
-                {
-                    "name": "CropAroundBrainStem",
-                    "width": 110,
-                    "height": 110,
-                    "depth": 24
                 },
                 {
                     "name": "StandardScaleTensor"
@@ -133,7 +133,7 @@
                 {
                     "name": "EqualSubCubing",
                     "split": 2,
-                    "padding": 0
+                    "padding": 6
                 }
             ]
         }
