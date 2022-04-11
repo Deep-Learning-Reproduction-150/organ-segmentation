@@ -28,10 +28,17 @@ class DataCreator:
             self.base_path = Path(__file__).parent.parent.parent.resolve()
         else:
             self.base_path = base_path
-        desc_path = os.path.join(self.base_path, json_path)
-        with open(desc_path) as file:
-            description = json.load(file)
-            self.instructions = description['training']['dataset']
+
+        if type(json_path) is str:
+
+            desc_path = os.path.join(self.base_path, json_path)
+            with open(desc_path) as file:
+                description = json.load(file)
+                self.instructions = description['training']['dataset']
+
+        else:
+
+            self.instructions = json_path
 
     def build_dataset(self):
 
