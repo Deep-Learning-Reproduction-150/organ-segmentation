@@ -66,7 +66,7 @@ class WorkingHDC(nn.Module):
         Creates a nn.Module layer.
         """
         super().__init__()
-        self.layers = []
+        self.layers = nn.ModuleList()
         for dilation in dilation:
             layer = nn.Conv3d(
                 in_channels=in_channels,
@@ -79,7 +79,7 @@ class WorkingHDC(nn.Module):
             self.layers.append(layer)
 
     def forward(self, x):
-        outputs = []
+        outputs = nn.ModuleList()
         for layer in self.layers:
             layer_output = layer(x)
             outputs.append(layer_output)
@@ -148,7 +148,7 @@ class ResHDCModule(nn.Module):
         Creates a nn.Module layer with a ResNet style skip connection.
         """
         super().__init__()
-        self.layers = []
+        self.layers = nn.ModuleList()
         prev_out = in_channels
         for dil in dilation:
             layer = ResHDC(
