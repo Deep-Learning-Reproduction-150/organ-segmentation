@@ -51,10 +51,10 @@ class CTDataset(Dataset):
         # Call super class constructor
         super().__init__()
 
-        # Save the transform
-        self.label_transforms = label_transforms
-        self.sample_transforms = sample_transforms
-        self.output_transforms = output_transforms
+        # Save the transform TODO: remove it here later
+        self.label_transforms = []
+        self.sample_transforms = []
+        self.output_transforms = []
 
         # Save the label structure
         self.label_structure = label_structure
@@ -155,16 +155,8 @@ class CTDataset(Dataset):
         :return: the labeled example at a specific index
         """
 
-        # TODO: dirty but just works for now
-        batch_factor = 1
-        if len(self.output_transforms) > 0 and self.samples[0].sample.data is not None:
-            data_sizes = self.samples[0].sample.data.size()
-            depth_parts = data_sizes[0] / self.output_transforms[0]['depth']
-            width_parts = data_sizes[1] / self.output_transforms[0]['width']
-            batch_factor = int(width_parts * width_parts * depth_parts)
-
         # Get the sample with a certain index
-        sample_instance = self.samples[int(index / batch_factor)]
+        sample_instance = self.samples[index]
 
         # Create sample data (squeeze the dummy channel in there as well)
         sample = sample_instance.get_tensor()
@@ -187,16 +179,8 @@ class CTDataset(Dataset):
         :return length: of the dataset
         """
 
-        # TODO: dirty but just works for now
-        batch_factor = 1
-        if len(self.output_transforms) > 0 and self.samples[0].sample.data is not None:
-            data_sizes = self.samples[0].sample.data.size()
-            depth_parts = data_sizes[0] / self.output_transforms[0]['depth']
-            width_parts = data_sizes[1] / self.output_transforms[0]['width']
-            batch_factor = int(width_parts * width_parts * depth_parts)
-
         # Return count of samples
-        return len(self.samples) * batch_factor
+        return len(self.samples)
 
     def create_all_visualizations(self, direction: str = "vertical"):
         """

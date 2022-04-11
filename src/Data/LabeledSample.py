@@ -83,7 +83,9 @@ class LabeledSample:
             raise ValueError(bcolors.FAIL + "ERROR: Given path does not lead to a folder" + bcolors.ENDC)
 
         # Check whether mha or nrrd files
-        if os.path.isfile(os.path.join(path, 'voxelinfo.json')):
+        if "sample" in os.path.split(path)[-1]:
+            self._read_transformed_tensors(path)
+        elif os.path.isfile(os.path.join(path, 'voxelinfo.json')):
             self._read_mha(path)
         else:
             self._read_nrrd(path)
@@ -241,6 +243,18 @@ class LabeledSample:
             return None
         else:
             return self.brain_stem_center
+
+    def _read_transformed_tensors(self, path):
+        # Check if everything is there
+        if not os.path.isdir(os.path.join(path, 'labels')):
+            raise ValueError("Transformed dataset has wrong structure. Delete and re-create!")
+        self.labels = []
+        for element in glob.glob(os.path.join(path, 'labels') + "/*.pt"):
+            # Create a label for storing
+            label = CTData(path=element)
+            self.labels.append(label)
+        sample_path = os.path.join(path, 'sample.pt')
+        self.sample = CTData(path=sample_path)
 
     def _read_nrrd(self, path):
         # Check if this file exists

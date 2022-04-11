@@ -305,7 +305,13 @@ class CTData:
         if self.data is not None:
             raise ValueError("ERROR while reading data from file: CTData object already has data assigned")
 
-        if os.path.split(self.path)[-1].split('.')[-1] == 'mha':
+        if os.path.split(self.path)[-1].split('.')[-1] == 'pt':
+
+            extracted_data = torch.load(self.path)
+
+            return extracted_data
+
+        elif os.path.split(self.path)[-1].split('.')[-1] == 'mha':
 
             extracted_data = from_numpy(load(self.path)[0]).to(dtype)
 

@@ -8,11 +8,13 @@ Group: 150
 
 import torch
 import importlib
+import hashlib
 import random
 import json
 import wandb
 import os
 import numpy as np
+from src.Data.DataCreator import DataCreator
 from src.utils import Logger, Timer, bcolors
 from src.losses import DiceCoefficient, FocalLoss, CombinedLoss
 from pathlib import Path
@@ -105,8 +107,14 @@ class Runner:
                     # Load the json data from the file
                     job_data = json.load(f)
 
+                    # Get the job description
+                    job_description = self._check_job_data(job_data)
+
+                    # Append the json path for the data creator
+                    job_description['json_path'] = job_path
+
                     # Append the job data to the job queue
-                    self.job_queue.append(self._check_job_data(job_data))
+                    self.job_queue.append(job_description)
 
                 except Exception:
                     raise ValueError(bcolors.FAIL + "ERROR: Job file can not be read (" + job + ")" + bcolors.ENDC)
@@ -1014,6 +1022,20 @@ class Runner:
         :return: CTDataset instance that contains samples
         """
 
+        # Check whether the data set exists
+        base_path = Path(__file__).parent.parent.parent.resolve()
+        set_path = ""
+        for t in self.job['training']['dataset']['sample_transforms'] \
+                 + self.job['training']['dataset']['label_transforms'] \
+                 + self.job['training']['dataset']['output_transforms']:
+            set_path += str(t)
+        set_path = hashlib.md5(set_path.encode()).hexdigest()
+        output_data_path = os.path.join(base_path, 'data', 'transformed', set_path)
+        if not os.path.isdir(output_data_path):
+            Logger.log("Creating transformed data set at " + output_data_path, type="INFO", in_cli=True)
+            creator = DataCreator(self.job['json_path'])
+            creator.build_dataset()
+
         # Check if there is a passed data set that shall overwrite this
         if self.dataset is not None:
 
@@ -1030,9 +1052,6 @@ class Runner:
         # Obtain the base path at looking at the parent of the parents parent
         base_path = Path(__file__).parent.parent.parent.resolve()
 
-        # Generate the path where the data set is located at
-        dataset_path = os.path.join(base_path, data["root"])
-
         # Save a global version of the label order
         if data["labels"] is None:
             # Abort as the label structure is missing
@@ -1042,11 +1061,11 @@ class Runner:
 
         # Create an instance of the dataloader and pass location of data
         dataset = CTDataset(
-            dataset_path,
+            output_data_path,
             preload=preload,
-            label_transforms=data["label_transforms"],
-            sample_transforms=data["sample_transforms"],
-            output_transforms=data["output_transforms"],
+            label_transforms=[],
+            sample_transforms=[],
+            output_transforms=[],
             label_structure=data["labels"],
             no_logging=False,
         )

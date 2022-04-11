@@ -131,10 +131,9 @@
             ],
             "output_transforms": [
                 {
-                    "name": "GenerateSubCube",
-                    "width": 64,
-                    "height": 64,
-                    "depth": 24
+                    "name": "EqualSubCubing",
+                    "split": 2,
+                    "padding": 0
                 }
             ]
         }
