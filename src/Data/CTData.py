@@ -10,6 +10,10 @@ import os
 import torch
 import nrrd
 import imageio
+from medpy.io import load
+from scipy import ndimage
+from src.Data.utils import DataTransformer
+from src.Data.transforms import CropAroundBrainStem
 import matplotlib.pyplot as plt
 from torch import from_numpy
 from src.utils import bcolors, Logger
@@ -36,6 +40,9 @@ class CTData:
     # Whether the data is loaded in this object
     loaded = None
 
+    # In case the labels are stored in one file containing 0-n channels
+    channel_index = None
+
     def __init__(self, **params):
         """
         Constructor of a CT Image
@@ -44,41 +51,41 @@ class CTData:
         :param preload: whether to load data directly when creating
         """
 
+        # Save data from params
+        self.data = params.get('data', None)
+
+        # Save a given name
+        self.name = params.get('name', None)
+
         # Get path and data from params
-        path = params.get('path', None)
-        data = params.get('data', None)
-        name = params.get('name', None)
+        self.path = params.get('path', None)
+
+        # Store the channel index
+        self.channel_index = params.get('channel_index', None)
 
         # Set loaded
         self.loaded = params.get('loaded', False)
 
         # Save the path of the datafile
-        if path is not None:
+        if self.path is not None:
 
             # Check if this file exists
-            if not os.path.exists(path):
+            if not os.path.exists(self.path):
                 # Raise an exception for this issue
-                raise ValueError(bcolors.FAIL + "ERROR: No data found at " + str(path) + bcolors.ENDC)
-
-            # Save path for later operations
-            self.path = path
+                raise ValueError(bcolors.FAIL + "ERROR: No data found at " + str(self.path) + bcolors.ENDC)
 
             # Initiate header and data
             self.data = None
             self.meta = None
 
             # Extract the name of the file from the path where it is located
-            if name is None:
+            if self.name is None:
                 path, file = os.path.split(self.path)
                 self.name = file.split('.')[0]
-            else:
-                self.name = name
 
-        if data is not None:
+        if self.data is not None:
 
             # Save data already
-            self.data = data
-            self.name = name
             self.loaded = True
 
     def drop(self):
@@ -298,8 +305,20 @@ class CTData:
         if self.data is not None:
             raise ValueError("ERROR while reading data from file: CTData object already has data assigned")
 
-        # Load the data and throw it into an ndarray
-        extracted_data, header = nrrd.read(self.path)
+        if os.path.split(self.path)[-1].split('.')[-1] == 'mha':
 
-        # Save the as attributes for this instance
-        return from_numpy(extracted_data).to(dtype)
+            extracted_data = from_numpy(load(self.path)[0]).to(dtype)
+
+            if self.channel_index is not None:
+                zero_mask = torch.zeros_like(extracted_data)
+                extracted_data = torch.where(extracted_data == self.channel_index, torch.tensor(1).to(dtype), zero_mask)
+
+            return extracted_data
+
+        else:
+
+            # Load the data and throw it into an ndarray
+            extracted_data, header = nrrd.read(self.path)
+
+            # Save the as attributes for this instance
+            return from_numpy(extracted_data).to(dtype)

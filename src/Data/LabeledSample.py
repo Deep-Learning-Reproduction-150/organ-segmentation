@@ -288,6 +288,64 @@ class LabeledSample:
                 mask_data_path = 'mask_resampled_' + os.path.split(path)[-1] + '.mha'
                 image_data_path = 'img_resampled_' + os.path.split(path)[-1] + '.mha'
                 mask_data = torch.from_numpy(load(os.path.join(path, mask_data_path))[0])
+
+                # Initiate labels
+                self.labels = []
+
+                # Compute the center of gravity TODO: this is ugly - preprocessing must be rebuilt
+                for i, organ in enumerate(oars):
+                    if organ == 'BrainStem':
+                        brain_stem_tensor = torch.where(mask_data == i, 1, 0)
+                        for t in self.label_transformer.transforms:
+                            if type(t) == CropAroundBrainStem:
+                                break
+                            brain_stem_tensor = t(brain_stem_tensor)
+                        center_of_gravity = ndimage.center_of_mass(np.array(brain_stem_tensor))
+                        self.brain_stem_center = center_of_gravity
+
+                        # Inject to transformers
+                        self.sample_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+                        self.label_transformer.inject_organ_center('BrainStem', self._get_brain_stem_center())
+
+                        break
+
+                # Create label mask CTData instances
+                for i, organ in enumerate(oars):
+
+                    # Skip background (to stick to existing logic)
+                    if i != 0:
+
+                        # Create a label for storing
+                        label = CTData(name=organ, path=os.path.join(self.path, mask_data_path), channel_index=i)
+                        # Store the label in the labels attribute
+                        self.labels.append(label)
+
+                # Create the sample CT file instance
+                self.sample = CTData(path=os.path.join(self.path, image_data_path), name="img")
+
+            else:
+
+                Logger.log("The voxelinfo.json file did not contain the expected information", type="ERROR",
+                           in_cli=True)
+
+    def _read_mha_directly(self, path):
+
+        # Open the config file and load voxel description
+        with open(os.path.join(path, 'voxelinfo.json'), 'r') as f:
+
+            # Load the voxel description
+            voxel_description = json.load(f)
+
+            # Load the organ configuration
+            if 'resampled' in voxel_description and 'labels_oars' in voxel_description['resampled']:
+
+                # Load the organs at risk in the masks
+                oars = voxel_description['resampled']['labels_oars']
+
+                # Load the data from the mha files
+                mask_data_path = 'mask_resampled_' + os.path.split(path)[-1] + '.mha'
+                image_data_path = 'img_resampled_' + os.path.split(path)[-1] + '.mha'
+                mask_data = torch.from_numpy(load(os.path.join(path, mask_data_path))[0])
                 img_data = torch.from_numpy(load(os.path.join(path, image_data_path))[0]).to(torch.float32)
 
                 # Initiate labels
