@@ -37,7 +37,7 @@ def conv_2x3d_coarse(
     The 2xConv with 3,3,3 kernel without the ResSE presented in the paper
     """
     return nn.Sequential(
-        nn.intrinsic.ConvBnReLU3d(  # does this speed things up?
+        *[
             nn.Conv3d(
                 in_channels=in_channels,
                 out_channels=out_channels,
@@ -47,8 +47,6 @@ def conv_2x3d_coarse(
             ),
             torch.nn.BatchNorm3d(out_channels),
             nn.ReLU(),
-        ),
-        nn.intrinsic.ConvBnReLU3d(  # does this speed things up?
             nn.Conv3d(
                 in_channels=out_channels,
                 out_channels=out_channels,
@@ -58,7 +56,7 @@ def conv_2x3d_coarse(
             ),
             torch.nn.BatchNorm3d(out_channels),
             nn.ReLU(),
-        ),
+        ]
     )
 
 
