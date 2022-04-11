@@ -814,12 +814,11 @@ class Runner:
             datetime_str = datetime.now()
 
             filename = self.job["name"] + datetime.strftime(datetime_str, "%m-%d-%H:%M:%S")
+            path = Path(".") / Path("data") / "examples" / f"{filename}.csv"
+            # Append this slice to the predictions
+            pd.concat(organ_data).to_csv(path)
         except:
             pass
-
-        path = Path(".") / Path("data") / "examples" / f"{filename}.csv"
-        # Append this slice to the predictions
-        pd.concat(organ_data).to_csv(path)
 
     def _log_prediction_examples(self, inputs, labels, model_output):
         """
