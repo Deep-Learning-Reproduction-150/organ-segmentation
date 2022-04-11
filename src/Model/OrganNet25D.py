@@ -35,7 +35,7 @@ class OrganNet25D(nn.Module):
 
     def __init__(
         self,
-        hdc_dilations=(1, 2, 3),
+        hdc_dilations=[(1, 2, 3), (1, 2, 3), (1, 2, 3)],
         hdc_out_channels=[128, 256, 128],
         out_channels=10,
         activations={
