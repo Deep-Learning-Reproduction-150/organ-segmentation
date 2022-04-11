@@ -378,11 +378,17 @@ class Runner:
             # Initialize variables
             running_loss = 0
 
+            # Set model to device
+            self.model.to(self._get_device())
+
             # Run through batches and perform model training
             for batch, batch_input in enumerate(self.train_data):
 
                 # Extract inputs and labels from the batch input
                 inputs, labels = batch_input
+
+                # Move the data to desired device
+                inputs, labels = inputs.to(self._get_device()), labels.to(self._get_device())
 
                 # Reset gradients
                 optimizer.zero_grad()
@@ -456,6 +462,9 @@ class Runner:
 
                         # Extract inputs and labels from the batch input
                         inputs, labels = batch_input
+
+                        # Move the data to desired device
+                        inputs, labels = inputs.to(self._get_device()), labels.to(self._get_device())
 
                         # Calculate output
                         model_output = self.model(inputs)
@@ -1049,6 +1058,9 @@ class Runner:
         )
 
         return dataset
+
+    def _get_device(self):
+        return 'cuda' if torch.cuda.is_available() else 'cpu'
 
     def _get_dataloader(
         self,
