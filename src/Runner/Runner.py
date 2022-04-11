@@ -438,59 +438,61 @@ class Runner:
             # Perform validation
             if self.eval_data is not None:
 
-                # Print epoch status bar
-                Logger.print_status_bar(done=0, title="evaluation loss: -")
-
-                # Set model to evaluation mode
-                self.model.eval()
-
-                # Initialize a running loss of 99999
-                eval_running_loss = 0
-
-                # Perform validation on healthy images
-                for batch, batch_input in enumerate(self.eval_data):
-
-                    # TODO: if using GPU, one could load the batch to the GPU now
-
-                    # Extract inputs and labels from the batch input
-                    inputs, labels = batch_input
-
-                    # Calculate output
-                    model_output = self.model(inputs)
-
-                    # Determine loss TODO: the labels are int8 to save storage
-                    eval_loss = loss_function(model_output, labels.to(torch.float32))
-
-                    # Add to running validation loss
-                    eval_running_loss += eval_loss.detach().cpu().numpy()
-
-                    # Iterate through channels and compute dice coefficients for metric logging
-                    if batch == len(self.eval_data) - 1:
-
-                        # Compute all loss losses / metrics
-                        dice_data = dice_loss_fn(model_output, labels, return_per_channel_dsc=True)
-                        alphavec = CombinedLoss(alpha=self.job["training"]["loss"].get("alpha", [1.0] * 10)).get_alpha(model_output)
-                        focal_loss = FocalLoss()(model_output, labels, alpha=alphavec)  # Log focal loss
-
-                        total_organ_dice.append(float(dice_data[0]))
-                        for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
-                            if organ not in organ_dice_coefficients:
-                                organ_dice_coefficients[organ] = []
-                            organ_dice_coefficients[organ].append(float(dice_data[1][i]))
-                        if "Background" not in organ_dice_coefficients:
-                            organ_dice_coefficients["Background"] = []
-                        organ_dice_coefficients["Background"].append(
-                            float(dice_data[1][len(self.job["training"]["dataset"]["labels"])])
-                        )
-
-                    # Get the current running los
-                    current_eval_loss = eval_running_loss / (batch + 1)
+                with torch.no_grad():
 
                     # Print epoch status bar
-                    Logger.print_status_bar(
-                        done=((batch + 1) / len(self.eval_data)) * 100,
-                        title="evaluation loss: " + "{:.5f}".format(current_eval_loss),
-                    )
+                    Logger.print_status_bar(done=0, title="evaluation loss: -")
+
+                    # Set model to evaluation mode
+                    self.model.eval()
+
+                    # Initialize a running loss of 99999
+                    eval_running_loss = 0
+
+                    # Perform validation on healthy images
+                    for batch, batch_input in enumerate(self.eval_data):
+
+                        # TODO: if using GPU, one could load the batch to the GPU now
+
+                        # Extract inputs and labels from the batch input
+                        inputs, labels = batch_input
+
+                        # Calculate output
+                        model_output = self.model(inputs)
+
+                        # Determine loss TODO: the labels are int8 to save storage
+                        eval_loss = loss_function(model_output, labels.to(torch.float32))
+
+                        # Add to running validation loss
+                        eval_running_loss += eval_loss.detach().cpu().numpy()
+
+                        # Iterate through channels and compute dice coefficients for metric logging
+                        if batch == len(self.eval_data) - 1:
+
+                            # Compute all loss losses / metrics
+                            dice_data = dice_loss_fn(model_output, labels, return_per_channel_dsc=True)
+                            alphavec = CombinedLoss(alpha=self.job["training"]["loss"].get("alpha", [1.0] * 10)).get_alpha(model_output)
+                            focal_loss = FocalLoss()(model_output, labels, alpha=alphavec)  # Log focal loss
+
+                            total_organ_dice.append(float(dice_data[0]))
+                            for i, organ in enumerate(self.job["training"]["dataset"]["labels"]):
+                                if organ not in organ_dice_coefficients:
+                                    organ_dice_coefficients[organ] = []
+                                organ_dice_coefficients[organ].append(float(dice_data[1][i]))
+                            if "Background" not in organ_dice_coefficients:
+                                organ_dice_coefficients["Background"] = []
+                            organ_dice_coefficients["Background"].append(
+                                float(dice_data[1][len(self.job["training"]["dataset"]["labels"])])
+                            )
+
+                        # Get the current running los
+                        current_eval_loss = eval_running_loss / (batch + 1)
+
+                        # Print epoch status bar
+                        Logger.print_status_bar(
+                            done=((batch + 1) / len(self.eval_data)) * 100,
+                            title="evaluation loss: " + "{:.5f}".format(current_eval_loss),
+                        )
 
                 # Do early stopping here
                 if current_eval_loss < best_eval_loss - 1e-2:  # Should improve at least this over n epochs
