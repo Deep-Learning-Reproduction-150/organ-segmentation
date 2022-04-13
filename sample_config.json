@@ -141,6 +141,67 @@
                     "depth": 48
                 }
             ]
+        },
+        "evaluation": {
+            "name": "ChenEvaluator",
+            "batch_size": 1,
+            "dataset": {
+                "root": "./download_data/test_offsite/data_3D",
+                "num_workers": 0,
+                "labels": [
+                    "BrainStem",
+                    "Chiasm",
+                    "Mandible",
+                    "OpticNerve_L",
+                    "OpticNerve_R",
+                    "Parotid_L",
+                    "Parotid_R",
+                    "Submandibular_L",
+                    "Submandibular_R"
+                ],
+                "label_transforms": [
+                    {
+                        "name": "Transpose",
+                        "dim_1": 0,
+                        "dim_2": -1
+                    },
+                    {
+                        "name": "CropAroundBrainStem",
+                        "width": 260,
+                        "height": 260,
+                        "depth": 48
+                    },
+                    {
+                        "name": "EasyResize",
+                        "width": 72,
+                        "height": 72,
+                        "depth": 36
+                    }
+                ],
+                "sample_transforms": [
+                    {
+                        "name": "Transpose",
+                        "dim_1": 0,
+                        "dim_2": -1
+                    },
+                    {
+                        "name": "CropAroundBrainStem",
+                        "width": 260,
+                        "height": 260,
+                        "depth": 48
+                    },
+                    {
+                        "name": "EasyResize",
+                        "width": 72,
+                        "height": 72,
+                        "depth": 36
+                    },
+                    {
+                        "name": "StandardScaleTensor"
+                    }
+                ],
+                "output_transforms": []
+            }
         }
     }
 }
