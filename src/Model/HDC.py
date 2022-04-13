@@ -44,6 +44,7 @@ def conv_2x3d_coarse(
                 kernel_size=kernel_size,
                 stride=stride,
                 padding=padding,
+                bias=False,  # Disable bias since there is a batch norm right after
             ),
             torch.nn.BatchNorm3d(out_channels),
             nn.ReLU(),
@@ -53,6 +54,7 @@ def conv_2x3d_coarse(
                 kernel_size=kernel_size,
                 stride=stride,
                 padding=padding,
+                bias=False,  # Disable bias since there is a batch norm right after
             ),
             torch.nn.BatchNorm3d(out_channels),
             nn.ReLU(),
@@ -110,6 +112,7 @@ class ConvBNReLU(nn.Module):
                     padding=padding,
                     dilation=dilation,
                     stride=stride,
+                    bias=False,  # Disable bias since there is a batch norm right after
                 ),
                 torch.nn.BatchNorm3d(out_channels),
                 activation,
