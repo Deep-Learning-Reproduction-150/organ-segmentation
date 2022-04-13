@@ -70,7 +70,7 @@ class OrganNet25D(nn.Module):
             'one_d_2'
             'one_d_3'
         """
-        print(f"Initialising organNet with {hdc_dilations}, padding: {padding}")
+        print(f"Initialising organNet with {hdc_dilations}, hdc_out_channels: {hdc_out_channels}")
 
         # Call torch superclass constructor
         super().__init__()
