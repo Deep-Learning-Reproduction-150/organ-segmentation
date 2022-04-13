@@ -84,6 +84,7 @@ class Runner:
         # Initialize eval and train data variables
         self.eval_data = None
         self.train_data = None
+        self.test_data = None
 
         # Create a timer instance for time measurements
         self.timer = Timer()
@@ -211,7 +212,7 @@ class Runner:
                     # Call train method
                     self._train()
 
-                # Check if job contains index "training"
+                # Check if job contains index "evaluation"
                 if "evaluation" in job and type(job["evaluation"]) is dict:
 
                     # Call evaluation method
@@ -239,7 +240,9 @@ class Runner:
                 if not os.path.isfile(Logger.path):
                     # Save this log file to wandb
                     self.wandb_worker.save(Logger.path)
-
+        # Check if wandb shall be used
+        if self.job["wandb_api_key"]:
+            self.wandb_worker.finish()
         # Print done running message
         print(bcolors.OKGREEN + "Runner finished!" + bcolors.ENDC)
 
@@ -295,6 +298,7 @@ class Runner:
 
         # Get dataset if not given
         dataset = self._get_dataset(self.job["training"]["dataset"], preload=self.job["preload"])
+        test_dataset = self._get_dataset(self.job["evaluation"]["dataset"], preload=False)
 
         # Start timer to measure data set
         creation_took = self.timer.get_time("creating dataset")
@@ -310,6 +314,13 @@ class Runner:
             num_workers=self.job["training"]["dataset"]["num_workers"],
             batch_size=self.job["training"]["batch_size"],
         )
+        if self.job.get("evaluation"):
+            self.test_data, _ = self._get_dataloader(
+                test_dataset,
+                split_ratio=None,
+                num_workers=self.job["training"]["dataset"]["num_workers"],
+                batch_size=self.job["evaluation"]["batch_size"],
+            )
 
         # Log dataset information
         Logger.log(
@@ -615,10 +626,6 @@ class Runner:
         # Write log message that the training has been completed
         Logger.log("Training of the model completed", type="SUCCESS", in_cli=True)
 
-        # Check if wandb shall be used
-        if self.job["wandb_api_key"]:
-            self.wandb_worker.finish()
-
     def _evaluate(self, evaluation_setup: dict):
         """
         This method will evaluate the network
@@ -633,7 +640,32 @@ class Runner:
         evaluator = self._get_evaluator(evaluation_setup)
 
         # Call evaluate on the evaluator
-        evaluator.evaluate(self.model, self.eval_data, self.path)
+
+        evaluation_results = evaluator.evaluate(self.model, self.test_data, self.path)
+
+        mean_dsc = evaluation_results["mean_dsc"]
+        dsc_per_ch = evaluation_results["dsc_per_ch"]
+
+        organ_dsc = {
+            f"Test DSC {organ}": dsc_per_ch[i] for i, organ in enumerate(self.job["training"]["dataset"]["labels"])
+        }
+
+        output = {**{"Test Average DSC": mean_dsc}, **organ_dsc}
+
+        if self.job["wandb_api_key"]:
+            self.wandb_worker.log(
+                output,
+                commit=False,
+            )
+            # Make 3d images
+            sample_inputs = evaluation_results["sample_inputs"]
+            sample_labels = evaluation_results["sample_labels"]
+            sample_outputs = evaluation_results["sample_outputs"]
+
+            print("Logging prediction examples")
+            self._log_prediction_examples(
+                sample_inputs, sample_labels, sample_outputs, wandb_title="Test set predictions"
+            )
 
         # Write log message that the training has been completed
         Logger.log("Evaluation of the model completed", type="SUCCESS", in_cli=True)
@@ -820,7 +852,7 @@ class Runner:
         except:
             pass
 
-    def _log_prediction_examples(self, inputs, labels, model_output):
+    def _log_prediction_examples(self, inputs, labels, model_output, wandb_title="predictions"):
         """
         Method logs prediction examples to wandb
 
@@ -927,7 +959,7 @@ class Runner:
             # Log all organ predictions
             self.wandb_worker.log(
                 {
-                    "predictions": mask_list,
+                    wandb_title: mask_list,
                 },
                 commit=False,
             )
@@ -1019,18 +1051,14 @@ class Runner:
 
         # Check whether the data set exists
         base_path = Path(__file__).parent.parent.parent.resolve()
-        set_path = self.job["training"]["dataset"]["root"]
-        for t in (
-            self.job["training"]["dataset"]["sample_transforms"]
-            + self.job["training"]["dataset"]["label_transforms"]
-            + self.job["training"]["dataset"]["output_transforms"]
-        ):
+        set_path = data["root"]
+        for t in data["sample_transforms"] + data["label_transforms"] + data["output_transforms"]:
             set_path += str(t)
         set_path = hashlib.md5(set_path.encode()).hexdigest()
         output_data_path = os.path.join(base_path, "data", "transformed", set_path)
         if not os.path.isdir(output_data_path):
             Logger.log("Creating transformed data set at " + output_data_path, type="INFO", in_cli=True)
-            creator = DataCreator(self.job["json_path"])
+            creator = DataCreator(data)
             creator.build_dataset()
 
         # Check if there is a passed data set that shall overwrite this
