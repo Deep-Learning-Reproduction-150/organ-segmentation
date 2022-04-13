@@ -200,7 +200,14 @@
                         "name": "StandardScaleTensor"
                     }
                 ],
-                "output_transforms": []
+                "output_transforms": [
+                    {
+                        "name": "GenerateSubCube",
+                        "width": 128,
+                        "height": 128,
+                        "depth": 48
+                    }
+                ]
             }
         }
     }
