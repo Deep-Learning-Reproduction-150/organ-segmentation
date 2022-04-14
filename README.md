@@ -220,6 +220,3 @@ Medical Physics, 44(5), 2020-2036.
 
 ####[3] 
 McGill University, Montreal, Canada - Special thanks to Martin Vallières of the Medical Physics Unit for providing it
-
-### [4]
-Prerak Mody, 
