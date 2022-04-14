@@ -132,11 +132,12 @@
                     "padding": 6
                 }
             ]
-        },
-        "evaluation": {
-            "name": "ChenEvaluator",
-            "batch_size": 1,
-            "dataset": {
+        }
+    },
+    "evaluation": {
+        "name": "ChenEvaluator",
+        "batch_size": 1,
+        "dataset": {
             "root": "./data/cool_test",
             "num_workers": 0,
             "labels": [
@@ -186,7 +187,6 @@
                     "padding": 6
                 }
             ]
-        }
         }
     }
 }
