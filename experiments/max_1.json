@@ -1,5 +1,5 @@
 {
-    "name": "Max 1 (v4)",
+    "name": "Max 1 (final)",
     "resume": false,
     "preload": false,
     "wandb_project_name": "Parameter Sweep",
@@ -120,7 +120,7 @@
                     "width": 272,
                     "height": 272,
                     "depth": 48
-                }
+                },
                 {
                     "name": "StandardScaleTensor"
                 }
@@ -132,6 +132,61 @@
                     "padding": 6
                 }
             ]
+        },
+        "evaluation": {
+            "name": "ChenEvaluator",
+            "batch_size": 1,
+            "dataset": {
+            "root": "./data/cool_test",
+            "num_workers": 0,
+            "labels": [
+                "BrainStem",
+                "Chiasm",
+                "Mandible",
+                "OpticNerve_L",
+                "OpticNerve_R",
+                "Parotid_L",
+                "Parotid_R",
+                "Submandibular_L",
+                "Submandibular_R"
+            ],
+            "label_transforms": [
+                {
+                    "name": "Transpose",
+                    "dim_1": 0,
+                    "dim_2": -1
+                },
+                {
+                    "name": "CropAroundBrainStem",
+                    "width": 272,
+                    "height": 272,
+                    "depth": 48
+                }
+            ],
+            "sample_transforms": [
+                {
+                    "name": "Transpose",
+                    "dim_1": 0,
+                    "dim_2": -1
+                },
+                {
+                    "name": "CropAroundBrainStem",
+                    "width": 272,
+                    "height": 272,
+                    "depth": 48
+                },
+                {
+                    "name": "StandardScaleTensor"
+                }
+            ],
+            "output_transforms": [
+                {
+                    "name": "EqualSubCubing",
+                    "split": 2,
+                    "padding": 6
+                }
+            ]
+        }
         }
     }
 }

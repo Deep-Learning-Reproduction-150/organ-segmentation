@@ -298,7 +298,7 @@ class Runner:
 
         # Get dataset if not given
         dataset = self._get_dataset(self.job["training"]["dataset"], preload=self.job["preload"])
-        # test_dataset = self._get_dataset(self.job["evaluation"]["dataset"], preload=False)
+        test_dataset = self._get_dataset(self.job["evaluation"]["dataset"], preload=False)
 
         # Start timer to measure data set
         creation_took = self.timer.get_time("creating dataset")
