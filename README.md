@@ -64,12 +64,12 @@ demonstrate that OrganNet2.5D achieves promising performance compared to state-o
 ## References and External Links
 
 There are two main data sets that are used to train the model. You can download them using the links below. After you 
-have downloaded them, place every sample in a directory called `./data`. The program expects a certain structure of the
-data can be seen below. `<label_folder>` could theoretically be specified, but by default follows the logic of the
-Head-Neck Cetuximab Collection (Dataset 1).
+have downloaded them, place every sample in a directory called `./data`. We used the transformed dataset created by the great 
+[Prerak Mody](https://github.com/prerakmody "GitHub of Prerak Mody"), where the voxel sizes have been adjusted in all 
+scans to have the same dimensions. 
 
-#### Dataset 1: [Head-Neck Cetuximab collection (46 Samples)](https://www.imagenglab.com/newsite/pddca/ "Dataset 1")
-#### Dataset 2: [Martin Valli`eres of the Medical Physics Unit, McGill University, Montreal, Canada (261 samples)](https://wiki.cancerimagingarchive.net/display/Public/Head-Neck-PET-CT "Dataset 2")
+#### Dataset (original): [Head-Neck Cetuximab collection (46 Samples)](https://www.imagenglab.com/newsite/pddca/ "Dataset")
+#### Dataset (transformed): [Transformed Dataset from Prerak Mody](https://github.com/prerakmody/hansegmentation-uncertainty-qa/releases "Dataset Resampled")
 
 ```
 /organ-segmentation
@@ -109,8 +109,8 @@ matching transform in `src/Data/transforms.py`, if there is nothing with the spe
 it will try to import it from torchvision. If you don't choose dataset labels, the dataset
 will specify an own order of labels (that will be the channels of the tensors). 
 
-```json
-{
+```javascript
+config = {
     "name": "<name>",
     // Whether the runner should recover a model from a checkpoint
     "resume": true, 
@@ -220,3 +220,6 @@ Medical Physics, 44(5), 2020-2036.
 
 ####[3] 
 McGill University, Montreal, Canada - Special thanks to Martin Vallières of the Medical Physics Unit for providing it
+
+### [4]
+Prerak Mody, 
