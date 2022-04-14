@@ -697,6 +697,9 @@ class Runner:
         # Append a wandb id if none exists yet
         job_data.setdefault("wandb_run_id", wandb.util.generate_id())
 
+        # Set default GPU device
+        job_data.setdefault("gpu", 0)
+
         return job_data
 
     def _get_evaluator(self, evaluation_setup: dict):
@@ -1098,7 +1101,10 @@ class Runner:
         return dataset
 
     def _get_device(self):
-        return "cuda" if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            return "cuda:" + str(self.job['gpu'])
+        else:
+            return "cpu"
 
     def _get_dataloader(
         self,
