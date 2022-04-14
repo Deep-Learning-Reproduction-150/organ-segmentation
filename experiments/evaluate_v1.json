@@ -70,6 +70,7 @@
             "name": "MultiStepLR",
             "gamma": 0.1,
             "milestones": [
+                25,
                 50,
                 100
             ]
