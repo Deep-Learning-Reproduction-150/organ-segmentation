@@ -6,6 +6,7 @@
     "wandb_prediction_examples": 12,
     "wandb_api_key": "95ed858952b08bd94a4727a73c4cd889dff22a19",
     "log_3d_csv": true,
+    "gpu": 0,
     "model": {
         "name": "OrganNet25D",
         "padding": "yes",
@@ -103,14 +104,8 @@
                 },
                 {
                     "name": "CropAroundBrainStem",
-                    "width": 270,
-                    "height": 270,
-                    "depth": 48
-                },
-                {
-                    "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
+                    "width": 272,
+                    "height": 272,
                     "depth": 48
                 }
             ],
@@ -122,16 +117,10 @@
                 },
                 {
                     "name": "CropAroundBrainStem",
-                    "width": 270,
-                    "height": 270,
+                    "width": 272,
+                    "height": 272,
                     "depth": 48
-                },
-                {
-                    "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
-                    "depth": 48
-                },
+                }
                 {
                     "name": "StandardScaleTensor"
                 }
