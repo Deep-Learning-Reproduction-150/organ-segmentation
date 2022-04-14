@@ -46,7 +46,7 @@
         "detect_bad_gradients": false,
         "grad_norm_clip": 1,
         "split_ratio": 0.77,
-        "batch_size": 8,
+        "batch_size": 1,
         "loss": {
             "name": "CombinedLoss",
             "alpha": [
@@ -133,6 +133,10 @@
         }
     },
     "evaluation": {
+        "milestones": [
+            50,
+            100
+        ],
         "name": "ChenEvaluator",
         "batch_size": 1,
         "dataset": {
