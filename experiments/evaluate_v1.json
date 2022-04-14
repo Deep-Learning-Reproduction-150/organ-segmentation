@@ -1,6 +1,6 @@
 {
     "name": "Evaluation 1",
-    "resume": true,
+    "resume": false,
     "preload": false,
     "wandb_project_name": "Parameter Sweep",
     "wandb_prediction_examples": 8,
