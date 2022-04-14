@@ -145,6 +145,10 @@
         "evaluation": {
             "name": "ChenEvaluator",
             "batch_size": 1,
+            "milestones": [
+                2,
+                3
+            ],
             "dataset": {
                 "root": "./download_data/test_offsite/data_3D",
                 "num_workers": 0,
