@@ -201,6 +201,9 @@ will specify an own order of labels (that will be the channels of the tensors).
     }
 }
 ```
+## Special Mention
+
+Special thanks for @prerakmody for providing the data (https://github.com/prerakmody/hansegmentation-uncertainty-qa/releases) and guidance!
 
 
 ## Acknowledgements

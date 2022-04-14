@@ -1,11 +1,12 @@
 {
-    "name": "Max 1 (v4)",
+    "name": "Max 1 (final)",
     "resume": false,
     "preload": false,
     "wandb_project_name": "Parameter Sweep",
     "wandb_prediction_examples": 12,
     "wandb_api_key": "95ed858952b08bd94a4727a73c4cd889dff22a19",
     "log_3d_csv": true,
+    "gpu": 0,
     "model": {
         "name": "OrganNet25D",
         "padding": "yes",
@@ -103,14 +104,8 @@
                 },
                 {
                     "name": "CropAroundBrainStem",
-                    "width": 270,
-                    "height": 270,
-                    "depth": 48
-                },
-                {
-                    "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
+                    "width": 272,
+                    "height": 272,
                     "depth": 48
                 }
             ],
@@ -122,14 +117,63 @@
                 },
                 {
                     "name": "CropAroundBrainStem",
-                    "width": 270,
-                    "height": 270,
+                    "width": 272,
+                    "height": 272,
                     "depth": 48
                 },
                 {
-                    "name": "EasyResize",
-                    "width": 256,
-                    "height": 256,
+                    "name": "StandardScaleTensor"
+                }
+            ],
+            "output_transforms": [
+                {
+                    "name": "EqualSubCubing",
+                    "split": 2,
+                    "padding": 6
+                }
+            ]
+        }
+    },
+    "evaluation": {
+        "name": "ChenEvaluator",
+        "batch_size": 1,
+        "dataset": {
+            "root": "./data/cool_test",
+            "num_workers": 0,
+            "labels": [
+                "BrainStem",
+                "Chiasm",
+                "Mandible",
+                "OpticNerve_L",
+                "OpticNerve_R",
+                "Parotid_L",
+                "Parotid_R",
+                "Submandibular_L",
+                "Submandibular_R"
+            ],
+            "label_transforms": [
+                {
+                    "name": "Transpose",
+                    "dim_1": 0,
+                    "dim_2": -1
+                },
+                {
+                    "name": "CropAroundBrainStem",
+                    "width": 272,
+                    "height": 272,
+                    "depth": 48
+                }
+            ],
+            "sample_transforms": [
+                {
+                    "name": "Transpose",
+                    "dim_1": 0,
+                    "dim_2": -1
+                },
+                {
+                    "name": "CropAroundBrainStem",
+                    "width": 272,
+                    "height": 272,
                     "depth": 48
                 },
                 {
