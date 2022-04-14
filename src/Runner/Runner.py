@@ -555,6 +555,17 @@ class Runner:
                 # If no validation is done, we take the train loss as val loss
                 epoch_evaluation_loss = epoch_train_loss
 
+
+            # Milestones specified
+            if self.job["evaluation"].get("milestones"):
+                # Epoch is in the milestones
+                if epoch in self.job["evaluation"].get("milestones"):
+
+                    # TODO Perform validation on test data
+                    with torch.no_grad():
+                        self._evaluate(self.job["evaluation"])
+                        
+
             # Also perform a step for the learning rate scheduler
             scheduler.step()
 
@@ -1102,7 +1113,7 @@ class Runner:
 
     def _get_device(self):
         if torch.cuda.is_available():
-            return "cuda:" + str(self.job['gpu'])
+            return "cuda:" + str(self.job["gpu"])
         else:
             return "cpu"
 
