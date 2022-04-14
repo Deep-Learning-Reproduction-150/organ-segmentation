@@ -162,19 +162,6 @@ class Runner:
                 # check whether the job description has changed (if that is the case, re-run the job)
                 self.specification_path = os.path.join(self.path, "specification.json")
 
-                # if os.path.exists(specification_path):
-                #     existing_specification = json.load(open(specification_path))
-                #     if str(existing_specification) != str(job):
-                #
-                #         # Remove the last checkpoint
-                #         checkpoint_path = os.path.join(self.path, 'checkpoint.tar')
-                #         if os.path.exists(checkpoint_path):
-                #             os.remove(checkpoint_path)
-                #
-                #         # Notify user regarding rerunning of job
-                #         Logger.log("The json job specification has changed, deleting checkpoint", type="WARNING",
-                #         in_cli=True)
-
                 # Write the specification file to the job
                 with open(self.specification_path, "w") as fp:
 
@@ -298,7 +285,7 @@ class Runner:
 
         # Get dataset if not given
         dataset = self._get_dataset(self.job["training"]["dataset"], preload=self.job["preload"])
-        test_dataset = self._get_dataset(self.job["evaluation"]["dataset"], preload=False)
+        test_dataset = self._get_dataset(self.job["evaluation"]["dataset"], preload=self.job["preload"])
 
         # Start timer to measure data set
         creation_took = self.timer.get_time("creating dataset")
@@ -410,7 +397,7 @@ class Runner:
 
                 inputs = inputs.to("cpu")
 
-                # Calculate loss TODO: the labels are int8 to save storage
+                # Calculate loss
                 loss = loss_function(model_output, labels.to(torch.int8))
 
                 if self.job["training"]["detect_bad_gradients"]:
@@ -555,7 +542,6 @@ class Runner:
                 # If no validation is done, we take the train loss as val loss
                 epoch_evaluation_loss = epoch_train_loss
 
-
             # Milestones specified
             if self.job["evaluation"].get("milestones"):
                 # Epoch is in the milestones
@@ -564,7 +550,6 @@ class Runner:
                     # TODO Perform validation on test data
                     with torch.no_grad():
                         self._evaluate(self.job["evaluation"])
-                        
 
             # Also perform a step for the learning rate scheduler
             scheduler.step()
@@ -1113,7 +1098,8 @@ class Runner:
 
     def _get_device(self):
         if torch.cuda.is_available():
-            return "cuda:" + str(self.job["gpu"])
+            # return "cuda:" + str(self.job["gpu"])
+            return "cuda"
         else:
             return "cpu"
 
